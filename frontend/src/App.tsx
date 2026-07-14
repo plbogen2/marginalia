@@ -389,6 +389,9 @@ function App() {
     try {
       const res = await fetch('/api/git/push', { method: 'POST' });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Push failed');
+      }
       alert(`Pushed: ${data.result}`);
       await fetchGitStatus();
     } catch (err) {
@@ -404,6 +407,9 @@ function App() {
     try {
       const res = await fetch('/api/git/pull', { method: 'POST' });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Pull failed');
+      }
       alert(`Pulled: ${data.result}`);
       await fetchFiles();
       await fetchGitStatus();
