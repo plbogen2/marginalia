@@ -1,7 +1,7 @@
 import React from 'react';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { linter, type Diagnostic, forceLinting } from '@codemirror/lint';
+import { linter, type Diagnostic, forEachDiagnostic, setDiagnostics } from '@codemirror/lint';
 import { checkGrammar } from '../utils/languagetool';
 
 interface EditorProps {
@@ -42,12 +42,16 @@ const grammarLinter = linter(async (view) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ word: misspelledWord, scope: 'global' })
-          }).then(() => {
-            view.focus();
-            setTimeout(() => {
-              forceLinting(view);
-            }, 50);
           });
+          const remaining: any[] = [];
+          forEachDiagnostic(view.state, (d: any) => {
+            const word = view.state.doc.sliceString(d.from, d.to);
+            if (word.toLowerCase() !== misspelledWord.toLowerCase()) {
+              remaining.push(d);
+            }
+          });
+          view.dispatch(setDiagnostics(view.state, remaining));
+          view.focus();
         }
       } as any);
       actions.push({
@@ -57,12 +61,16 @@ const grammarLinter = linter(async (view) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ word: misspelledWord, scope: 'workspace' })
-          }).then(() => {
-            view.focus();
-            setTimeout(() => {
-              forceLinting(view);
-            }, 50);
           });
+          const remaining: any[] = [];
+          forEachDiagnostic(view.state, (d: any) => {
+            const word = view.state.doc.sliceString(d.from, d.to);
+            if (word.toLowerCase() !== misspelledWord.toLowerCase()) {
+              remaining.push(d);
+            }
+          });
+          view.dispatch(setDiagnostics(view.state, remaining));
+          view.focus();
         }
       } as any);
     }
@@ -104,6 +112,7 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
       </div>
       <div className="editor-cm-wrapper">
         <CodeMirror
+          className="editor-cm-container"
           value={value}
           height="100%"
           extensions={[

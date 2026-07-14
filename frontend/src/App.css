@@ -939,3 +939,14 @@
   background-color: #0c5282 !important;
   transform: scale(0.97) translateY(1px);
 }
+
+.editor-cm-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-cm-container .cm-editor {
+  flex: 1;
+  height: 100%;
+}
