@@ -5,6 +5,8 @@ import { Preview } from './components/Preview';
 import { GitBar } from './components/GitBar';
 import { WorkspaceManager } from './components/WorkspaceManager';
 import './App.css';
+import { resolveRelativePath } from './utils/pathResolver';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 function App() {
   const [files, setFiles] = useState<string[]>([]);
@@ -35,7 +37,10 @@ function App() {
       window.removeEventListener('mouseup', stopResizing);
     };
   }, [resize, stopResizing]);
-  const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [activeFile, setActiveFile] = useState<string | null>(() => {
+    const path = window.location.pathname.slice(1);
+    return path ? decodeURIComponent(path) : null;
+  });
   const [editorValue, setEditorValue] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [gitStatus, setGitStatus] = useState('');
@@ -47,6 +52,42 @@ function App() {
   const [hasRemote, setHasRemote] = useState(false);
   const [gitAhead, setGitAhead] = useState(0);
   const [hasGemini, setHasGemini] = useState(false);
+
+  const selectFile = (filePath: string | null) => {
+    setActiveFile(filePath);
+    let newUrl = window.location.origin + '/';
+    if (filePath) {
+      newUrl += filePath.split('/').map(encodeURIComponent).join('/');
+    }
+
+    const currentPath = decodeURIComponent(window.location.pathname.slice(1));
+    if (currentPath !== filePath) {
+      window.history.pushState(null, '', newUrl);
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const filePath = window.location.pathname.slice(1);
+      setActiveFile(filePath ? decodeURIComponent(filePath) : null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  const handleNavigateLink = (href: string) => {
+    if (!activeFile) return;
+    const resolved = resolveRelativePath(activeFile, href);
+    if (files.includes(resolved)) {
+      selectFile(resolved);
+    } else {
+      console.warn(`File not found in workspace: ${resolved}`);
+      alert(`Linked file not found: ${resolved}`);
+    }
+  };
 
   const fetchFiles = async () => {
     try {
@@ -319,7 +360,7 @@ function App() {
             <Sidebar
               files={files}
               activeFile={activeFile}
-              onSelectFile={setActiveFile}
+              onSelectFile={selectFile}
               onCreateFile={handleCreateFile}
               onDeleteFile={handleDeleteFile}
               width={sidebarWidth}
@@ -329,6 +370,14 @@ function App() {
         )}
         <div className="workspace">
           <div className="workspace-toolbar">
+            <div className="nav-buttons">
+              <button onClick={() => window.history.back()} title="Go Back">
+                <ArrowLeft size={14} />
+              </button>
+              <button onClick={() => window.history.forward()} title="Go Forward">
+                <ArrowRight size={14} />
+              </button>
+            </div>
             <button onClick={() => setSidebarOpen(!sidebarOpen)}>
               {sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
             </button>
@@ -344,7 +393,7 @@ function App() {
               activeFile={activeFile}
             />
             {previewOpen && activeFile && (
-              <Preview markdown={editorValue} />
+              <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />
             )}
           </div>
         </div>
@@ -353,7 +402,7 @@ function App() {
         <WorkspaceManager
           onClose={() => setWorkspaceOpen(false)}
           onWorkspaceChanged={() => {
-            setActiveFile(null);
+            selectFile(null);
             setEditorValue('');
             setOriginalContent('');
             handleRefresh();

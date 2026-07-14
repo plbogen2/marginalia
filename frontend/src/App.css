@@ -950,3 +950,15 @@
   flex: 1;
   height: 100%;
 }
+
+.nav-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-buttons button {
+  padding: 4px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
