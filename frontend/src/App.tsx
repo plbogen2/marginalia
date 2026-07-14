@@ -31,20 +31,24 @@ function App() {
   const fetchGitStatus = async () => {
     try {
       const res = await fetch('/api/git/status');
+      if (!res.ok) throw new Error('Failed to fetch git status');
       const data = await res.json();
-      setGitStatus(data.status);
+      setGitStatus(data.status || '');
     } catch (err) {
       console.error('Failed to fetch git status:', err);
+      setGitStatus('');
     }
   };
 
   const fetchGitBranch = async () => {
     try {
       const res = await fetch('/api/git/branch');
+      if (!res.ok) throw new Error('Failed to fetch git branch');
       const data = await res.json();
-      setGitBranch(data.branch);
+      setGitBranch(data.branch || '');
     } catch (err) {
       console.error('Failed to fetch git branch:', err);
+      setGitBranch('unknown');
     }
   };
 

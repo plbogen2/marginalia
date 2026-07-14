@@ -29,7 +29,7 @@ export const GitBar: React.FC<GitBarProps> = ({
     setMessage('');
   };
 
-  const hasChanges = status.length > 0;
+  const hasChanges = (status || '').length > 0;
 
   return (
     <div className="git-bar">
