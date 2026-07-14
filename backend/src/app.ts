@@ -3,7 +3,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { getTargetDir, setTargetDir, getRecentWorkspaces, IGNORED_DIRS } from './config.js';
-import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote } from './git.js';
+import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote, getGitAheadCount, getCommitDiff } from './git.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const app = express();
 
@@ -101,7 +102,9 @@ app.get('/api/git/status', async (req, res) => {
   try {
     const status = await getGitStatus();
     const hasRemote = await hasGitRemote();
-    res.json({ status, hasRemote });
+    const ahead = await getGitAheadCount();
+    const hasGemini = !!process.env.GEMINI_API_KEY;
+    res.json({ status, hasRemote, ahead, hasGemini });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -211,6 +214,37 @@ app.get('/api/fs/list', async (req, res) => {
     directories.sort((a, b) => a.name.localeCompare(b.name));
     
     res.json({ path: targetPath, directories });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.post('/api/git/suggest-commit-message', async (req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(400).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+  }
+
+  try {
+    const diff = await getCommitDiff();
+    if (!diff || diff.trim().length === 0) {
+      return res.json({ suggestion: '' });
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+    const prompt = `Write a concise, one-line git commit message summarizing these changes. Keep it under 72 characters, start with an imperative verb (e.g. Add, Fix, Update), and do not include any markdown formatting, backticks, or explanation. Here is the git diff:\n\n${diff}`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    
+    const cleanSuggestion = text
+      .replace(/^[`"']|[`"']$/g, '')
+      .replace(/^Commit message:\s*/i, '')
+      .trim();
+
+    res.json({ suggestion: cleanSuggestion });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

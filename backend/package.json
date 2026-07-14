@@ -10,6 +10,7 @@
     "test": "NODE_ENV=test NODE_OPTIONS=\"--experimental-sqlite\" tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "express": "^4.19.2"
   },
   "devDependencies": {

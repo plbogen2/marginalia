@@ -45,6 +45,8 @@ function App() {
   const [previewOpen, setPreviewOpen] = useState(true);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [hasRemote, setHasRemote] = useState(false);
+  const [gitAhead, setGitAhead] = useState(0);
+  const [hasGemini, setHasGemini] = useState(false);
 
   const fetchFiles = async () => {
     try {
@@ -69,10 +71,14 @@ function App() {
       const data = await res.json();
       setGitStatus(data.status || '');
       setHasRemote(!!data.hasRemote);
+      setGitAhead(data.ahead || 0);
+      setHasGemini(!!data.hasGemini);
     } catch (err) {
       console.error('Failed to fetch git status:', err);
       setGitStatus('');
       setHasRemote(false);
+      setGitAhead(0);
+      setHasGemini(false);
     }
   };
 
@@ -141,6 +147,51 @@ function App() {
 
     return () => clearTimeout(timer);
   }, [editorValue, activeFile, originalContent]);
+
+  // Synchronized scroll logic between CodeMirror and HTML Preview
+  useEffect(() => {
+    if (!activeFile || !previewOpen) return;
+
+    const timer = setTimeout(() => {
+      const editorScrollEl = document.querySelector('.editor-cm-wrapper .cm-scroller');
+      const previewScrollEl = document.querySelector('.preview-content');
+
+      if (!editorScrollEl || !previewScrollEl) return;
+
+      let isSyncingEditorScroll = false;
+      let isSyncingPreviewScroll = false;
+
+      const handleEditorScroll = () => {
+        if (isSyncingPreviewScroll) {
+          isSyncingPreviewScroll = false;
+          return;
+        }
+        isSyncingEditorScroll = true;
+        const percentage = editorScrollEl.scrollTop / (editorScrollEl.scrollHeight - editorScrollEl.clientHeight);
+        previewScrollEl.scrollTop = percentage * (previewScrollEl.scrollHeight - previewScrollEl.clientHeight);
+      };
+
+      const handlePreviewScroll = () => {
+        if (isSyncingEditorScroll) {
+          isSyncingEditorScroll = false;
+          return;
+        }
+        isSyncingPreviewScroll = true;
+        const percentage = previewScrollEl.scrollTop / (previewScrollEl.scrollHeight - previewScrollEl.clientHeight);
+        editorScrollEl.scrollTop = percentage * (editorScrollEl.scrollHeight - editorScrollEl.clientHeight);
+      };
+
+      editorScrollEl.addEventListener('scroll', handleEditorScroll);
+      previewScrollEl.addEventListener('scroll', handlePreviewScroll);
+
+      return () => {
+        editorScrollEl.removeEventListener('scroll', handleEditorScroll);
+        previewScrollEl.removeEventListener('scroll', handlePreviewScroll);
+      };
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [activeFile, previewOpen]);
 
   const handleCreateFile = async (path: string) => {
     setLoading(true);
@@ -259,6 +310,8 @@ function App() {
         onSwitchWorkspace={() => setWorkspaceOpen(true)}
         hasRemote={hasRemote}
         loading={loading}
+        ahead={gitAhead}
+        hasGemini={hasGemini}
       />
       <div className="main-layout">
         {sidebarOpen && (

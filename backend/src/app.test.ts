@@ -118,11 +118,13 @@ test('Backend APIs', async (t) => {
     
     const res = await fetch(`http://localhost:${port}/api/git/status`);
     assert.strictEqual(res.status, 200);
-    const body = await res.json() as { status: string, hasRemote: boolean };
+    const body = await res.json() as { status: string, hasRemote: boolean, ahead: number, hasGemini: boolean };
     assert.match(body.status, /M\s+chapter1\.md/);
     assert.match(body.status, /\?\?\s+chapter2\.md/);
     assert.match(body.status, /\?\?\s+ignored\.txt/);
     assert.strictEqual(body.hasRemote, true);
+    assert.strictEqual(body.ahead, 0);
+    assert.strictEqual(typeof body.hasGemini, 'boolean');
   });
 
   await t.test('POST /api/git/commit', async () => {
@@ -136,9 +138,10 @@ test('Backend APIs', async (t) => {
     assert.match(body.result, /Update files/);
 
     const statusRes = await fetch(`http://localhost:${port}/api/git/status`);
-    const statusBody = await statusRes.json() as { status: string, hasRemote: boolean };
+    const statusBody = await statusRes.json() as { status: string, hasRemote: boolean, ahead: number };
     assert.strictEqual(statusBody.status, '');
     assert.strictEqual(statusBody.hasRemote, true);
+    assert.strictEqual(statusBody.ahead, 1);
   });
 
   await t.test('POST /api/git/push', async () => {
@@ -146,6 +149,10 @@ test('Backend APIs', async (t) => {
     assert.strictEqual(res.status, 200);
     const body = await res.json() as { result: string };
     assert.match(body.result, /marginalia_app_test_remote/);
+
+    const statusRes = await fetch(`http://localhost:${port}/api/git/status`);
+    const statusBody = await statusRes.json() as { ahead: number };
+    assert.strictEqual(statusBody.ahead, 0);
   });
 
   await t.test('POST /api/git/pull', async () => {
@@ -290,6 +297,21 @@ test('Backend APIs', async (t) => {
     } finally {
       process.env.TARGET_DIR = oldEnv;
       await fs.rm(noRemotePath, { recursive: true, force: true });
+    }
+  });
+  await t.test('POST /api/git/suggest-commit-message returns 400 if API key missing', async () => {
+    const oldKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+
+    try {
+      const res = await fetch(`http://localhost:${port}/api/git/suggest-commit-message`, {
+        method: 'POST'
+      });
+      assert.strictEqual(res.status, 400);
+      const body = await res.json() as { error: string };
+      assert.match(body.error, /GEMINI_API_KEY is not configured/);
+    } finally {
+      process.env.GEMINI_API_KEY = oldKey;
     }
   });
 

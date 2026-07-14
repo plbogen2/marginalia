@@ -311,7 +311,6 @@
 }
 
 .editor-cm-wrapper .cm-scroller {
-  padding: 16px 24px;
   line-height: 1.6;
   font-family: "Fira Code", Consolas, Monaco, monospace !important;
   font-size: 16px;
@@ -319,6 +318,7 @@
 
 .editor-cm-wrapper .cm-content {
   color: #d4d4d4;
+  padding: 24px;
 }
 
 .editor-cm-wrapper .cm-gutters {
@@ -871,4 +871,26 @@
 .folder-children {
   display: flex;
   flex-direction: column;
+}
+
+.stats {
+  display: flex;
+  gap: 12px;
+}
+
+.git-actions .suggest-message-btn {
+  background-color: transparent;
+  color: #858585;
+  border: 1px solid #3c3c3c;
+  padding: 4px;
+}
+
+.git-actions .suggest-message-btn:hover:not(:disabled) {
+  background-color: #3c3c3c;
+  color: #ffffff;
+}
+
+.git-actions .suggest-message-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

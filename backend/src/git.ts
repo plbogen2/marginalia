@@ -55,3 +55,18 @@ export async function hasGitRemote(): Promise<boolean> {
     return false;
   }
 }
+
+export async function getGitAheadCount(): Promise<number> {
+  try {
+    const targetDir = getTargetDir();
+    await execAsync('git rev-parse --abbrev-ref @{u}', { cwd: targetDir });
+    const { stdout } = await execAsync('git rev-list --count @{u}..HEAD', { cwd: targetDir });
+    return parseInt(stdout.trim(), 10) || 0;
+  } catch (err) {
+    return 0;
+  }
+}
+export async function getCommitDiff(): Promise<string> {
+  await runGit(['add', '.']);
+  return runGit(['diff', '--cached']);
+}
