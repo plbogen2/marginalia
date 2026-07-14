@@ -90,7 +90,7 @@ app.delete('/api/file', async (req, res) => {
     if (!safePath.startsWith(targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    await fs.rm(safePath);
+    await fs.rm(safePath, { recursive: true, force: true });
     res.json({ status: 'ok' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });

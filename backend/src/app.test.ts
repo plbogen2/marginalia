@@ -97,6 +97,21 @@ test('Backend APIs', async (t) => {
     assert.ok(!exists);
   });
 
+  await t.test('DELETE /api/file deletes directory recursively', async () => {
+    const tempDir = path.join(TEST_TARGET_DIR, 'subfolder');
+    const tempFile = path.join(tempDir, 'nested_delete.md');
+    await fs.mkdir(tempDir, { recursive: true });
+    await fs.writeFile(tempFile, 'Nested delete me');
+
+    const res = await fetch(`http://localhost:${port}/api/file?path=subfolder`, {
+      method: 'DELETE'
+    });
+    assert.strictEqual(res.status, 200);
+
+    const dirExists = await fs.access(tempDir).then(() => true).catch(() => false);
+    assert.ok(!dirExists);
+  });
+
   await t.test('GET /api/git/status', async () => {
     // Modify chapter1.md
     await fs.writeFile(path.join(TEST_TARGET_DIR, 'chapter1.md'), 'Modified content');

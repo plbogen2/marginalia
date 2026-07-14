@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
 import { Preview } from './components/Preview';
@@ -8,6 +8,33 @@ import './App.css';
 
 function App() {
   const [files, setFiles] = useState<string[]>([]);
+  const [sidebarWidth, setSidebarWidth] = useState(250);
+  const isResizing = useRef(false);
+
+  const startResizing = useCallback((mouseDownEvent: React.MouseEvent) => {
+    mouseDownEvent.preventDefault();
+    isResizing.current = true;
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    isResizing.current = false;
+  }, []);
+
+  const resize = useCallback((mouseMoveEvent: MouseEvent) => {
+    if (isResizing.current) {
+      const newWidth = Math.max(150, Math.min(600, mouseMoveEvent.clientX));
+      setSidebarWidth(newWidth);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', resize);
+    window.addEventListener('mouseup', stopResizing);
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [resize, stopResizing]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [editorValue, setEditorValue] = useState('');
   const [originalContent, setOriginalContent] = useState('');
@@ -235,13 +262,17 @@ function App() {
       />
       <div className="main-layout">
         {sidebarOpen && (
-          <Sidebar
-            files={files}
-            activeFile={activeFile}
-            onSelectFile={setActiveFile}
-            onCreateFile={handleCreateFile}
-            onDeleteFile={handleDeleteFile}
-          />
+          <>
+            <Sidebar
+              files={files}
+              activeFile={activeFile}
+              onSelectFile={setActiveFile}
+              onCreateFile={handleCreateFile}
+              onDeleteFile={handleDeleteFile}
+              width={sidebarWidth}
+            />
+            <div className="sidebar-resizer" onMouseDown={startResizing} />
+          </>
         )}
         <div className="workspace">
           <div className="workspace-toolbar">
