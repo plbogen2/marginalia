@@ -9,6 +9,7 @@ npm run dev &
 
 echo "Starting Frontend Dev Server (port 5173)..."
 cd ../frontend
+rm -rf node_modules/.vite
 npm run dev &
 
 # Wait for background processes to keep script running
