@@ -63,3 +63,29 @@ export function getActiveWorkspaceId(): number | null {
     return null;
   }
 }
+
+export function getActiveWorkspaceName(): string {
+  const activePath = getTargetDir();
+  try {
+    const row = db.prepare("SELECT name FROM workspaces WHERE path = ?;").get(activePath) as { name: string } | undefined;
+    if (row && row.name) {
+      return row.name;
+    }
+  } catch (err) {
+    console.error('Failed to get active workspace name:', err);
+  }
+  return path.basename(activePath);
+}
+
+export function selectWorkspaceByName(name: string): string | null {
+  try {
+    const row = db.prepare("SELECT path FROM workspaces WHERE name = ? COLLATE NOCASE;").get(name) as { path: string } | undefined;
+    if (row && row.path) {
+      setTargetDir(row.path);
+      return row.path;
+    }
+  } catch (err) {
+    console.error('Failed to select workspace by name:', err);
+  }
+  return null;
+}

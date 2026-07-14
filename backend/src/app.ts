@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, IGNORED_DIRS } from './config.js';
+import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, getActiveWorkspaceName, selectWorkspaceByName, IGNORED_DIRS } from './config.js';
 import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote, getGitAheadCount, getCommitDiff } from './git.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { addIgnoredWord, getIgnoredWords, getAllApplicableIgnoredWords } from './dictionary.js';
@@ -154,8 +154,9 @@ app.get('/api/git/branch', async (req, res) => {
 app.get('/api/workspaces', (req, res) => {
   try {
     const active = getTargetDir();
+    const activeName = getActiveWorkspaceName();
     const recents = getRecentWorkspaces();
-    res.json({ active, recents });
+    res.json({ active, activeName, recents });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -172,9 +173,26 @@ app.post('/api/workspaces/select', async (req, res) => {
     await fs.access(path.join(resolvedPath, '.git'));
     
     setTargetDir(resolvedPath);
-    res.json({ status: 'ok' });
+    res.json({ status: 'ok', path: resolvedPath, name: getActiveWorkspaceName() });
   } catch (err) {
     res.status(400).json({ error: `Invalid workspace path: ${(err as Error).message}` });
+  }
+});
+
+app.post('/api/workspaces/select-by-name', async (req, res) => {
+  const { name } = req.body as { name: string };
+  if (!name) {
+    return res.status(400).json({ error: 'Missing name' });
+  }
+  try {
+    const resolvedPath = selectWorkspaceByName(name);
+    if (resolvedPath) {
+      res.json({ status: 'ok', path: resolvedPath, name });
+    } else {
+      res.status(404).json({ error: `Workspace not found: ${name}` });
+    }
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 
@@ -189,7 +207,7 @@ app.post('/api/workspaces/clone', async (req, res) => {
     
     const result = await cloneRepo(url, resolvedPath);
     setTargetDir(resolvedPath);
-    res.json({ result: `Cloned successfully.\n${result}` });
+    res.json({ status: 'ok', result: `Cloned successfully.\n${result}`, path: resolvedPath, name: getActiveWorkspaceName() });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -261,8 +279,8 @@ app.post('/api/dictionary/add', async (req, res) => {
   }
 
   try {
-    const wsId = scope === 'workspace' ? getActiveWorkspaceId() : null;
-    addIgnoredWord(word, wsId);
+    const workspacePath = scope === 'workspace' ? getTargetDir() : null;
+    await addIgnoredWord(word, workspacePath);
     res.json({ status: 'ok' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -271,8 +289,7 @@ app.post('/api/dictionary/add', async (req, res) => {
 
 app.get('/api/dictionary', async (req, res) => {
   try {
-    const wsId = getActiveWorkspaceId();
-    const dictionary = getIgnoredWords(wsId);
+    const dictionary = await getIgnoredWords(getTargetDir());
     res.json(dictionary);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -306,8 +323,7 @@ app.post('/api/languagetool/check', async (req, res) => {
     const data = (await ltRes.json()) as { matches: any[] };
     const matches = data.matches || [];
 
-    const wsId = getActiveWorkspaceId();
-    const ignoredWords = getAllApplicableIgnoredWords(wsId);
+    const ignoredWords = await getAllApplicableIgnoredWords(getTargetDir());
 
     const filteredMatches = matches.filter((match) => {
       const isSpelling = match.rule?.issueType === 'misspelling';

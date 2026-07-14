@@ -190,8 +190,9 @@ test('Backend APIs', async (t) => {
 
       const res = await fetch(`http://localhost:${port}/api/workspaces`);
       assert.strictEqual(res.status, 200);
-      const body = await res.json() as { active: string, recents: any[] };
+      const body = await res.json() as { active: string, activeName: string, recents: any[] };
       assert.strictEqual(body.active, '/tmp/some_db_workspace');
+      assert.strictEqual(body.activeName, 'some_db_workspace');
       assert.ok(body.recents.some(w => w.path === '/tmp/some_db_workspace'));
     } finally {
       process.env.TARGET_DIR = oldEnv;
@@ -214,12 +215,61 @@ test('Backend APIs', async (t) => {
         body: JSON.stringify({ path: selectPath })
       });
       assert.strictEqual(res.status, 200);
+      const body = await res.json() as { status: string, path: string, name: string };
+      assert.strictEqual(body.status, 'ok');
+      assert.strictEqual(body.path, selectPath);
+      assert.strictEqual(body.name, 'marginalia_select_test');
 
       const { getTargetDir } = await import('./config.js');
       assert.strictEqual(getTargetDir(), selectPath);
     } finally {
       process.env.TARGET_DIR = oldEnv;
       await fs.rm(selectPath, { recursive: true, force: true });
+    }
+  });
+
+  await t.test('POST /api/workspaces/select-by-name switches active workspace', async () => {
+    const testPath = '/tmp/marginalia_select_name_test';
+    await fs.rm(testPath, { recursive: true, force: true });
+    await fs.mkdir(testPath, { recursive: true });
+    await execAsync('git init', { cwd: testPath });
+
+    const oldEnv = process.env.TARGET_DIR;
+    delete process.env.TARGET_DIR;
+
+    try {
+      await fetch(`http://localhost:${port}/api/workspaces/select`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: testPath })
+      });
+
+      const otherPath = '/tmp/marginalia_other_test';
+      await fs.mkdir(otherPath, { recursive: true });
+      await execAsync('git init', { cwd: otherPath });
+      await fetch(`http://localhost:${port}/api/workspaces/select`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: otherPath })
+      });
+
+      const res = await fetch(`http://localhost:${port}/api/workspaces/select-by-name`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'marginalia_select_name_test' })
+      });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json() as { status: string, path: string };
+      assert.strictEqual(body.status, 'ok');
+      assert.strictEqual(body.path, testPath);
+
+      const { getTargetDir } = await import('./config.js');
+      assert.strictEqual(getTargetDir(), testPath);
+
+      await fs.rm(otherPath, { recursive: true, force: true });
+    } finally {
+      process.env.TARGET_DIR = oldEnv;
+      await fs.rm(testPath, { recursive: true, force: true });
     }
   });
 
@@ -237,8 +287,11 @@ test('Backend APIs', async (t) => {
         body: JSON.stringify({ url: TEST_REMOTE_DIR, path: clonePath })
       });
       assert.strictEqual(res.status, 200);
-      const body = await res.json() as { result: string };
+      const body = await res.json() as { status: string, result: string, path: string, name: string };
+      assert.strictEqual(body.status, 'ok');
       assert.match(body.result, /Cloned successfully/);
+      assert.strictEqual(body.path, clonePath);
+      assert.strictEqual(body.name, 'marginalia_clone_test');
 
       const gitExists = await fs.access(path.join(clonePath, '.git')).then(() => true).catch(() => false);
       assert.ok(gitExists);
@@ -348,6 +401,45 @@ test('Backend APIs', async (t) => {
     const checkBody2 = await checkRes2.json() as { matches: any[] };
     const spellingMistakes2 = checkBody2.matches.filter(m => m.rule?.issueType === 'misspelling');
     assert.strictEqual(spellingMistakes2.length, 0);
+
+    // Workspace dictionary test
+    const workspaceWord = "testworkspaceignoredword";
+    const testTextWorkspace = `This is a ${workspaceWord}.`;
+
+    const checkWS1 = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: testTextWorkspace })
+    });
+    const checkWSBody1 = await checkWS1.json() as { matches: any[] };
+    assert.ok(checkWSBody1.matches.some(m => m.rule?.issueType === 'misspelling'));
+
+    const addWSRes = await fetch(`http://localhost:${port}/api/dictionary/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: workspaceWord, scope: 'workspace' })
+    });
+    assert.strictEqual(addWSRes.status, 200);
+
+    const dictFilePath = path.join(TEST_TARGET_DIR, '.marginalia', 'dictionary.json');
+    const dictFileContent = await fs.readFile(dictFilePath, 'utf-8');
+    const words = JSON.parse(dictFileContent) as string[];
+    assert.ok(words.includes(workspaceWord));
+
+    const dictRes2 = await fetch(`http://localhost:${port}/api/dictionary`);
+    const dictBody2 = await dictRes2.json() as { global: string[], workspace: string[] };
+    assert.ok(dictBody2.workspace.includes(workspaceWord));
+
+    const checkWS2 = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: testTextWorkspace })
+    });
+    const checkWSBody2 = await checkWS2.json() as { matches: any[] };
+    const spellingMistakesWS2 = checkWSBody2.matches.filter(m => m.rule?.issueType === 'misspelling');
+    assert.strictEqual(spellingMistakesWS2.length, 0);
+
+    await fs.rm(dictFilePath, { force: true });
   });
 
   await new Promise<void>((resolve) => server.close(() => resolve()));

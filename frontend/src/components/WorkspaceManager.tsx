@@ -10,7 +10,7 @@ interface Workspace {
 
 interface WorkspaceManagerProps {
   onClose: () => void;
-  onWorkspaceChanged: () => void;
+  onWorkspaceChanged: (name: string) => void;
 }
 
 export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
@@ -71,7 +71,8 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
         const data = await res.json();
         throw new Error(data.error || 'Failed to select workspace');
       }
-      onWorkspaceChanged();
+      const data = await res.json() as { name: string };
+      onWorkspaceChanged(data.name);
       onClose();
     } catch (err) {
       setError((err as Error).message);
@@ -101,7 +102,8 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
         const data = await res.json();
         throw new Error(data.error || 'Failed to clone repository');
       }
-      onWorkspaceChanged();
+      const data = await res.json() as { name: string };
+      onWorkspaceChanged(data.name);
       onClose();
     } catch (err) {
       setError((err as Error).message);

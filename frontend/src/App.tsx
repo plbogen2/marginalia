@@ -37,10 +37,8 @@ function App() {
       window.removeEventListener('mouseup', stopResizing);
     };
   }, [resize, stopResizing]);
-  const [activeFile, setActiveFile] = useState<string | null>(() => {
-    const path = window.location.pathname.slice(1);
-    return path ? decodeURIComponent(path) : null;
-  });
+  const [activeWorkspaceName, setActiveWorkspaceName] = useState<string | null>(null);
+  const [activeFile, setActiveFile] = useState<string | null>(null);
   const [editorValue, setEditorValue] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [gitStatus, setGitStatus] = useState('');
@@ -56,27 +54,19 @@ function App() {
   const selectFile = (filePath: string | null) => {
     setActiveFile(filePath);
     let newUrl = window.location.origin + '/';
+    if (activeWorkspaceName) {
+      newUrl += encodeURIComponent(activeWorkspaceName) + '/';
+    }
     if (filePath) {
       newUrl += filePath.split('/').map(encodeURIComponent).join('/');
     }
 
     const currentPath = decodeURIComponent(window.location.pathname.slice(1));
-    if (currentPath !== filePath) {
+    const targetPath = (activeWorkspaceName ? activeWorkspaceName + '/' : '') + (filePath || '');
+    if (currentPath !== targetPath) {
       window.history.pushState(null, '', newUrl);
     }
   };
-
-  useEffect(() => {
-    const handlePopState = () => {
-      const filePath = window.location.pathname.slice(1);
-      setActiveFile(filePath ? decodeURIComponent(filePath) : null);
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
 
   const handleNavigateLink = (href: string) => {
     if (!activeFile) return;
@@ -135,11 +125,109 @@ function App() {
     }
   };
 
+  const loadDefaultWorkspace = async () => {
+    const res = await fetch('/api/workspaces');
+    const data = await res.json();
+    if (data.activeName) {
+      setActiveWorkspaceName(data.activeName);
+      window.history.replaceState(null, '', `/${encodeURIComponent(data.activeName)}/`);
+      await fetchFiles();
+      await fetchGitStatus();
+      await fetchGitBranch();
+      setActiveFile(null);
+    }
+  };
+
+  const initWorkspaceAndLoad = async () => {
+    setLoading(true);
+    try {
+      const pathSegments = window.location.pathname.split('/').filter(Boolean);
+      let workspaceName = '';
+      let filePath: string | null = null;
+
+      if (pathSegments.length >= 1) {
+        workspaceName = decodeURIComponent(pathSegments[0]);
+        if (pathSegments.length >= 2) {
+          filePath = pathSegments.slice(1).map(decodeURIComponent).join('/');
+        }
+      }
+
+      if (workspaceName) {
+        const res = await fetch('/api/workspaces/select-by-name', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: workspaceName })
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setActiveWorkspaceName(data.name);
+          await fetchFiles();
+          await fetchGitStatus();
+          await fetchGitBranch();
+          if (filePath) {
+            setActiveFile(filePath);
+          }
+        } else {
+          console.warn(`Workspace not found: ${workspaceName}, falling back to default`);
+          await loadDefaultWorkspace();
+        }
+      } else {
+        await loadDefaultWorkspace();
+      }
+    } catch (err) {
+      console.error('Initialization failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetchFiles();
-    fetchGitStatus();
-    fetchGitBranch();
+    initWorkspaceAndLoad();
   }, []);
+
+  useEffect(() => {
+    const handlePopState = async () => {
+      const fullPath = decodeURIComponent(window.location.pathname.slice(1));
+      const parts = fullPath.split('/');
+      if (parts.length >= 1) {
+        const wsName = parts[0];
+        const filePath = parts.slice(1).join('/');
+        
+        if (wsName !== activeWorkspaceName) {
+          setLoading(true);
+          try {
+            const res = await fetch('/api/workspaces/select-by-name', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: wsName })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              setActiveWorkspaceName(data.name);
+              await fetchFiles();
+              await fetchGitStatus();
+              await fetchGitBranch();
+              setActiveFile(filePath || null);
+            }
+          } catch (err) {
+            console.error(err);
+          } finally {
+            setLoading(false);
+          }
+        } else {
+          setActiveFile(filePath || null);
+        }
+      } else {
+        setActiveFile(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [activeWorkspaceName]);
 
   useEffect(() => {
     if (!activeFile) {
@@ -401,10 +489,12 @@ function App() {
       {workspaceOpen && (
         <WorkspaceManager
           onClose={() => setWorkspaceOpen(false)}
-          onWorkspaceChanged={() => {
-            selectFile(null);
+          onWorkspaceChanged={(newName) => {
+            setActiveWorkspaceName(newName);
+            setActiveFile(null);
             setEditorValue('');
             setOriginalContent('');
+            window.history.pushState(null, '', `/${encodeURIComponent(newName)}/`);
             handleRefresh();
           }}
         />
