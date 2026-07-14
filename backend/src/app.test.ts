@@ -136,5 +136,12 @@ test('Backend APIs', async (t) => {
     assert.match(body.result, /remote_change\.txt/);
   });
 
+  await t.test('GET /api/git/branch', async () => {
+    const res = await fetch(`http://localhost:${port}/api/git/branch`);
+    assert.strictEqual(res.status, 200);
+    const body = await res.json() as { branch: string };
+    assert.match(body.branch, /^(main|master)$/);
+  });
+
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });

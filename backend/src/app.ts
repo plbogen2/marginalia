@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { TARGET_DIR, IGNORED_DIRS } from './config.js';
-import { getGitStatus, gitCommit, gitPush, gitPull } from './git.js';
+import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch } from './git.js';
 
 const app = express();
 
@@ -110,6 +110,15 @@ app.post('/api/git/pull', async (req, res) => {
   try {
     const result = await gitPull();
     res.json({ result });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/api/git/branch', async (req, res) => {
+  try {
+    const branch = await getGitBranch();
+    res.json({ branch });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
