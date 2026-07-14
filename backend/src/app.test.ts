@@ -315,5 +315,40 @@ test('Backend APIs', async (t) => {
     }
   });
 
+  await t.test('Dictionary and LanguageTool Proxy APIs', async () => {
+    const testText = "This is a misspelledwordok.";
+    const checkRes1 = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: testText })
+    });
+    assert.strictEqual(checkRes1.status, 200);
+    const checkBody1 = await checkRes1.json() as { matches: any[] };
+    const spellingMistakes1 = checkBody1.matches.filter(m => m.rule?.issueType === 'misspelling');
+    assert.ok(spellingMistakes1.length > 0);
+
+    const addRes = await fetch(`http://localhost:${port}/api/dictionary/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: 'misspelledwordok', scope: 'global' })
+    });
+    assert.strictEqual(addRes.status, 200);
+
+    const dictRes = await fetch(`http://localhost:${port}/api/dictionary`);
+    assert.strictEqual(dictRes.status, 200);
+    const dictBody = await dictRes.json() as { global: string[], workspace: string[] };
+    assert.ok(dictBody.global.includes('misspelledwordok'));
+
+    const checkRes2 = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: testText })
+    });
+    assert.strictEqual(checkRes2.status, 200);
+    const checkBody2 = await checkRes2.json() as { matches: any[] };
+    const spellingMistakes2 = checkBody2.matches.filter(m => m.rule?.issueType === 'misspelling');
+    assert.strictEqual(spellingMistakes2.length, 0);
+  });
+
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });

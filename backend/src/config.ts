@@ -52,3 +52,14 @@ export function getRecentWorkspaces(): { path: string, name: string, last_opened
     return [];
   }
 }
+
+export function getActiveWorkspaceId(): number | null {
+  const activePath = getTargetDir();
+  try {
+    const row = db.prepare("SELECT id FROM workspaces WHERE path = ?;").get(activePath) as { id: number } | undefined;
+    return row ? row.id : null;
+  } catch (err) {
+    console.error('Failed to get active workspace ID:', err);
+    return null;
+  }
+}

@@ -36,6 +36,22 @@ function initTables() {
       last_opened INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
     );
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ignored_words (
+      word TEXT NOT NULL,
+      workspace_id INTEGER,
+      FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    );
+  `);
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_words_global ON ignored_words(word) WHERE workspace_id IS NULL;
+  `);
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_words_local ON ignored_words(word, workspace_id) WHERE workspace_id IS NOT NULL;
+  `);
 }
 
 export { db };

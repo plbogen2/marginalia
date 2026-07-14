@@ -2,9 +2,10 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { getTargetDir, setTargetDir, getRecentWorkspaces, IGNORED_DIRS } from './config.js';
+import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, IGNORED_DIRS } from './config.js';
 import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote, getGitAheadCount, getCommitDiff } from './git.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { addIgnoredWord, getIgnoredWords, getAllApplicableIgnoredWords } from './dictionary.js';
 
 const app = express();
 
@@ -245,6 +246,78 @@ app.post('/api/git/suggest-commit-message', async (req, res) => {
       .trim();
 
     res.json({ suggestion: cleanSuggestion });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.post('/api/dictionary/add', async (req, res) => {
+  const { word, scope } = req.body as { word: string, scope: 'global' | 'workspace' };
+  if (!word) {
+    return res.status(400).json({ error: 'Missing word' });
+  }
+  if (scope !== 'global' && scope !== 'workspace') {
+    return res.status(400).json({ error: 'Invalid scope, must be global or workspace' });
+  }
+
+  try {
+    const wsId = scope === 'workspace' ? getActiveWorkspaceId() : null;
+    addIgnoredWord(word, wsId);
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/api/dictionary', async (req, res) => {
+  try {
+    const wsId = getActiveWorkspaceId();
+    const dictionary = getIgnoredWords(wsId);
+    res.json(dictionary);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.post('/api/languagetool/check', async (req, res) => {
+  const { text } = req.body as { text: string };
+  if (typeof text !== 'string') {
+    return res.status(400).json({ error: 'Missing text parameter' });
+  }
+
+  try {
+    const params = new URLSearchParams();
+    params.append('text', text);
+    params.append('language', 'en-US');
+
+    const ltRes = await fetch('https://api.languagetool.org/v2/check', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
+      body: params
+    });
+
+    if (!ltRes.ok) {
+      throw new Error(`LanguageTool API returned status ${ltRes.status}`);
+    }
+
+    const data = (await ltRes.json()) as { matches: any[] };
+    const matches = data.matches || [];
+
+    const wsId = getActiveWorkspaceId();
+    const ignoredWords = getAllApplicableIgnoredWords(wsId);
+
+    const filteredMatches = matches.filter((match) => {
+      const isSpelling = match.rule?.issueType === 'misspelling';
+      if (!isSpelling) return true;
+
+      const misspelledWord = text.substring(match.offset, match.offset + match.length).trim().toLowerCase();
+      return !ignoredWords.has(misspelledWord);
+    });
+
+    res.json({ matches: filteredMatches });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

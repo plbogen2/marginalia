@@ -1,7 +1,7 @@
 import React from 'react';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { linter, type Diagnostic } from '@codemirror/lint';
+import { linter, type Diagnostic, forceLinting } from '@codemirror/lint';
 import { checkGrammar } from '../utils/languagetool';
 
 interface EditorProps {
@@ -16,7 +16,9 @@ const grammarLinter = linter(async (view) => {
 
   const diagnostics: Diagnostic[] = matches.map((match) => {
     let severity: 'error' | 'warning' | 'info' = 'warning';
-    if (match.rule.issueType === 'misspelling') {
+    const isSpelling = match.rule.issueType === 'misspelling';
+
+    if (isSpelling) {
       severity = 'error';
     } else if (match.rule.issueType === 'style') {
       severity = 'info';
@@ -30,6 +32,34 @@ const grammarLinter = linter(async (view) => {
         });
       }
     }));
+
+    if (isSpelling) {
+      const misspelledWord = text.slice(match.offset, match.offset + match.length);
+      actions.push({
+        name: `Ignore globally`,
+        apply: (view: any) => {
+          fetch('/api/dictionary/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ word: misspelledWord, scope: 'global' })
+          }).then(() => {
+            forceLinting(view);
+          });
+        }
+      } as any);
+      actions.push({
+        name: `Ignore in workspace`,
+        apply: (view: any) => {
+          fetch('/api/dictionary/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ word: misspelledWord, scope: 'workspace' })
+          }).then(() => {
+            forceLinting(view);
+          });
+        }
+      } as any);
+    }
 
     return {
       from: match.offset,

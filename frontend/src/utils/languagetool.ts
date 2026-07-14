@@ -16,27 +16,22 @@ export const checkGrammar = async (text: string): Promise<LTMatch[]> => {
   }
 
   try {
-    const params = new URLSearchParams();
-    params.append('text', text);
-    params.append('language', 'en-US');
-
-    const res = await fetch('https://api.languagetool.org/v2/check', {
+    const res = await fetch('/api/languagetool/check', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
+        'Content-Type': 'application/json'
       },
-      body: params
+      body: JSON.stringify({ text })
     });
 
     if (!res.ok) {
-      throw new Error(`LanguageTool API returned status ${res.status}`);
+      throw new Error(`Spellcheck proxy returned status ${res.status}`);
     }
 
     const data = await res.json();
     return data.matches || [];
   } catch (err) {
-    console.error('LanguageTool check failed:', err);
+    console.error('Spellcheck failed:', err);
     return [];
   }
 };
