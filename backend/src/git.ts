@@ -1,13 +1,13 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { TARGET_DIR } from './config.js';
+import { getTargetDir } from './config.js';
 
 const execAsync = promisify(exec);
 
 async function runGit(args: string[]): Promise<string> {
   const cmd = `git ${args.join(' ')}`;
   try {
-    const { stdout, stderr } = await execAsync(cmd, { cwd: TARGET_DIR });
+    const { stdout, stderr } = await execAsync(cmd, { cwd: getTargetDir() });
     return (stdout + '\n' + stderr).trim();
   } catch (err) {
     throw new Error(`Git command failed: ${cmd}\nError: ${(err as Error).message}`);
@@ -35,4 +35,14 @@ export async function gitPull(): Promise<string> {
 }
 export async function getGitBranch(): Promise<string> {
   return runGit(['branch', '--show-current']);
+}
+
+export async function cloneRepo(url: string, targetPath: string): Promise<string> {
+  const cmd = `git clone "${url}" "${targetPath}"`;
+  try {
+    const { stdout, stderr } = await execAsync(cmd);
+    return (stdout + '\n' + stderr).trim();
+  } catch (err) {
+    throw new Error(`Git clone failed: ${cmd}\nError: ${(err as Error).message}`);
+  }
 }

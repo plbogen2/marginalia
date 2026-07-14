@@ -1,8 +1,8 @@
 import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
-import { TARGET_DIR, IGNORED_DIRS } from './config.js';
-import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch } from './git.js';
+import { getTargetDir, setTargetDir, getRecentWorkspaces, IGNORED_DIRS } from './config.js';
+import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo } from './git.js';
 
 const app = express();
 
@@ -33,7 +33,8 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/files', async (req, res) => {
   try {
-    const files = await getFiles(TARGET_DIR);
+    const targetDir = getTargetDir();
+    const files = await getFiles(targetDir);
     res.json(files);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -46,8 +47,9 @@ app.get('/api/file', async (req, res) => {
     return res.status(400).json({ error: 'Missing path parameter' });
   }
   try {
-    const safePath = path.resolve(TARGET_DIR, filePath);
-    if (!safePath.startsWith(TARGET_DIR)) {
+    const targetDir = getTargetDir();
+    const safePath = path.resolve(targetDir, filePath);
+    if (!safePath.startsWith(targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     const content = await fs.readFile(safePath, 'utf-8');
@@ -63,8 +65,9 @@ app.post('/api/file', async (req, res) => {
     return res.status(400).json({ error: 'Missing path or content' });
   }
   try {
-    const safePath = path.resolve(TARGET_DIR, filePath);
-    if (!safePath.startsWith(TARGET_DIR)) {
+    const targetDir = getTargetDir();
+    const safePath = path.resolve(targetDir, filePath);
+    if (!safePath.startsWith(targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     await fs.mkdir(path.dirname(safePath), { recursive: true });
@@ -119,6 +122,50 @@ app.get('/api/git/branch', async (req, res) => {
   try {
     const branch = await getGitBranch();
     res.json({ branch });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/api/workspaces', (req, res) => {
+  try {
+    const active = getTargetDir();
+    const recents = getRecentWorkspaces();
+    res.json({ active, recents });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.post('/api/workspaces/select', async (req, res) => {
+  const { path: targetPath } = req.body as { path: string };
+  if (!targetPath) {
+    return res.status(400).json({ error: 'Missing path' });
+  }
+  try {
+    const resolvedPath = path.resolve(targetPath);
+    await fs.access(resolvedPath);
+    await fs.access(path.join(resolvedPath, '.git'));
+    
+    setTargetDir(resolvedPath);
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.status(400).json({ error: `Invalid workspace path: ${(err as Error).message}` });
+  }
+});
+
+app.post('/api/workspaces/clone', async (req, res) => {
+  const { url, path: targetPath } = req.body as { url: string, path: string };
+  if (!url || !targetPath) {
+    return res.status(400).json({ error: 'Missing url or path' });
+  }
+  try {
+    const resolvedPath = path.resolve(targetPath);
+    await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
+    
+    const result = await cloneRepo(url, resolvedPath);
+    setTargetDir(resolvedPath);
+    res.json({ result: `Cloned successfully.\n${result}` });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

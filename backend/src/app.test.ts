@@ -143,5 +143,76 @@ test('Backend APIs', async (t) => {
     assert.match(body.branch, /^(main|master)$/);
   });
 
+  await t.test('GET /api/workspaces returns active and recents from DB', async () => {
+    const oldEnv = process.env.TARGET_DIR;
+    delete process.env.TARGET_DIR;
+
+    try {
+      const { setTargetDir } = await import('./config.js');
+      setTargetDir('/tmp/some_db_workspace');
+
+      const res = await fetch(`http://localhost:${port}/api/workspaces`);
+      assert.strictEqual(res.status, 200);
+      const body = await res.json() as { active: string, recents: any[] };
+      assert.strictEqual(body.active, '/tmp/some_db_workspace');
+      assert.ok(body.recents.some(w => w.path === '/tmp/some_db_workspace'));
+    } finally {
+      process.env.TARGET_DIR = oldEnv;
+    }
+  });
+
+  await t.test('POST /api/workspaces/select switches active workspace', async () => {
+    const selectPath = '/tmp/marginalia_select_test';
+    await fs.rm(selectPath, { recursive: true, force: true });
+    await fs.mkdir(selectPath, { recursive: true });
+    await execAsync('git init', { cwd: selectPath });
+
+    const oldEnv = process.env.TARGET_DIR;
+    delete process.env.TARGET_DIR;
+
+    try {
+      const res = await fetch(`http://localhost:${port}/api/workspaces/select`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: selectPath })
+      });
+      assert.strictEqual(res.status, 200);
+
+      const { getTargetDir } = await import('./config.js');
+      assert.strictEqual(getTargetDir(), selectPath);
+    } finally {
+      process.env.TARGET_DIR = oldEnv;
+      await fs.rm(selectPath, { recursive: true, force: true });
+    }
+  });
+
+  await t.test('POST /api/workspaces/clone clones repo and makes active', async () => {
+    const clonePath = '/tmp/marginalia_clone_test';
+    await fs.rm(clonePath, { recursive: true, force: true });
+
+    const oldEnv = process.env.TARGET_DIR;
+    delete process.env.TARGET_DIR;
+
+    try {
+      const res = await fetch(`http://localhost:${port}/api/workspaces/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: TEST_REMOTE_DIR, path: clonePath })
+      });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json() as { result: string };
+      assert.match(body.result, /Cloned successfully/);
+
+      const gitExists = await fs.access(path.join(clonePath, '.git')).then(() => true).catch(() => false);
+      assert.ok(gitExists);
+
+      const { getTargetDir } = await import('./config.js');
+      assert.strictEqual(getTargetDir(), clonePath);
+    } finally {
+      process.env.TARGET_DIR = oldEnv;
+      await fs.rm(clonePath, { recursive: true, force: true });
+    }
+  });
+
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });

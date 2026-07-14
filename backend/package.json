@@ -4,10 +4,10 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "NODE_OPTIONS=\"--experimental-sqlite\" tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
-    "test": "tsx --test src/**/*.test.ts"
+    "start": "NODE_OPTIONS=\"--experimental-sqlite\" node dist/server.js",
+    "test": "NODE_OPTIONS=\"--experimental-sqlite\" tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "express": "^4.19.2"
