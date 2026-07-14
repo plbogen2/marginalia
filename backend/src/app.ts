@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { getTargetDir, setTargetDir, getRecentWorkspaces, IGNORED_DIRS } from './config.js';
-import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo } from './git.js';
+import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote } from './git.js';
 
 const app = express();
 
@@ -78,10 +78,29 @@ app.post('/api/file', async (req, res) => {
   }
 });
 
+app.delete('/api/file', async (req, res) => {
+  const filePath = req.query.path as string;
+  if (!filePath) {
+    return res.status(400).json({ error: 'Missing path parameter' });
+  }
+  try {
+    const targetDir = getTargetDir();
+    const safePath = path.resolve(targetDir, filePath);
+    if (!safePath.startsWith(targetDir)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    await fs.rm(safePath);
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 app.get('/api/git/status', async (req, res) => {
   try {
     const status = await getGitStatus();
-    res.json({ status });
+    const hasRemote = await hasGitRemote();
+    res.json({ status, hasRemote });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

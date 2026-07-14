@@ -194,6 +194,7 @@
   cursor: pointer;
   font-size: 14px;
   color: #cccccc;
+  justify-content: space-between;
 }
 
 .file-item:hover {
@@ -205,6 +206,33 @@
   background-color: #37373d;
   color: #ffffff;
   border-left: 2px solid #0e639c;
+}
+
+.file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.delete-file-btn {
+  background: none;
+  border: none;
+  color: #858585;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+}
+
+.file-item:hover .delete-file-btn {
+  opacity: 1;
+}
+
+.delete-file-btn:hover {
+  background-color: #3c3c3c;
+  color: #f17070;
 }
 
 /* Workspace */

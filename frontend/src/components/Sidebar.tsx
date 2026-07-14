@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
-import { FileText, Plus } from 'lucide-react';
+import { FileText, Plus, Trash2 } from 'lucide-react';
 
 interface SidebarProps {
   files: string[];
   activeFile: string | null;
   onSelectFile: (path: string) => void;
   onCreateFile: (path: string) => void;
+  onDeleteFile: (path: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   files,
   activeFile,
   onSelectFile,
-  onCreateFile
+  onCreateFile,
+  onDeleteFile
 }) => {
   const [newFileName, setNewFileName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -63,7 +65,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => onSelectFile(file)}
             >
               <FileText size={16} />
-              <span>{file}</span>
+              <span className="file-name">{file}</span>
+              <button
+                className="delete-file-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm(`Are you sure you want to delete ${file}?`)) {
+                    onDeleteFile(file);
+                  }
+                }}
+                title="Delete File"
+              >
+                <Trash2 size={14} />
+              </button>
             </li>
           );
         })}

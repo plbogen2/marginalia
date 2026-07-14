@@ -84,16 +84,30 @@ test('Backend APIs', async (t) => {
     assert.strictEqual(content, 'New chapter');
   });
 
+  await t.test('DELETE /api/file deletes file', async () => {
+    const tempFile = path.join(TEST_TARGET_DIR, 'to_delete.md');
+    await fs.writeFile(tempFile, 'Delete me');
+
+    const res = await fetch(`http://localhost:${port}/api/file?path=to_delete.md`, {
+      method: 'DELETE'
+    });
+    assert.strictEqual(res.status, 200);
+
+    const exists = await fs.access(tempFile).then(() => true).catch(() => false);
+    assert.ok(!exists);
+  });
+
   await t.test('GET /api/git/status', async () => {
     // Modify chapter1.md
     await fs.writeFile(path.join(TEST_TARGET_DIR, 'chapter1.md'), 'Modified content');
     
     const res = await fetch(`http://localhost:${port}/api/git/status`);
     assert.strictEqual(res.status, 200);
-    const body = await res.json() as { status: string };
+    const body = await res.json() as { status: string, hasRemote: boolean };
     assert.match(body.status, /M\s+chapter1\.md/);
-    assert.match(body.status, /\?\?\s+chapter2\.md/); // Created in previous test
-    assert.match(body.status, /\?\?\s+ignored\.txt/);  // Created in before hook
+    assert.match(body.status, /\?\?\s+chapter2\.md/);
+    assert.match(body.status, /\?\?\s+ignored\.txt/);
+    assert.strictEqual(body.hasRemote, true);
   });
 
   await t.test('POST /api/git/commit', async () => {
@@ -107,8 +121,9 @@ test('Backend APIs', async (t) => {
     assert.match(body.result, /Update files/);
 
     const statusRes = await fetch(`http://localhost:${port}/api/git/status`);
-    const statusBody = await statusRes.json() as { status: string };
+    const statusBody = await statusRes.json() as { status: string, hasRemote: boolean };
     assert.strictEqual(statusBody.status, '');
+    assert.strictEqual(statusBody.hasRemote, true);
   });
 
   await t.test('POST /api/git/push', async () => {
@@ -211,6 +226,29 @@ test('Backend APIs', async (t) => {
     } finally {
       process.env.TARGET_DIR = oldEnv;
       await fs.rm(clonePath, { recursive: true, force: true });
+    }
+  });
+
+  await t.test('GET /api/git/status returns hasRemote: false if no remote', async () => {
+    const noRemotePath = '/tmp/marginalia_no_remote_test';
+    await fs.rm(noRemotePath, { recursive: true, force: true });
+    await fs.mkdir(noRemotePath, { recursive: true });
+    await execAsync('git init', { cwd: noRemotePath });
+
+    const oldEnv = process.env.TARGET_DIR;
+    delete process.env.TARGET_DIR;
+
+    try {
+      const { setTargetDir } = await import('./config.js');
+      setTargetDir(noRemotePath);
+
+      const res = await fetch(`http://localhost:${port}/api/git/status`);
+      assert.strictEqual(res.status, 200);
+      const body = await res.json() as { status: string, hasRemote: boolean };
+      assert.strictEqual(body.hasRemote, false);
+    } finally {
+      process.env.TARGET_DIR = oldEnv;
+      await fs.rm(noRemotePath, { recursive: true, force: true });
     }
   });
 

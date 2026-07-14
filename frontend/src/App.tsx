@@ -17,6 +17,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(true);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [hasRemote, setHasRemote] = useState(false);
 
   const fetchFiles = async () => {
     try {
@@ -40,9 +41,11 @@ function App() {
       if (!res.ok) throw new Error('Failed to fetch git status');
       const data = await res.json();
       setGitStatus(data.status || '');
+      setHasRemote(!!data.hasRemote);
     } catch (err) {
       console.error('Failed to fetch git status:', err);
       setGitStatus('');
+      setHasRemote(false);
     }
   };
 
@@ -130,6 +133,31 @@ function App() {
     }
   };
 
+  const handleDeleteFile = async (path: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete file');
+      }
+      await fetchFiles();
+      if (activeFile === path) {
+        setActiveFile(null);
+        setEditorValue('');
+        setOriginalContent('');
+      }
+      await fetchGitStatus();
+    } catch (err) {
+      console.error('Failed to delete file:', err);
+      alert(`Delete failed: ${(err as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCommit = async (message: string) => {
     setLoading(true);
     try {
@@ -201,6 +229,8 @@ function App() {
         onPush={handlePush}
         onPull={handlePull}
         onRefresh={handleRefresh}
+        onSwitchWorkspace={() => setWorkspaceOpen(true)}
+        hasRemote={hasRemote}
         loading={loading}
       />
       <div className="main-layout">
@@ -210,6 +240,7 @@ function App() {
             activeFile={activeFile}
             onSelectFile={setActiveFile}
             onCreateFile={handleCreateFile}
+            onDeleteFile={handleDeleteFile}
           />
         )}
         <div className="workspace">
@@ -219,9 +250,6 @@ function App() {
             </button>
             <button onClick={() => setPreviewOpen(!previewOpen)}>
               {previewOpen ? 'Hide Preview' : 'Show Preview'}
-            </button>
-            <button onClick={() => setWorkspaceOpen(true)}>
-              Switch Workspace
             </button>
             {loading && <span className="loading-indicator">Loading...</span>}
           </div>

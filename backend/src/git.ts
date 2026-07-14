@@ -46,3 +46,12 @@ export async function cloneRepo(url: string, targetPath: string): Promise<string
     throw new Error(`Git clone failed: ${cmd}\nError: ${(err as Error).message}`);
   }
 }
+
+export async function hasGitRemote(): Promise<boolean> {
+  try {
+    const remotes = await runGit(['remote']);
+    return remotes.trim().length > 0;
+  } catch (err) {
+    return false;
+  }
+}
