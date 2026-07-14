@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
 import { Preview } from './components/Preview';
 import { GitBar } from './components/GitBar';
+import { WorkspaceManager } from './components/WorkspaceManager';
 import './App.css';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(true);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
 
   const fetchFiles = async () => {
     try {
@@ -208,6 +210,9 @@ function App() {
             <button onClick={() => setPreviewOpen(!previewOpen)}>
               {previewOpen ? 'Hide Preview' : 'Show Preview'}
             </button>
+            <button onClick={() => setWorkspaceOpen(true)}>
+              Switch Workspace
+            </button>
             {loading && <span className="loading-indicator">Loading...</span>}
           </div>
           <div className="panels-container">
@@ -222,6 +227,17 @@ function App() {
           </div>
         </div>
       </div>
+      {workspaceOpen && (
+        <WorkspaceManager
+          onClose={() => setWorkspaceOpen(false)}
+          onWorkspaceChanged={() => {
+            setActiveFile(null);
+            setEditorValue('');
+            setOriginalContent('');
+            handleRefresh();
+          }}
+        />
+      )}
     </div>
   );
 }
