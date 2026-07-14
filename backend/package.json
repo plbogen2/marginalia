@@ -7,7 +7,7 @@
     "dev": "NODE_OPTIONS=\"--experimental-sqlite\" tsx watch src/server.ts",
     "build": "tsc",
     "start": "NODE_OPTIONS=\"--experimental-sqlite\" node dist/server.js",
-    "test": "NODE_OPTIONS=\"--experimental-sqlite\" tsx --test src/**/*.test.ts"
+    "test": "NODE_ENV=test NODE_OPTIONS=\"--experimental-sqlite\" tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "express": "^4.19.2"

@@ -3,7 +3,8 @@ import path from 'path';
 import fs from 'fs';
 
 const DB_DIR = '/usr/local/google/home/plbogen/.gemini/jetski';
-const DB_PATH = path.join(DB_DIR, 'marginalia.db');
+const DB_NAME = process.env.NODE_ENV === 'test' ? 'marginalia_test.db' : 'marginalia.db';
+const DB_PATH = path.join(DB_DIR, DB_NAME);
 
 if (!fs.existsSync(DB_DIR)) {
   fs.mkdirSync(DB_DIR, { recursive: true });

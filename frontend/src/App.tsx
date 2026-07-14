@@ -21,10 +21,16 @@ function App() {
   const fetchFiles = async () => {
     try {
       const res = await fetch('/api/files');
+      if (!res.ok) throw new Error('Failed to fetch files');
       const data = await res.json();
-      setFiles(data);
+      if (Array.isArray(data)) {
+        setFiles(data);
+      } else {
+        throw new Error('Received invalid files data');
+      }
     } catch (err) {
       console.error('Failed to fetch files:', err);
+      setFiles([]);
     }
   };
 
