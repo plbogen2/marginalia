@@ -311,6 +311,8 @@
 }
 
 .editor-cm-wrapper .cm-scroller {
+  height: 100% !important;
+  overflow: auto !important;
   line-height: 1.6;
   font-family: "Fira Code", Consolas, Monaco, monospace !important;
   font-size: 16px;
@@ -903,6 +905,17 @@
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   padding: 8px !important;
+  position: relative;
+}
+
+.cm-tooltip-lint::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background-color: transparent;
 }
 
 .cm-lint-action {
@@ -915,8 +928,14 @@
   margin: 4px !important;
   font-size: 12px !important;
   font-family: inherit !important;
+  transition: background-color 0.1s, transform 0.1s;
 }
 
 .cm-lint-action:hover {
   background-color: #1177bb !important;
+}
+
+.cm-lint-action:active {
+  background-color: #0c5282 !important;
+  transform: scale(0.97) translateY(1px);
 }

@@ -43,7 +43,10 @@ const grammarLinter = linter(async (view) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ word: misspelledWord, scope: 'global' })
           }).then(() => {
-            forceLinting(view);
+            view.focus();
+            setTimeout(() => {
+              forceLinting(view);
+            }, 50);
           });
         }
       } as any);
@@ -55,7 +58,10 @@ const grammarLinter = linter(async (view) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ word: misspelledWord, scope: 'workspace' })
           }).then(() => {
-            forceLinting(view);
+            view.focus();
+            setTimeout(() => {
+              forceLinting(view);
+            }, 50);
           });
         }
       } as any);
