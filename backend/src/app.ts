@@ -1,6 +1,7 @@
 import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
+import os from 'os';
 import { getTargetDir, setTargetDir, getRecentWorkspaces, IGNORED_DIRS } from './config.js';
 import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote } from './git.js';
 
@@ -185,6 +186,31 @@ app.post('/api/workspaces/clone', async (req, res) => {
     const result = await cloneRepo(url, resolvedPath);
     setTargetDir(resolvedPath);
     res.json({ result: `Cloned successfully.\n${result}` });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/api/fs/list', async (req, res) => {
+  const { path: queryPath } = req.query as { path?: string };
+  const targetPath = queryPath ? path.resolve(queryPath) : os.homedir();
+
+  try {
+    const entries = await fs.readdir(targetPath, { withFileTypes: true });
+    
+    const directories = [];
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        directories.push({
+          name: entry.name,
+          path: path.join(targetPath, entry.name)
+        });
+      }
+    }
+    
+    directories.sort((a, b) => a.name.localeCompare(b.name));
+    
+    res.json({ path: targetPath, directories });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

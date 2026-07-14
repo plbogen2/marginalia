@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, FolderOpen, Download, History, Folder } from 'lucide-react';
+import { DirectoryPicker } from './DirectoryPicker';
 
 interface Workspace {
   path: string;
@@ -23,6 +24,8 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
   const [clonePath, setClonePath] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<'local' | 'clone' | null>(null);
 
   const fetchWorkspaces = async () => {
     try {
@@ -38,6 +41,22 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
   useEffect(() => {
     fetchWorkspaces();
   }, []);
+
+  useEffect(() => {
+    if (!cloneUrl) return;
+    const match = cloneUrl.match(/\/([^/]+?)(?:\.git)?$/);
+    if (match && match[1]) {
+      const repoName = match[1];
+      if (active) {
+        const parentDir = active.substring(0, active.lastIndexOf('/'));
+        if (parentDir) {
+          setClonePath(`${parentDir}/${repoName}`);
+        }
+      } else {
+        setClonePath(`~/github/${repoName}`);
+      }
+    }
+  }, [cloneUrl, active]);
 
   const handleSelect = async (path: string) => {
     setLoading(true);
@@ -91,6 +110,21 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
     }
   };
 
+  const handleOpenPicker = (target: 'local' | 'clone') => {
+    setPickerTarget(target);
+    setPickerOpen(true);
+  };
+
+  const handlePickerSelect = (selectedPath: string) => {
+    if (pickerTarget === 'local') {
+      setLocalPath(selectedPath);
+    } else if (pickerTarget === 'clone') {
+      setClonePath(selectedPath);
+    }
+    setPickerOpen(false);
+    setPickerTarget(null);
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal-content workspace-manager">
@@ -141,14 +175,25 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
               <FolderOpen size={14} /> Open Local Git Folder
             </h3>
             <form onSubmit={handleOpenLocal} className="form-row">
-              <input
-                type="text"
-                placeholder="/absolute/path/to/git/repo"
-                value={localPath}
-                onChange={(e) => setLocalPath(e.target.value)}
-                disabled={loading}
-                required
-              />
+              <div className="input-with-browse">
+                <input
+                  type="text"
+                  placeholder="/absolute/path/to/git/repo"
+                  value={localPath}
+                  onChange={(e) => setLocalPath(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+                <button 
+                  type="button" 
+                  onClick={() => handleOpenPicker('local')}
+                  disabled={loading}
+                  className="browse-btn"
+                  title="Browse folders"
+                >
+                  <FolderOpen size={16} />
+                </button>
+              </div>
               <button type="submit" disabled={loading}>Open</button>
             </form>
           </div>
@@ -167,14 +212,25 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                 disabled={loading}
                 required
               />
-              <input
-                type="text"
-                placeholder="Local Path to clone into"
-                value={clonePath}
-                onChange={(e) => setClonePath(e.target.value)}
-                disabled={loading}
-                required
-              />
+              <div className="input-with-browse">
+                <input
+                  type="text"
+                  placeholder="Local Path to clone into"
+                  value={clonePath}
+                  onChange={(e) => setClonePath(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+                <button 
+                  type="button" 
+                  onClick={() => handleOpenPicker('clone')}
+                  disabled={loading}
+                  className="browse-btn"
+                  title="Browse folders"
+                >
+                  <FolderOpen size={16} />
+                </button>
+              </div>
               <button type="submit" disabled={loading}>
                 {loading ? 'Cloning...' : 'Clone & Open'}
               </button>
@@ -182,6 +238,13 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
           </div>
         </div>
       </div>
+      {pickerOpen && (
+        <DirectoryPicker
+          onSelect={handlePickerSelect}
+          onCancel={() => setPickerOpen(false)}
+          initialPath={pickerTarget === 'local' ? localPath : clonePath}
+        />
+      )}
     </div>
   );
 };

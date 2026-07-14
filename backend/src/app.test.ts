@@ -229,6 +229,32 @@ test('Backend APIs', async (t) => {
     }
   });
 
+  await t.test('GET /api/fs/list lists only directories and filters hidden ones', async () => {
+    const baseTestDir = '/tmp/marginalia_fs_test';
+    await fs.rm(baseTestDir, { recursive: true, force: true });
+    await fs.mkdir(baseTestDir, { recursive: true });
+    
+    await fs.mkdir(path.join(baseTestDir, 'dir1'), { recursive: true });
+    await fs.mkdir(path.join(baseTestDir, 'dir2'), { recursive: true });
+    await fs.mkdir(path.join(baseTestDir, '.hidden_dir'), { recursive: true });
+    await fs.writeFile(path.join(baseTestDir, 'file1.txt'), 'hello');
+
+    try {
+      const res = await fetch(`http://localhost:${port}/api/fs/list?path=${encodeURIComponent(baseTestDir)}`);
+      assert.strictEqual(res.status, 200);
+      const body = await res.json() as { path: string, directories: { name: string, path: string }[] };
+      
+      assert.strictEqual(body.path, baseTestDir);
+      assert.strictEqual(body.directories.length, 2);
+      const names = body.directories.map(i => i.name).sort();
+      assert.deepStrictEqual(names, ['dir1', 'dir2']);
+      
+      assert.strictEqual(body.directories[0].path, path.join(baseTestDir, body.directories[0].name));
+    } finally {
+      await fs.rm(baseTestDir, { recursive: true, force: true });
+    }
+  });
+
   await t.test('GET /api/git/status returns hasRemote: false if no remote', async () => {
     const noRemotePath = '/tmp/marginalia_no_remote_test';
     await fs.rm(noRemotePath, { recursive: true, force: true });
