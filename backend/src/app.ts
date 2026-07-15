@@ -642,7 +642,9 @@ Format your response exactly like this:
 [New replacement lines]
 >>>>
 
-Ensure the text in the original block matches the chapter draft EXACTLY, word-for-word, including punctuation and newlines. If you are not recommending text changes, do not write these blocks.`;
+Ensure the text in the original block matches the chapter draft EXACTLY, word-for-word, including punctuation and newlines. If you are not recommending text changes, do not write these blocks.
+
+CRITICAL CONSTRAINT: You must only propose text replacements (using search/replace blocks) for the primary chapter draft you are reviewing. NEVER suggest edits targeting the background context files. You do not have permission to suggest modifications to context files.`;
 
     const fileContent = await fs.readFile(safePath, 'utf-8');
     const cleanContent = fileContent.replace(/<!--[\s\S]*?-->/g, '');
@@ -689,6 +691,51 @@ Ensure the text in the original block matches the chapter draft EXACTLY, word-fo
       const result = await model.generateContent(prompt);
       res.json({ feedback: result.response.text() });
     }
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/api/ai/cache', async (req, res) => {
+  const { path: filePath, persona } = req.query as { path?: string; persona?: string };
+  if (!filePath || !persona) {
+    return res.status(400).json({ error: 'Missing path or persona parameter' });
+  }
+
+  try {
+    const workspaceName = path.basename(getTargetDir(req));
+    const row = db.prepare(`
+      SELECT messages_json FROM ai_feedback_cache 
+      WHERE workspace_name = ? AND file_path = ? AND persona = ?;
+    `).get(workspaceName, filePath, persona) as { messages_json: string } | undefined;
+
+    if (row && row.messages_json) {
+      return res.json({ messages: JSON.parse(row.messages_json) });
+    }
+    return res.json({ messages: [] });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.post('/api/ai/cache', async (req, res) => {
+  const { path: filePath, persona, messages } = req.body as { 
+    path: string; 
+    persona: string; 
+    messages: any[] 
+  };
+  if (!filePath || !persona || !messages) {
+    return res.status(400).json({ error: 'Missing path, persona, or messages parameter' });
+  }
+
+  try {
+    const workspaceName = path.basename(getTargetDir(req));
+    db.prepare(`
+      INSERT OR REPLACE INTO ai_feedback_cache (workspace_name, file_path, persona, messages_json, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP);
+    `).run(workspaceName, filePath, persona, JSON.stringify(messages));
+    
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

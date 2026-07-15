@@ -177,6 +177,36 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
     });
   };
   
+  const saveToCache = async (msgs: ChatMessage[]) => {
+    if (!activeFile) return;
+    try {
+      await fetch('/api/ai/cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: activeFile,
+          persona: selectedPersona,
+          messages: msgs
+        })
+      });
+    } catch (err) {
+      console.error('Failed to save AI feedback to cache:', err);
+    }
+  };
+
+  const loadFromCache = async () => {
+    if (!activeFile) return;
+    try {
+      const res = await fetch(`/api/ai/cache?path=${encodeURIComponent(activeFile)}&persona=${selectedPersona}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data.messages || []);
+      }
+    } catch (err) {
+      console.error('Failed to load AI feedback from cache:', err);
+    }
+  };
+
   // Track open states for thinking boxes
   const [openThinkingIds, setOpenThinkingIds] = useState<Record<string, boolean>>({});
 
@@ -187,18 +217,25 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Clear messages list when changing active files
+  // Load cache when changing active files
   useEffect(() => {
     setMessages([]);
     setError(null);
     setSelectedContextFiles([]);
     setExpandedDirs(new Set());
+    if (activeFile) {
+      loadFromCache();
+    }
   }, [activeFile]);
 
+  // Load cache when changing editor personas
   useEffect(() => {
     setSelectedContextFiles([]);
     setExpandedDirs(new Set());
-  }, [selectedPersona]);
+    if (activeFile) {
+      loadFromCache();
+    }
+  }, [selectedPersona, activeFile]);
 
   const parseMessage = (rawText: string, msgId: string): ChatMessage => {
     let displayContent = rawText;
@@ -265,6 +302,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
 
       const parsed = parseMessage(data.feedback || '', 'msg-initial');
       setMessages([parsed]);
+      saveToCache([parsed]);
       if (parsed.thinking) {
         setOpenThinkingIds(prev => ({ ...prev, [parsed.id]: true }));
       }
@@ -294,6 +332,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
 
     const nextHistory = [...messages, userMsg];
     setMessages(nextHistory);
+    saveToCache(nextHistory);
     setLoading(true);
 
     try {
@@ -309,7 +348,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
           path: activeFile,
           persona: selectedPersona,
           message: userMessageText,
-          history: payloadHistory.slice(0, -1) // Excluding the last prompt we just appended
+          history: payloadHistory.slice(0, -1)
         })
       });
       const data = await res.json();
@@ -319,7 +358,9 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
 
       const modelId = `msg-model-${Date.now()}`;
       const parsed = parseMessage(data.feedback || '', modelId);
-      setMessages(prev => [...prev, parsed]);
+      const finalHistory = [...nextHistory, parsed];
+      setMessages(finalHistory);
+      saveToCache(finalHistory);
       if (parsed.thinking) {
         setOpenThinkingIds(prev => ({ ...prev, [parsed.id]: true }));
       }
@@ -340,19 +381,19 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
   const handleApplySingleSuggestion = (msgId: string, suggestionId: string, original: string, replacement: string) => {
     const success = onApplyChange(original, replacement);
     if (success) {
-      setMessages(prevMessages => 
-        prevMessages.map(msg => {
-          if (msg.id === msgId) {
-            return {
-              ...msg,
-              suggestions: msg.suggestions.map(s => 
-                s.id === suggestionId ? { ...s, applied: true } : s
-              )
-            };
-          }
-          return msg;
-        })
-      );
+      const updatedMessages = messages.map(msg => {
+        if (msg.id === msgId) {
+          return {
+            ...msg,
+            suggestions: msg.suggestions.map(s => 
+              s.id === suggestionId ? { ...s, applied: true } : s
+            )
+          };
+        }
+        return msg;
+      });
+      setMessages(updatedMessages);
+      saveToCache(updatedMessages);
     } else {
       alert('Could not apply suggestion. The target original text was modified or not found in the editor.');
     }

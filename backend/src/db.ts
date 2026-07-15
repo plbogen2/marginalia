@@ -60,6 +60,22 @@ function initTables() {
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_words_local ON ignored_words(word, workspace_id) WHERE workspace_id IS NOT NULL;
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_feedback_cache (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      persona TEXT NOT NULL,
+      messages_json TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_feedback_cache 
+    ON ai_feedback_cache(workspace_name, file_path, persona);
+  `);
 }
 
 export { db };

@@ -691,6 +691,31 @@ test('Backend APIs', async (t) => {
       });
       assert.strictEqual(res.status, 400);
     });
+
+    await st.test('GET and POST /api/ai/cache manages session cache details', async () => {
+      const getRes = await fetch(`http://localhost:${port}/api/ai/cache?path=chapter1.md&persona=developmental`);
+      assert.strictEqual(getRes.status, 200);
+      const getBody = await getRes.json() as { messages: any[] };
+      assert.deepStrictEqual(getBody.messages, []);
+
+      const sampleMessages = [{ id: '1', role: 'model', content: 'Cached advice' }];
+      const postRes = await fetch(`http://localhost:${port}/api/ai/cache`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: 'chapter1.md',
+          persona: 'developmental',
+          messages: sampleMessages
+        })
+      });
+      assert.strictEqual(postRes.status, 200);
+
+      const getRes2 = await fetch(`http://localhost:${port}/api/ai/cache?path=chapter1.md&persona=developmental`);
+      assert.strictEqual(getRes2.status, 200);
+      const getBody2 = await getRes2.json() as { messages: any[] };
+      assert.strictEqual(getBody2.messages.length, 1);
+      assert.strictEqual(getBody2.messages[0].content, 'Cached advice');
+    });
   });
 
   await new Promise<void>((resolve) => server.close(() => resolve()));
