@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, ChevronDown, ChevronRight, Check, AlertCircle } from 'lucide-react';
+import { Send, ChevronDown, ChevronRight, Check, AlertCircle, Folder, FolderOpen, FileText } from 'lucide-react';
 import { marked } from 'marked';
+import { buildFileTree, type FileNode } from '../utils/treeBuilder';
 
 interface ChatMessage {
   id: string;
@@ -19,6 +20,7 @@ interface ChatMessage {
 interface AiPanelProps {
   activeFile: string | null;
   editorValue: string;
+  files: string[];
   onApplyChange: (original: string, replacement: string) => boolean;
 }
 
@@ -58,12 +60,122 @@ const PERSONAS: PersonaInfo[] = [
   }
 ];
 
-export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, onApplyChange }) => {
+interface ContextTreeNodeProps {
+  node: FileNode;
+  activeFile: string | null;
+  selectedContextFiles: string[];
+  onToggleFile: (path: string) => void;
+  expandedDirs: Set<string>;
+  onToggleExpand: (path: string) => void;
+  depth: number;
+}
+
+const ContextTreeNode: React.FC<ContextTreeNodeProps> = ({
+  node,
+  activeFile,
+  selectedContextFiles,
+  onToggleFile,
+  expandedDirs,
+  onToggleExpand,
+  depth
+}) => {
+  const isExpanded = expandedDirs.has(node.path);
+
+  if (node.isDirectory) {
+    const hasVisibleChildren = node.children && node.children.some(c => !c.isDirectory && c.path !== activeFile || c.isDirectory);
+    if (!hasVisibleChildren) return null;
+
+    return (
+      <div className="context-tree-folder">
+        <div 
+          className="context-tree-item context-dir-item"
+          style={{ paddingLeft: `${depth * 12 + 6}px` }}
+          onClick={() => onToggleExpand(node.path)}
+        >
+          <span className="chevron-icon">
+            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </span>
+          {isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />}
+          <span className="node-name">{node.name}</span>
+        </div>
+        {isExpanded && node.children && (
+          <div className="context-folder-children">
+            {node.children.map(child => (
+              <ContextTreeNode
+                key={child.path}
+                node={child}
+                activeFile={activeFile}
+                selectedContextFiles={selectedContextFiles}
+                onToggleFile={onToggleFile}
+                expandedDirs={expandedDirs}
+                onToggleExpand={onToggleExpand}
+                depth={depth + 1}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (node.path === activeFile) {
+    return null;
+  }
+
+  const isChecked = selectedContextFiles.includes(node.path);
+
+  return (
+    <div 
+      className="context-tree-item context-file-item"
+      style={{ paddingLeft: `${depth * 12 + 20}px` }}
+      onClick={() => onToggleFile(node.path)}
+    >
+      <input
+        type="checkbox"
+        checked={isChecked}
+        onChange={(e) => {
+          e.stopPropagation();
+          onToggleFile(node.path);
+        }}
+      />
+      <FileText size={14} />
+      <span className="node-name" title={node.path}>{node.name}</span>
+    </div>
+  );
+};
+
+export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files, onApplyChange }) => {
   const [selectedPersona, setSelectedPersona] = useState<Persona>('developmental');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
+  const [showContextSelector, setShowContextSelector] = useState(false);
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+
+  const handleToggleExpand = (path: string) => {
+    setExpandedDirs(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleFile = (path: string) => {
+    setSelectedContextFiles(prev => {
+      if (prev.includes(path)) {
+        return prev.filter(x => x !== path);
+      } else {
+        return [...prev, path];
+      }
+    });
+  };
   
   // Track open states for thinking boxes
   const [openThinkingIds, setOpenThinkingIds] = useState<Record<string, boolean>>({});
@@ -79,7 +191,14 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, onApp
   useEffect(() => {
     setMessages([]);
     setError(null);
+    setSelectedContextFiles([]);
+    setExpandedDirs(new Set());
   }, [activeFile]);
+
+  useEffect(() => {
+    setSelectedContextFiles([]);
+    setExpandedDirs(new Set());
+  }, [selectedPersona]);
 
   const parseMessage = (rawText: string, msgId: string): ChatMessage => {
     let displayContent = rawText;
@@ -126,13 +245,18 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, onApp
     setMessages([]);
     
     try {
+      const payload: { path: string; persona: string; contextFiles?: string[] } = {
+        path: activeFile,
+        persona: selectedPersona
+      };
+      if (selectedPersona === 'developmental' && selectedContextFiles.length > 0) {
+        payload.contextFiles = selectedContextFiles;
+      }
+
       const res = await fetch('/api/ai/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path: activeFile,
-          persona: selectedPersona
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok) {
@@ -260,6 +384,43 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, onApp
                 <p className="persona-desc-text">{activePersonaInfo.description}</p>
               </div>
             </div>
+
+            {selectedPersona === 'developmental' && files.length > 1 && (() => {
+              const isHidden = (p: string) => p.split('/').some(part => part.startsWith('.'));
+              const visibleFiles = files.filter(f => !isHidden(f));
+              const tree = buildFileTree(visibleFiles);
+              const hasOtherFiles = visibleFiles.some(f => f !== activeFile);
+              if (!hasOtherFiles) return null;
+
+              return (
+                <div className="context-files-section">
+                  <button
+                    type="button"
+                    className="context-toggle-btn"
+                    onClick={() => setShowContextSelector(!showContextSelector)}
+                  >
+                    <span>Include Context Files ({selectedContextFiles.length} selected)</span>
+                    <ChevronDown size={14} className={`toggle-icon ${showContextSelector ? 'open' : ''}`} />
+                  </button>
+                  {showContextSelector && (
+                    <div className="context-files-tree-container">
+                      {tree.map(node => (
+                        <ContextTreeNode
+                          key={node.path}
+                          node={node}
+                          activeFile={activeFile}
+                          selectedContextFiles={selectedContextFiles}
+                          onToggleFile={handleToggleFile}
+                          expandedDirs={expandedDirs}
+                          onToggleExpand={handleToggleExpand}
+                          depth={0}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <button
               onClick={handleAnalyze}

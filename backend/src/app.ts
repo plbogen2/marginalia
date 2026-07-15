@@ -551,11 +551,12 @@ app.post('/api/git/suggest-commit-message', async (req, res) => {
 });
 
 app.post('/api/ai/analyze', async (req, res) => {
-  const { path: filePath, persona, message, history } = req.body as { 
+  const { path: filePath, persona, message, history, contextFiles } = req.body as { 
     path: string; 
     persona: string;
     message?: string;
     history?: { role: 'user' | 'model', content: string }[];
+    contextFiles?: string[];
   };
   if (!filePath || !persona) {
     return res.status(400).json({ error: 'Missing path or persona parameter' });
@@ -609,7 +610,7 @@ app.post('/api/ai/analyze', async (req, res) => {
     let systemInstruction = '';
     switch (persona) {
       case 'developmental':
-        systemInstruction = 'You are a professional Developmental (or Structural) Editor. Analyze the chapter draft. Focus on big-picture elements like structural pacing, character arcs, plot progression, narrative tension, and general concept. Provide constructive feedback, highlighting what works and listing specific suggestions for structural revision.';
+        systemInstruction = 'You are a professional Developmental (or Structural) Editor. Analyze the chapter draft. Focus on big-picture elements like structural pacing, character arcs, plot progression, narrative tension, and general concept. Provide constructive feedback, highlighting what works and listing specific suggestions for structural revision. If additional background context files are provided, use them to check plot continuity and arc pacing, but focus your core feedback critique report on the primary draft.';
         break;
       case 'line':
         systemInstruction = 'You are a professional Line Editor. Analyze the chapter draft. Focus on sentence-level and paragraph-level polishing, style, tone, clarity, flow, vocabulary choices, and sentence variety. Highlight weak phrasing, passive voice, run-on sentences, or tonal inconsistencies, and suggest clear revisions.';
@@ -649,6 +650,26 @@ Ensure the text in the original block matches the chapter draft EXACTLY, word-fo
       return res.json({ feedback: 'This file is empty. Write some text before calling the AI Editor!' });
     }
 
+    let contextString = '';
+    if (contextFiles && contextFiles.length > 0) {
+      contextString = '\n\nHere is additional context from other files in the workspace to assist your analysis:\n';
+      for (const cFile of contextFiles) {
+        const cSafePath = path.resolve(targetDir, cFile);
+        if (!isPathSafe(cSafePath, targetDir)) {
+          return res.status(403).json({ error: `Access denied for context file: ${cFile}` });
+        }
+        try {
+          const cContent = await fs.readFile(cSafePath, 'utf-8');
+          const cleanCContent = cContent.replace(/<!--[\s\S]*?-->/g, '');
+          if (cleanCContent.trim().length > 0) {
+            contextString += `\n--- Context File: ${cFile} ---\n${cleanCContent}\n`;
+          }
+        } catch (e) {
+          console.warn(`Could not read context file ${cFile}`, e);
+        }
+      }
+    }
+
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ 
       model: cleanModelName,
@@ -664,7 +685,7 @@ Ensure the text in the original block matches the chapter draft EXACTLY, word-fo
       const result = await chat.sendMessage(message || '');
       res.json({ feedback: result.response.text() });
     } else {
-      const prompt = `Please analyze this chapter draft:\n\n${cleanContent}`;
+      const prompt = `Please analyze this chapter draft:\n\n${cleanContent}${contextString}`;
       const result = await model.generateContent(prompt);
       res.json({ feedback: result.response.text() });
     }

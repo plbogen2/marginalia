@@ -3,6 +3,7 @@ import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { linter, type Diagnostic, forEachDiagnostic, setDiagnostics } from '@codemirror/lint';
 import { checkGrammar } from '../utils/languagetool';
+import { lintMarkdown } from '../utils/markdownLinter';
 import { Copy, Scissors, Clipboard, EyeOff } from 'lucide-react';
 
 interface EditorProps {
@@ -88,6 +89,11 @@ const grammarLinter = linter(async (view) => {
   return diagnostics;
 }, {
   delay: 1500
+});
+
+const markdownStyleLinter = linter((view) => {
+  const text = view.state.doc.toString();
+  return lintMarkdown(text);
 });
 
 export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) => {
@@ -217,7 +223,8 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
           extensions={[
             markdown({ base: markdownLanguage }),
             EditorView.lineWrapping,
-            grammarLinter
+            grammarLinter,
+            markdownStyleLinter
           ]}
           onChange={(val) => onChange(val)}
           theme="dark"

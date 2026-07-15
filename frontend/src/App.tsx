@@ -637,6 +637,7 @@ function App() {
               <AiPanel 
                 activeFile={activeFile} 
                 editorValue={editorValue}
+                files={files}
                 onApplyChange={handleApplyChange}
               />
             )}
