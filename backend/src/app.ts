@@ -11,6 +11,7 @@ import { db } from './db.js';
 import { verifySessionToken, createSessionToken } from './utils/auth.js';
 import { lint as markdownLint } from 'markdownlint/sync';
 import crypto from 'crypto';
+import { fileURLToPath } from 'url';
 
 const app = express();
 
@@ -1080,5 +1081,19 @@ app.post('/api/auth/logout', (req, res) => {
   res.setHeader('Set-Cookie', 'session_token=; HttpOnly; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
   res.json({ status: 'ok' });
 });
+
+import { existsSync } from 'fs';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const publicDir = path.join(__dirname, '../public');
+
+if (existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    res.sendFile(path.join(publicDir, 'index.html'));
+  });
+}
 
 export { app };

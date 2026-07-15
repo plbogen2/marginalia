@@ -31,3 +31,30 @@ Marginalia is a focused, web-based markdown editor designed for fiction writing 
 *   **Frontend:** React + TypeScript + Vite.
 *   **Backend:** Express + Node's built-in SQLite database (`node:sqlite`).
 *   **VCS:** Local `git` CLI wrappers.
+
+## Hosting & Deployment
+
+The easiest way to host Marginalia is using **Docker** and **Docker Compose**, which packages the Node runtime, Git CLI client, and compiled static assets into a single container.
+
+### 1. Self-Hosting via Docker Compose
+Build and run the application locally or on a VPS (DigitalOcean, GCE, etc.):
+
+```bash
+docker-compose up -d --build
+```
+
+This will:
+*   Spin up the Express server on port **`3000`** (accessible at `http://localhost:3000`).
+*   Mount a persistent docker volume `marginalia_data` at `/root/.marginalia` to persist your SQLite database and cloned git repositories.
+*   Mount your local SSH configs (`~/.ssh`) in read-only mode so Git operations in Marginalia can authenticate with GitHub using your host machine's SSH keys.
+
+### 2. Deploying to PaaS (Railway, Render, Fly.io)
+You can link your repository directly to a PaaS:
+1.  **Configure Nixpacks/Buildpacks:** Ensure the platform installs the **`git`** system package.
+2.  **Mount Persistent Volume:** Attach a persistent disk volume (e.g. 1GB) and mount it to `/root/.marginalia`.
+3.  **Environment Variables:**
+    *   Set `DB_DIR=/root/.marginalia`.
+    *   Set `PORT=3000`.
+    *   Set `SESSION_SECRET` to a long random secret key.
+    *   (Optional) Set `GEMINI_API_KEY` to pre-seed the LLM key.
+
