@@ -1,8 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
-const DB_DIR = '/usr/local/google/home/plbogen/.gemini/jetski';
+const DB_DIR = process.env.DB_DIR || path.join(os.homedir(), '.marginalia');
 const DB_NAME = process.env.NODE_ENV === 'test' ? `marginalia_test_${process.pid}.db` : 'marginalia.db';
 export const DB_PATH = path.join(DB_DIR, DB_NAME);
 
@@ -83,6 +84,18 @@ function initTables() {
       matches TEXT NOT NULL,
       created_at INTEGER DEFAULT (strftime('%s', 'now'))
     );
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_workspaces_user_last_opened ON workspaces(user, last_opened DESC);
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_workspaces_name_user ON workspaces(name, user COLLATE NOCASE);
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ignored_words_workspace_id ON ignored_words(workspace_id);
   `);
 }
 

@@ -91,9 +91,20 @@ function authMiddleware(req: any, res: any, next: any) {
 }
 
 app.use((req: any, res: any, next: any) => {
-  if (req.path.startsWith('/api/auth/') || req.path === '/api/health' || req.path === '/api/config') {
+  if (req.path.startsWith('/api/auth/') || req.path === '/api/health') {
     return next();
   }
+
+  if (req.path === '/api/config') {
+    if (req.method === 'GET') {
+      return next();
+    }
+    if (isHostedModeActive() && getAllowedUser()) {
+      return authMiddleware(req, res, next);
+    }
+    return next();
+  }
+
   authMiddleware(req, res, next);
 });
 
@@ -308,6 +319,9 @@ app.post('/api/workspaces/clone', async (req, res) => {
   const { url, path: targetPath } = req.body as { url: string, path: string };
   if (!url || !targetPath) {
     return res.status(400).json({ error: 'Missing url or path' });
+  }
+  if (url.trim().startsWith('-') || /\s/.test(url)) {
+    return res.status(400).json({ error: 'Invalid clone URL format' });
   }
   try {
     const resolvedPath = path.resolve(targetPath);

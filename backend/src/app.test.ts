@@ -321,6 +321,33 @@ test('Backend APIs', async (t) => {
       });
       assert.strictEqual(res.status, 403);
     });
+
+    await st.test('GET /api/file rejects paths resolving via symlinks outside the workspace', async () => {
+      const oldEnv = process.env.TARGET_DIR;
+      process.env.TARGET_DIR = '/tmp/marginalia_sandbox_test';
+      await fs.mkdir(process.env.TARGET_DIR, { recursive: true });
+      
+      const siblingDir = '/tmp/marginalia_sandbox_test_sibling';
+      await fs.mkdir(siblingDir, { recursive: true });
+      await fs.writeFile(path.join(siblingDir, 'secret.txt'), 'private-data');
+
+      const symlinkPath = path.join(process.env.TARGET_DIR, 'evil_link');
+      try {
+        await fs.symlink(siblingDir, symlinkPath, 'dir');
+      } catch (e) { /* ignore */ }
+
+      try {
+        const res = await fetch(`http://localhost:${port}/api/file?path=evil_link/secret.txt`);
+        assert.strictEqual(res.status, 403);
+      } finally {
+        process.env.TARGET_DIR = oldEnv;
+        try {
+          await fs.unlink(symlinkPath);
+        } catch (e) { /* ignore */ }
+        await fs.rm('/tmp/marginalia_sandbox_test', { recursive: true, force: true });
+        await fs.rm(siblingDir, { recursive: true, force: true });
+      }
+    });
   });
 
   await t.test('POST /api/workspaces/clone clones repo and makes active', async () => {
@@ -352,6 +379,15 @@ test('Backend APIs', async (t) => {
       process.env.TARGET_DIR = oldEnv;
       await fs.rm(clonePath, { recursive: true, force: true });
     }
+  });
+
+  await t.test('POST /api/workspaces/clone rejects hyphenated repository URLs to prevent injection', async () => {
+    const res = await fetch(`http://localhost:${port}/api/workspaces/clone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: '--upload-pack="touch /tmp/injected"', path: '/tmp/some_clone_dir' })
+    });
+    assert.strictEqual(res.status, 400);
   });
 
   await t.test('GET /api/fs/list lists only directories and filters hidden ones', async () => {
@@ -478,6 +514,19 @@ test('Backend APIs', async (t) => {
       assert.strictEqual(body3.hasGithubSecret, true);
       assert.strictEqual(body3.allowedUser, 'my-whitelisted-user');
       assert.strictEqual(body3.geminiModel, 'gemini-2.0-pro-exp');
+
+      const unauthPostRes = await fetch(`http://localhost:${port}/api/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          geminiModel: 'malicious-injected-model'
+        })
+      });
+      assert.ok(unauthPostRes.status === 401 || unauthPostRes.status === 403);
+
+      const resVerify = await fetch(`http://localhost:${port}/api/config`);
+      const bodyVerify = await resVerify.json() as { geminiModel: string };
+      assert.strictEqual(bodyVerify.geminiModel, 'gemini-2.0-pro-exp');
 
       const res4 = await fetch(`http://localhost:${port}/api/git/suggest-commit-message`, {
         method: 'POST'
