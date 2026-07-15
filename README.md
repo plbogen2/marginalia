@@ -58,3 +58,16 @@ You can link your repository directly to a PaaS:
     *   Set `SESSION_SECRET` to a long random secret key.
     *   (Optional) Set `GEMINI_API_KEY` to pre-seed the LLM key.
 
+### 3. Deploying to Oracle Cloud "Always Free" VM
+You can run Marginalia 24/7 for free on an Oracle Cloud Compute VM (Ubuntu):
+1.  **Create a VM Instance** on the Oracle Cloud console (Ubuntu 22.04 / 24.04 image, assign a public IPv4, and download the SSH key).
+2.  **Add Ingress Security Rules** in OCI console (Network Security List):
+    *   Add Ingress Rule: Source `0.0.0.0/0`, TCP Protocol, Destination Port `80`.
+3.  **SSH into your VM** and run our automated setup script:
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/plbogen2/marginalia/main/scripts/setup_vm.sh -o setup_vm.sh
+    chmod +x setup_vm.sh
+    ./setup_vm.sh
+    ```
+    This script automatically updates the system, installs Docker & Compose, configures local iptables firewalls, clones the repo, and runs the application bound to standard port 80.
+4.  Open `marginalia/.env` on the server to add your `GEMINI_API_KEY` and restart the container (`docker-compose restart`).
