@@ -353,11 +353,59 @@ app.get('/api/fs/list', async (req, res) => {
   }
 });
 
+app.get('/api/gemini/models', async (req, res) => {
+  let apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    try {
+      const key = req.user ? `gemini_api_key:${req.user}` : 'gemini_api_key';
+      const row = db.prepare("SELECT value FROM settings WHERE key = ?;").get(key) as { value: string } | undefined;
+      if (row && row.value) {
+        apiKey = row.value;
+      } else if (req.user) {
+        const globalRow = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key';").get() as { value: string } | undefined;
+        if (globalRow && globalRow.value) {
+          apiKey = globalRow.value;
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  if (!apiKey) {
+    return res.json([
+      { name: 'models/gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
+      { name: 'models/gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
+      { name: 'models/gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
+      { name: 'models/gemini-2.0-pro-exp', displayName: 'Gemini 2.0 Pro Experimental' }
+    ]);
+  }
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Google API returned status ${response.status}`);
+    }
+    const data = await response.json();
+    const models = (data.models || [])
+      .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+      .map((m: any) => ({
+        name: m.name,
+        displayName: m.displayName || m.name.replace('models/', '')
+      }));
+    res.json(models);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 app.get('/api/config', (req, res) => {
   try {
     const hasEnvKey = !!process.env.GEMINI_API_KEY;
     let hasDbKey = false;
     let simulateHostedMode = false;
+    let geminiModel = 'gemini-1.5-flash';
     try {
       const row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key';").get() as { value: string } | undefined;
       hasDbKey = !!(row && row.value);
@@ -370,13 +418,22 @@ app.get('/api/config', (req, res) => {
     } catch (err) {
       // ignore
     }
+    try {
+      const row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_model';").get() as { value: string } | undefined;
+      if (row && row.value) {
+        geminiModel = row.value;
+      }
+    } catch (err) {
+      // ignore
+    }
 
     res.json({ 
       hasGemini: hasEnvKey || hasDbKey,
       simulateHostedMode,
       githubClientId: getGitHubClientId(),
       hasGithubSecret: !!getGitHubClientSecret(),
-      allowedUser: getAllowedUser()
+      allowedUser: getAllowedUser(),
+      geminiModel
     });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -389,13 +446,15 @@ app.post('/api/config', async (req, res) => {
     simulateHostedMode, 
     githubClientId, 
     githubClientSecret, 
-    allowedUser 
+    allowedUser,
+    geminiModel
   } = req.body as { 
     geminiApiKey?: string;
     simulateHostedMode?: boolean;
     githubClientId?: string;
     githubClientSecret?: string;
     allowedUser?: string;
+    geminiModel?: string;
   };
   try {
     if (geminiApiKey !== undefined) {
@@ -412,6 +471,9 @@ app.post('/api/config', async (req, res) => {
     }
     if (allowedUser !== undefined) {
       db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('allowed_user', ?);").run(allowedUser);
+    }
+    if (geminiModel !== undefined) {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('gemini_model', ?);").run(geminiModel);
     }
     res.json({ status: 'ok' });
   } catch (err) {
@@ -451,8 +513,19 @@ app.post('/api/git/suggest-commit-message', async (req, res) => {
       return res.json({ suggestion: '' });
     }
 
+    let modelName = 'gemini-1.5-flash';
+    try {
+      const row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_model';").get() as { value: string } | undefined;
+      if (row && row.value) {
+        modelName = row.value;
+      }
+    } catch (err) {
+      // ignore
+    }
+
+    const cleanModelName = modelName.replace(/^models\//, '');
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: cleanModelName });
 
     const prompt = `Write a concise, one-line git commit message summarizing these changes. Keep it under 72 characters, start with an imperative verb (e.g. Add, Fix, Update), and do not include any markdown formatting, backticks, or explanation. Here is the git diff:\n\n${diff}`;
 

@@ -13,6 +13,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
   const [simulateHosted, setSimulateHosted] = useState(false);
   const [initialSimulateHosted, setInitialSimulateHosted] = useState(false);
 
+  const [geminiModel, setGeminiModel] = useState('');
+  const [initialGeminiModel, setInitialGeminiModel] = useState('');
+  const [availableModels, setAvailableModels] = useState<{ name: string, displayName: string }[]>([]);
+
   const [githubClientId, setGithubClientId] = useState('');
   const [initialGithubClientId, setInitialGithubClientId] = useState('');
   const [githubClientSecret, setGithubClientSecret] = useState('');
@@ -38,6 +42,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
       setHasGithubSecret(!!data.hasGithubSecret);
       setAllowedUser(data.allowedUser || '');
       setInitialAllowedUser(data.allowedUser || '');
+
+      setGeminiModel(data.geminiModel || 'gemini-1.5-flash');
+      setInitialGeminiModel(data.geminiModel || 'gemini-1.5-flash');
+
+      try {
+        const modelsRes = await fetch('/api/gemini/models');
+        if (modelsRes.ok) {
+          const modelsData = await modelsRes.json();
+          setAvailableModels(modelsData);
+        }
+      } catch (e) {
+        console.warn('Failed to load models list', e);
+      }
     } catch (err) {
       console.error('Failed to load configuration status:', err);
     }
@@ -59,10 +76,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
         githubClientId?: string;
         githubClientSecret?: string;
         allowedUser?: string;
+        geminiModel?: string;
       } = {};
 
       if (geminiKey.trim()) {
         payload.geminiApiKey = geminiKey.trim();
+      }
+      if (geminiModel !== initialGeminiModel) {
+        payload.geminiModel = geminiModel;
       }
       if (simulateHosted !== initialSimulateHosted) {
         payload.simulateHostedMode = simulateHosted;
@@ -105,6 +126,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
 
   const isDirty = 
     geminiKey.trim() !== '' || 
+    geminiModel !== initialGeminiModel ||
     simulateHosted !== initialSimulateHosted ||
     githubClientId.trim() !== initialGithubClientId ||
     githubClientSecret.trim() !== '' ||
@@ -143,6 +165,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
               </div>
               <p className="help-text">
                 Providing a Gemini Key enables automatic git commit message summaries.
+              </p>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="geminiModel">Gemini Model</label>
+              <select
+                id="geminiModel"
+                value={geminiModel}
+                onChange={(e) => setGeminiModel(e.target.value)}
+              >
+                {availableModels.map((model) => (
+                  <option key={model.name} value={model.name}>
+                    {model.displayName}
+                  </option>
+                ))}
+              </select>
+              <p className="help-text">
+                Select the Google Gemini model to use for generating suggestions.
               </p>
             </div>
 

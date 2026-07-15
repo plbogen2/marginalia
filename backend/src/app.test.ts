@@ -438,12 +438,14 @@ test('Backend APIs', async (t) => {
         githubClientId: string;
         hasGithubSecret: boolean;
         allowedUser: string;
+        geminiModel: string;
       };
       assert.strictEqual(body1.hasGemini, false);
       assert.strictEqual(body1.simulateHostedMode, false);
       assert.strictEqual(body1.githubClientId, '');
       assert.strictEqual(body1.hasGithubSecret, false);
       assert.strictEqual(body1.allowedUser, '');
+      assert.strictEqual(body1.geminiModel, 'gemini-1.5-flash');
 
       const res2 = await fetch(`http://localhost:${port}/api/config`, {
         method: 'POST',
@@ -453,7 +455,8 @@ test('Backend APIs', async (t) => {
           simulateHostedMode: true,
           githubClientId: 'my-custom-client-id',
           githubClientSecret: 'my-custom-client-secret',
-          allowedUser: 'my-whitelisted-user'
+          allowedUser: 'my-whitelisted-user',
+          geminiModel: 'gemini-2.0-pro-exp'
         })
       });
       assert.strictEqual(res2.status, 200);
@@ -467,12 +470,14 @@ test('Backend APIs', async (t) => {
         githubClientId: string;
         hasGithubSecret: boolean;
         allowedUser: string;
+        geminiModel: string;
       };
       assert.strictEqual(body3.hasGemini, true);
       assert.strictEqual(body3.simulateHostedMode, true);
       assert.strictEqual(body3.githubClientId, 'my-custom-client-id');
       assert.strictEqual(body3.hasGithubSecret, true);
       assert.strictEqual(body3.allowedUser, 'my-whitelisted-user');
+      assert.strictEqual(body3.geminiModel, 'gemini-2.0-pro-exp');
 
       const res4 = await fetch(`http://localhost:${port}/api/git/suggest-commit-message`, {
         method: 'POST'
@@ -480,7 +485,7 @@ test('Backend APIs', async (t) => {
       assert.notStrictEqual(res4.status, 400);
 
       const { db } = await import('./db.js');
-      db.prepare("DELETE FROM settings WHERE key IN ('gemini_api_key', 'simulate_hosted_mode', 'github_client_id', 'github_client_secret', 'allowed_user');").run();
+      db.prepare("DELETE FROM settings WHERE key IN ('gemini_api_key', 'simulate_hosted_mode', 'github_client_id', 'github_client_secret', 'allowed_user', 'gemini_model');").run();
     } finally {
       process.env.GEMINI_API_KEY = oldKey;
       if (oldClientId) process.env.GITHUB_CLIENT_ID = oldClientId;
