@@ -71,3 +71,12 @@ You can run Marginalia 24/7 for free on an Oracle Cloud Compute VM (Ubuntu):
     ```
     This script automatically updates the system, installs Docker & Compose, configures local iptables firewalls, clones the repo, and runs the application bound to standard port 80.
 4.  Open `marginalia/.env` on the server to add your `GEMINI_API_KEY` and restart the container (`docker-compose restart`).
+5.  **Automate Deployments with GitHub Actions:**
+    To automatically redeploy the application on every `git push` to `main`:
+    *   Go to your GitHub repository -> **Settings** -> **Secrets and variables** -> **Actions**.
+    *   Create the following Repository Secrets:
+        *   `SSH_HOST`: Your VM's public IPv4 address.
+        *   `SSH_USERNAME`: The login username (`ubuntu`).
+        *   `SSH_KEY`: The full content of your private SSH key downloaded from OCI (begins with `-----BEGIN OPENSSH PRIVATE KEY-----`).
+    *   On your next push, GitHub Actions will SSH into the VM, pull the latest code, and rebuild the containers automatically.
+

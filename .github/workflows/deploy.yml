@@ -1,0 +1,34 @@
+name: Deploy to Oracle Cloud VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: SSH and Deploy to VM
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        port: 22
+        script: |
+          if [ -d "marginalia" ]; then
+            cd marginalia
+            echo "--> Pulling latest changes..."
+            git pull origin main
+            
+            echo "--> Rebuilding and starting containers..."
+            sudo docker-compose up -d --build
+          else
+            echo "--> Repository folder 'marginalia' not found. Please run scripts/setup_vm.sh on the host first!"
+            exit 1
+          fi
