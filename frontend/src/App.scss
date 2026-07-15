@@ -23,6 +23,39 @@ $error-bg: rgba(241, 112, 112, 0.1);
 $font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 $font-mono: "Fira Code", Consolas, Monaco, monospace;
 
+/* Spacing Constants */
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 12px;
+$spacing-lg: 16px;
+$spacing-xl: 20px;
+$spacing-xxl: 24px;
+
+/* Border Radius Constants */
+$radius-sm: 3px;
+$radius-md: 4px;
+$radius-lg: 6px;
+$radius-round: 10px;
+
+/* Font Size Constants */
+$font-xs: 10px;
+$font-sm: 11px;
+$font-md: 12px;
+$font-lg: 13px;
+$font-xl: 14px;
+$font-xxl: 16px;
+
+/* Transition Constants */
+$transition-instant: 0.1s;
+$transition-normal: 0.15s;
+$transition-slow: 0.2s;
+
+/* Semantic Colors */
+$gold-color: #ffd700;
+$folder-color: #e2a146;
+$branch-blue: #4fc1ff;
+$input-border: #6b6b6b;
+
 /* Layout & Base resets */
 .app-container {
   display: flex;
@@ -68,25 +101,25 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   align-items: center;
   height: 38px;
   box-sizing: border-box;
-  padding: 0 16px;
+  padding: 0 $spacing-lg;
   background-color: $bg-panel;
   border-bottom: 1px solid $border-color;
-  font-size: 13px;
+  font-size: $font-lg;
 
   .git-info {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: $spacing-sm;
 
     .branch-name {
       font-weight: bold;
-      color: #4fc1ff;
+      color: $branch-blue;
     }
 
     .status-badge {
-      padding: 2px 6px;
-      border-radius: 3px;
-      font-size: 11px;
+      padding: 2px $spacing-sm;
+      border-radius: $radius-sm;
+      font-size: $font-sm;
 
       &.clean {
         background-color: #1e4620;
@@ -113,7 +146,7 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
       background: none;
       border: none;
       color: $text-muted;
-      padding: 4px;
+      padding: $spacing-xs;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -128,15 +161,15 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   .git-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: $spacing-sm;
 
     input {
-      padding: 4px 8px;
+      padding: $spacing-xs $spacing-sm;
       background-color: $border-color;
-      border: 1px solid #6b6b6b;
+      border: 1px solid $input-border;
       color: $text-color;
-      border-radius: 3px;
-      font-size: 13px;
+      border-radius: $radius-sm;
+      font-size: $font-lg;
       width: 200px;
 
       &:disabled {
@@ -150,9 +183,9 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
       background: none !important;
       border: none !important;
       color: $text-muted !important;
-      padding: 4px !important;
+      padding: $spacing-xs !important;
       cursor: pointer;
-      border-radius: 3px;
+      border-radius: $radius-sm;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -172,14 +205,14 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   .git-options {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: $spacing-sm;
 
     .settings-btn,
     .logout-btn {
       background: none !important;
       border: none !important;
       color: $text-muted !important;
-      padding: 4px !important;
+      padding: $spacing-xs !important;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -196,12 +229,12 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   .auth-toolbar-section {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: $spacing-sm;
     border-left: 1px solid $border-color;
-    padding-left: 12px;
+    padding-left: $spacing-md;
     
     .user-badge {
-      font-size: 11px;
+      font-size: $font-sm;
       color: $text-muted;
     }
   }
@@ -209,14 +242,14 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   button {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
+    gap: $spacing-xs;
+    padding: $spacing-xs $spacing-sm;
     background-color: $accent-color;
     color: $text-light;
     border: none;
-    border-radius: 3px;
+    border-radius: $radius-sm;
     cursor: pointer;
-    font-size: 13px;
+    font-size: $font-lg;
 
     &:hover:not(:disabled) {
       background-color: $accent-hover;
@@ -242,12 +275,12 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 16px;
+    padding: $spacing-md $spacing-lg;
     border-bottom: 1px solid $border-color;
 
     h3 {
       margin: 0;
-      font-size: 12px;
+      font-size: $font-md;
       text-transform: uppercase;
       letter-spacing: 1px;
       color: $text-muted;
@@ -256,7 +289,7 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
     .sidebar-actions {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: $spacing-xs;
     }
 
     button {
@@ -264,8 +297,8 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
       border: none;
       color: $text-muted;
       cursor: pointer;
-      padding: 4px;
-      border-radius: 3px;
+      padding: $spacing-xs;
+      border-radius: $radius-sm;
 
       &:hover {
         background-color: $border-color;
@@ -275,28 +308,28 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   }
 
   .new-file-form {
-    padding: 8px 16px;
+    padding: $spacing-sm $spacing-lg;
     display: flex;
-    gap: 4px;
+    gap: $spacing-xs;
 
     input {
       flex: 1;
-      padding: 4px 8px;
+      padding: $spacing-xs $spacing-sm;
       background-color: $border-color;
-      border: 1px solid #6b6b6b;
+      border: 1px solid $input-border;
       color: $text-color;
-      border-radius: 3px;
-      font-size: 13px;
+      border-radius: $radius-sm;
+      font-size: $font-lg;
     }
 
     button {
-      padding: 4px 8px;
+      padding: $spacing-xs $spacing-sm;
       background-color: $accent-color;
       color: $text-light;
       border: none;
-      border-radius: 3px;
+      border-radius: $radius-sm;
       cursor: pointer;
-      font-size: 13px;
+      font-size: $font-lg;
     }
   }
 
@@ -313,10 +346,10 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   .file-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
+    gap: $spacing-sm;
+    padding: $spacing-sm $spacing-lg;
     cursor: pointer;
-    font-size: 14px;
+    font-size: $font-xl;
     color: $text-bright;
     justify-content: space-between;
 
@@ -348,9 +381,9 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
       color: $text-muted;
       cursor: pointer;
       padding: 2px;
-      border-radius: 3px;
+      border-radius: $radius-sm;
       opacity: 0;
-      transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+      transition: opacity $transition-slow, color $transition-slow, background-color $transition-slow;
 
       &:hover {
         background-color: $border-color;
@@ -369,7 +402,7 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   justify-content: center;
   cursor: pointer;
   color: $text-muted;
-  transition: background-color 0.2s, color 0.2s;
+  transition: background-color $transition-slow, color $transition-slow;
   flex-shrink: 0;
 
   &:hover {
@@ -382,7 +415,7 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   width: 4px;
   cursor: col-resize;
   background-color: transparent;
-  transition: background-color 0.2s;
+  transition: background-color $transition-slow;
   z-index: 10;
   flex-shrink: 0;
 
@@ -400,10 +433,10 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   background-color: $bg-main;
 
   .workspace-file-header {
-    padding: 8px 16px;
+    padding: $spacing-sm $spacing-lg;
     background-color: $bg-main;
     border-bottom: 1px solid $border-light;
-    font-size: 12px;
+    font-size: $font-md;
     color: $text-muted;
     display: flex;
     justify-content: space-between;
@@ -420,17 +453,17 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
     .stats {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: $spacing-md;
 
       .format-select {
         background-color: transparent;
         border: none;
         color: $text-muted;
-        font-size: 11px;
+        font-size: $font-sm;
         cursor: pointer;
         outline: none;
-        padding: 2px 4px;
-        border-radius: 3px;
+        padding: 2px $spacing-xs;
+        border-radius: $radius-sm;
         
         &:hover {
           color: $text-light;
@@ -447,15 +480,15 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
         background: none !important;
         border: none !important;
         color: $text-muted !important;
-        padding: 2px 6px !important;
-        font-size: 11px !important;
+        padding: 2px $spacing-sm !important;
+        font-size: $font-sm !important;
         font-weight: 500;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
         box-shadow: none !important;
-        border-radius: 3px;
+        border-radius: $radius-sm;
 
         &:hover {
           color: $text-light !important;
@@ -1372,37 +1405,37 @@ kbd {
 .editor-context-menu,
 .context-menu {
   position: fixed;
-  background-color: #1e1e1e;
-  border: 1px solid #2d2d2d;
+  background-color: $bg-main;
+  border: 1px solid $border-light;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  border-radius: 4px;
+  border-radius: $radius-md;
   z-index: 10000;
-  padding: 4px 0;
+  padding: $spacing-xs 0;
   min-width: 150px;
 
   .context-menu-item {
     width: 100%;
     background: none;
     border: none;
-    color: #cccccc;
+    color: $text-bright;
     text-align: left;
-    padding: 6px 12px;
-    font-size: 12px;
+    padding: 6px $spacing-md;
+    font-size: $font-md;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: $spacing-sm;
 
     &:hover {
-      background-color: #2d2d2d;
-      color: #ffffff;
+      background-color: $bg-hover;
+      color: $text-light;
     }
   }
 
   .context-menu-separator {
     height: 1px;
     background-color: $border-color;
-    margin: 4px 0;
+    margin: $spacing-xs 0;
   }
 }
 
@@ -1494,8 +1527,8 @@ kbd {
   }
 
   &.active {
-    color: #ffd700;
-    background-color: rgba(255, 215, 0, 0.1);
+    color: $gold-color;
+    background-color: rgba($gold-color, 0.1);
   }
 }
 
@@ -1577,10 +1610,10 @@ kbd {
             display: inline-block;
             font-size: 10px;
             font-weight: 600;
-            color: #ffd700;
-            background-color: rgba(255, 215, 0, 0.1);
-            padding: 2px 6px;
-            border-radius: 10px;
+            color: $gold-color;
+            background-color: rgba($gold-color, 0.1);
+            padding: 2px $spacing-sm;
+            border-radius: $radius-round;
             margin-bottom: 6px;
           }
 
@@ -1684,7 +1717,7 @@ kbd {
               }
 
               svg {
-                color: #e2a146;
+                color: $folder-color;
               }
             }
 
