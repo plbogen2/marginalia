@@ -378,9 +378,10 @@ app.get('/api/gemini/models', async (req, res) => {
     return res.json([
       { name: 'models/gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
       { name: 'models/gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
-      { name: 'models/gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
-      { name: 'models/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
-      { name: 'models/gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' }
+      { name: 'models/gemini-3.5-flash', displayName: 'Gemini 3.5 Flash' },
+      { name: 'models/gemini-3.5-pro', displayName: 'Gemini 3.5 Pro' },
+      { name: 'models/gemini-flash-latest', displayName: 'Gemini Flash Latest' },
+      { name: 'models/gemini-pro-latest', displayName: 'Gemini Pro Latest' }
     ]);
   }
 
@@ -395,9 +396,30 @@ app.get('/api/gemini/models', async (req, res) => {
       .filter((m: any) => {
         const isSupported = m.supportedGenerationMethods?.includes('generateContent');
         const name = m.name || '';
-        // Only modern models (1.5, 2.0, 2.5, etc.) to filter out obsolete models
-        const isModern = /gemini-(1\.5|2\.0|2\.5|3\.0)/i.test(name);
-        return isSupported && isModern;
+        const stage = m.modelStage || '';
+
+        // Exclude legacy/deprecated and unstable experimental models
+        if (stage === 'LEGACY' || stage === 'DEPRECATED' || stage === 'UNSTABLE_EXPERIMENTAL') {
+          return false;
+        }
+
+        // Exclude non-text/embedding/image/veo/audio models
+        if (
+          name.includes('embedding') ||
+          name.includes('imagen') ||
+          name.includes('veo') ||
+          name.includes('lyria') ||
+          name.includes('robotics') ||
+          name.includes('aqa') ||
+          name.includes('banana') ||
+          name.includes('nano') ||
+          name.includes('gemma')
+        ) {
+          return false;
+        }
+
+        const isGeminiText = /gemini/i.test(name);
+        return isSupported && isGeminiText;
       })
       .map((m: any) => ({
         name: m.name,
