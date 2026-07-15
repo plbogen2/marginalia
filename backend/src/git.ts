@@ -1,5 +1,6 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import os from 'os';
 import { getTargetDir } from './config.js';
 
 const execAsync = promisify(exec);
@@ -14,11 +15,53 @@ async function runGit(args: string[], req?: any): Promise<string> {
   }
 }
 
+async function ensureGitUserConfig(req?: any): Promise<void> {
+  try {
+    let systemUser = '';
+    let systemEmail = '';
+
+    if (req && req.user) {
+      systemUser = req.user;
+      systemEmail = `${req.user}@users.noreply.github.com`;
+    } else {
+      systemUser = os.userInfo().username || process.env.USER || 'marginalia-user';
+      systemEmail = `${systemUser}@google.com`;
+    }
+
+    let hasName = false;
+    try {
+      const name = await runGit(['config', 'user.name'], req);
+      if (name.trim()) hasName = true;
+    } catch (e) {
+      // ignore
+    }
+
+    if (!hasName) {
+      await runGit(['config', 'user.name', `"${systemUser}"`], req);
+    }
+
+    let hasEmail = false;
+    try {
+      const email = await runGit(['config', 'user.email'], req);
+      if (email.trim()) hasEmail = true;
+    } catch (e) {
+      // ignore
+    }
+
+    if (!hasEmail) {
+      await runGit(['config', 'user.email', `"${systemEmail}"`], req);
+    }
+  } catch (err) {
+    console.warn('Failed to ensure git user config:', err);
+  }
+}
+
 export async function getGitStatus(req?: any): Promise<string> {
   return runGit(['status', '--porcelain'], req);
 }
 
 export async function gitCommit(message: string, req?: any): Promise<string> {
+  await ensureGitUserConfig(req);
   await runGit(['add', '.'], req);
   return runGit(['commit', '-m', `"${message}"`], req);
 }

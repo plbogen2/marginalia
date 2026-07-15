@@ -52,6 +52,44 @@ test('Git Helpers', async (t) => {
     assert.strictEqual(status, '');
   });
 
+  await t.test('gitCommit auto-configures user name and email if unset', async () => {
+    // 1. Create simulated user storage directory
+    const userStorageRoot = path.join(TEST_TARGET_DIR, 'github-test-user');
+    await fs.mkdir(userStorageRoot, { recursive: true });
+    await execAsync('git init', { cwd: userStorageRoot });
+    await fs.writeFile(path.join(userStorageRoot, 'testfile.md'), 'hello');
+
+    // Set STORAGE_DIR to point to our test folder so getUserStorageRoot resolves here
+    const originalStorageDir = process.env.STORAGE_DIR;
+    process.env.STORAGE_DIR = TEST_TARGET_DIR;
+
+    try {
+      await execAsync('git config --local --unset user.name', { cwd: userStorageRoot });
+    } catch (e) { /* ignore */ }
+    
+    try {
+      await execAsync('git config --local --unset user.email', { cwd: userStorageRoot });
+    } catch (e) { /* ignore */ }
+
+    const mockReq = { user: 'github-test-user' };
+    const commitResult = await gitCommit('Test auto config in Hosted Mode', mockReq);
+    assert.match(commitResult, /Test auto config in Hosted Mode/);
+
+    const { stdout: name } = await execAsync('git config user.name', { cwd: userStorageRoot });
+    const { stdout: email } = await execAsync('git config user.email', { cwd: userStorageRoot });
+
+    assert.strictEqual(name.trim(), 'github-test-user');
+    assert.strictEqual(email.trim(), 'github-test-user@users.noreply.github.com');
+
+    // Clean up
+    if (originalStorageDir) {
+      process.env.STORAGE_DIR = originalStorageDir;
+    } else {
+      delete process.env.STORAGE_DIR;
+    }
+    await fs.rm(userStorageRoot, { recursive: true, force: true });
+  });
+
   await t.test('gitPush pushes to remote', async () => {
     const pushResult = await gitPush();
     // Git push output often goes to stderr, which we merge in runGit
