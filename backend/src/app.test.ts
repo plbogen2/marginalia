@@ -664,5 +664,34 @@ test('Backend APIs', async (t) => {
     });
   });
 
+  await t.test('AI Editor Analysis APIs', async (st) => {
+    await st.test('POST /api/ai/analyze returns 400 when missing path or persona', async () => {
+      const res = await fetch(`http://localhost:${port}/api/ai/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: 'chapter1.md' })
+      });
+      assert.strictEqual(res.status, 400);
+    });
+
+    await st.test('POST /api/ai/analyze returns 403 for path traversal attempt', async () => {
+      const res = await fetch(`http://localhost:${port}/api/ai/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: '../../etc/passwd', persona: 'developmental' })
+      });
+      assert.strictEqual(res.status, 403);
+    });
+
+    await st.test('POST /api/ai/analyze returns 400 for invalid persona', async () => {
+      const res = await fetch(`http://localhost:${port}/api/ai/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: 'chapter1.md', persona: 'invalid-persona' })
+      });
+      assert.strictEqual(res.status, 400);
+    });
+  });
+
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });

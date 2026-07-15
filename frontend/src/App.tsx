@@ -9,7 +9,8 @@ import { resolveRelativePath } from './utils/pathResolver';
 import { SettingsModal } from './components/SettingsModal';
 import { MarkdownGuideModal } from './components/MarkdownGuideModal';
 import { GitDiffModal } from './components/GitDiffModal';
-import { ChevronRight, Eye, EyeOff } from 'lucide-react';
+import { AiPanel } from './components/AiPanel';
+import { ChevronRight, Eye, EyeOff, Sparkles } from 'lucide-react';
 
 function App() {
   const [files, setFiles] = useState<string[]>([]);
@@ -56,6 +57,15 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState(() => {
+    const saved = localStorage.getItem('marginalia_ai_panel_open');
+    return saved === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('marginalia_ai_panel_open', String(aiPanelOpen));
+  }, [aiPanelOpen]);
+
   const [authInfo, setAuthInfo] = useState<{ loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null>(null);
 
   const [pageFormat, setPageFormat] = useState<'paperback' | 'hardback'>(() => {
@@ -575,6 +585,16 @@ function App() {
                 >
                   {previewOpen ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
+                {hasGemini && (
+                  <button
+                    type="button"
+                    className={`ai-toggle-btn ${aiPanelOpen ? 'active' : ''}`}
+                    onClick={() => setAiPanelOpen(!aiPanelOpen)}
+                    title={aiPanelOpen ? "Hide AI Editor Panel" : "Show AI Editor Panel"}
+                  >
+                    <Sparkles size={14} />
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -586,6 +606,9 @@ function App() {
             />
             {previewOpen && activeFile && (
               <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />
+            )}
+            {aiPanelOpen && activeFile && hasGemini && (
+              <AiPanel activeFile={activeFile} onClose={() => setAiPanelOpen(false)} />
             )}
           </div>
         </div>

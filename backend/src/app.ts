@@ -550,6 +550,94 @@ app.post('/api/git/suggest-commit-message', async (req, res) => {
   }
 });
 
+app.post('/api/ai/analyze', async (req, res) => {
+  const { path: filePath, persona } = req.body as { path: string, persona: string };
+  if (!filePath || !persona) {
+    return res.status(400).json({ error: 'Missing path or persona parameter' });
+  }
+
+  try {
+    const targetDir = getTargetDir(req);
+    const safePath = path.resolve(targetDir, filePath);
+    if (!isPathSafe(safePath, targetDir)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    let apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      try {
+        const key = req.user ? `gemini_api_key:${req.user}` : 'gemini_api_key';
+        const row = db.prepare("SELECT value FROM settings WHERE key = ?;").get(key) as { value: string } | undefined;
+        if (row && row.value) {
+          apiKey = row.value;
+        } else if (req.user) {
+          const globalRow = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key';").get() as { value: string } | undefined;
+          if (globalRow && globalRow.value) {
+            apiKey = globalRow.value;
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+    }
+
+    let modelName = 'gemini-1.5-flash';
+    try {
+      const modelKey = req.user ? `gemini_model:${req.user}` : 'gemini_model';
+      let row = db.prepare("SELECT value FROM settings WHERE key = ?;").get(modelKey) as { value: string } | undefined;
+      if ((!row || !row.value) && req.user) {
+        row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_model';").get() as { value: string } | undefined;
+      }
+      if (row && row.value) {
+        modelName = row.value;
+      }
+    } catch (err) {
+      // ignore
+    }
+
+    const cleanModelName = modelName.replace(/^models\//, '');
+
+    let systemInstruction = '';
+    switch (persona) {
+      case 'developmental':
+        systemInstruction = 'You are a professional Developmental (or Structural) Editor. Analyze the following chapter draft. Focus on big-picture elements like structural pacing, character arcs, plot progression, narrative tension, and general concept. Provide constructive feedback, highlighting what works and listing specific suggestions for structural revision. Format your response in clean Markdown.';
+        break;
+      case 'line':
+        systemInstruction = 'You are a professional Line Editor. Analyze the following chapter draft. Focus on sentence-level and paragraph-level polishing, style, tone, clarity, flow, vocabulary choices, and sentence variety. Highlight weak phrasing, passive voice, run-on sentences, or tonal inconsistencies, and suggest clear revisions. Format your response in clean Markdown.';
+        break;
+      case 'copy':
+        systemInstruction = 'You are a professional Copy Editor. Analyze the following chapter draft. Focus on technical accuracy, grammar, punctuation, spelling, syntax errors, and stylistic consistency. Call out specific grammatical errors and provide clear corrections. Format your response in clean Markdown.';
+        break;
+      case 'proofreader':
+        systemInstruction = 'You are a professional Proofreader. Analyze the following chapter draft. Perform a final pass on the text, checking for remaining typos, formatting bugs, missing punctuation, double spaces, and minor slip-ups. List the errors found and how to fix them. Format your response in clean Markdown.';
+        break;
+      default:
+        return res.status(400).json({ error: `Invalid editor persona: ${persona}` });
+    }
+
+    const fileContent = await fs.readFile(safePath, 'utf-8');
+    if (!fileContent.trim()) {
+      return res.json({ feedback: 'This file is empty. Write some text before calling the AI Editor!' });
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: cleanModelName });
+
+    const prompt = `${systemInstruction}\n\nHere is the chapter text:\n\n${fileContent}`;
+
+    const result = await model.generateContent(prompt);
+    const feedback = result.response.text();
+
+    res.json({ feedback });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 app.post('/api/dictionary/add', async (req, res) => {
   const { word, scope } = req.body as { word: string, scope: 'global' | 'workspace' };
   if (!word) {
