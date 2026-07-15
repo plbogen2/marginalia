@@ -512,12 +512,27 @@ $font-mono: "Fira Code", Consolas, Monaco, monospace;
   position: relative;
   background-color: $bg-main;
 
+  .editor-cm-container {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+  }
+
   .cm-editor {
     height: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     background-color: $bg-main !important;
   }
 
   .cm-scroller {
+    flex: 1;
     height: 100% !important;
     overflow: auto !important;
     line-height: 1.6;
