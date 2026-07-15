@@ -273,6 +273,50 @@ test('Backend APIs', async (t) => {
     }
   });
 
+  await t.test('Security Hardening: Sandbox & Path Traversal Prevention', async (st) => {
+    await st.test('GET /api/file rejects paths escaping the workspace', async () => {
+      const res = await fetch(`http://localhost:${port}/api/file?path=../../../../etc/passwd`);
+      assert.strictEqual(res.status, 403);
+    });
+
+    await st.test('POST /api/file rejects writing outside workspace', async () => {
+      const res = await fetch(`http://localhost:${port}/api/file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: '../../escape.txt', content: 'hack' })
+      });
+      assert.strictEqual(res.status, 403);
+    });
+
+    await st.test('GET /api/file rejects sibling directory files', async () => {
+      const oldEnv = process.env.TARGET_DIR;
+      process.env.TARGET_DIR = '/tmp/marginalia_sandbox_test';
+      await fs.mkdir(process.env.TARGET_DIR, { recursive: true });
+      
+      const siblingDir = '/tmp/marginalia_sandbox_test_sibling';
+      await fs.mkdir(siblingDir, { recursive: true });
+      await fs.writeFile(path.join(siblingDir, 'secret.txt'), 'private');
+
+      try {
+        const res = await fetch(`http://localhost:${port}/api/file?path=../marginalia_sandbox_test_sibling/secret.txt`);
+        assert.strictEqual(res.status, 403);
+      } finally {
+        process.env.TARGET_DIR = oldEnv;
+        await fs.rm('/tmp/marginalia_sandbox_test', { recursive: true, force: true });
+        await fs.rm(siblingDir, { recursive: true, force: true });
+      }
+    });
+
+    await st.test('POST /api/workspaces/select rejects system folders', async () => {
+      const res = await fetch(`http://localhost:${port}/api/workspaces/select`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: '/etc' })
+      });
+      assert.strictEqual(res.status, 403);
+    });
+  });
+
   await t.test('POST /api/workspaces/clone clones repo and makes active', async () => {
     const clonePath = '/tmp/marginalia_clone_test';
     await fs.rm(clonePath, { recursive: true, force: true });
@@ -363,6 +407,41 @@ test('Backend APIs', async (t) => {
       assert.strictEqual(res.status, 400);
       const body = await res.json() as { error: string };
       assert.match(body.error, /GEMINI_API_KEY is not configured/);
+    } finally {
+      process.env.GEMINI_API_KEY = oldKey;
+    }
+  });
+
+  await t.test('Configuration Settings APIs (Gemini Key)', async (st) => {
+    const oldKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+
+    try {
+      const res1 = await fetch(`http://localhost:${port}/api/config`);
+      assert.strictEqual(res1.status, 200);
+      const body1 = await res1.json() as { hasGemini: boolean };
+      assert.strictEqual(body1.hasGemini, false);
+
+      const res2 = await fetch(`http://localhost:${port}/api/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ geminiApiKey: 'test_dummy_key_value' })
+      });
+      assert.strictEqual(res2.status, 200);
+      const body2 = await res2.json() as { status: string };
+      assert.strictEqual(body2.status, 'ok');
+
+      const res3 = await fetch(`http://localhost:${port}/api/config`);
+      const body3 = await res3.json() as { hasGemini: boolean };
+      assert.strictEqual(body3.hasGemini, true);
+
+      const res4 = await fetch(`http://localhost:${port}/api/git/suggest-commit-message`, {
+        method: 'POST'
+      });
+      assert.notStrictEqual(res4.status, 400);
+
+      const { db } = await import('./db.js');
+      db.prepare("DELETE FROM settings WHERE key = 'gemini_api_key';").run();
     } finally {
       process.env.GEMINI_API_KEY = oldKey;
     }

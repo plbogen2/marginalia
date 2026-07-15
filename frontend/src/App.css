@@ -1007,3 +1007,108 @@
   background-color: #3c3c3c;
   margin: 4px 0;
 }
+
+/* Settings Modal Styles */
+.settings-modal {
+  max-width: 480px;
+  width: 100%;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #858585;
+}
+
+.input-with-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-button input {
+  width: 100%;
+  padding: 8px 36px 8px 10px;
+  background-color: #3c3c3c;
+  border: 1px solid #6b6b6b;
+  border-radius: 4px;
+  color: #cccccc;
+  font-size: 13px;
+  outline: none;
+}
+
+.input-with-button input:focus {
+  border-color: #0e639c;
+}
+
+.input-icon-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #cccccc;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-icon-btn:hover {
+  color: #ffffff;
+}
+
+.help-text {
+  font-size: 11px;
+  color: #858585;
+  margin: 0;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.status-badge.success {
+  background-color: rgba(74, 163, 62, 0.15);
+  border: 1px solid rgba(74, 163, 62, 0.3);
+  color: #73c966;
+}
+
+.status-badge.warning {
+  background-color: rgba(220, 165, 80, 0.15);
+  border: 1px solid rgba(220, 165, 80, 0.3);
+  color: #e2c07d;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.settings-btn {
+  padding: 4px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

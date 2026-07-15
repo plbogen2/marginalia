@@ -6,6 +6,8 @@ import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, 
 import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote, getGitAheadCount, getCommitDiff } from './git.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { addIgnoredWord, getIgnoredWords, getAllApplicableIgnoredWords } from './dictionary.js';
+import { isPathSafe, isWorkspacePathAllowed } from './utils/pathSafety.js';
+import { db } from './db.js';
 
 const app = express();
 
@@ -52,7 +54,7 @@ app.get('/api/file', async (req, res) => {
   try {
     const targetDir = getTargetDir();
     const safePath = path.resolve(targetDir, filePath);
-    if (!safePath.startsWith(targetDir)) {
+    if (!isPathSafe(safePath, targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     const content = await fs.readFile(safePath, 'utf-8');
@@ -70,7 +72,7 @@ app.post('/api/file', async (req, res) => {
   try {
     const targetDir = getTargetDir();
     const safePath = path.resolve(targetDir, filePath);
-    if (!safePath.startsWith(targetDir)) {
+    if (!isPathSafe(safePath, targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     await fs.mkdir(path.dirname(safePath), { recursive: true });
@@ -89,7 +91,7 @@ app.delete('/api/file', async (req, res) => {
   try {
     const targetDir = getTargetDir();
     const safePath = path.resolve(targetDir, filePath);
-    if (!safePath.startsWith(targetDir)) {
+    if (!isPathSafe(safePath, targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     await fs.rm(safePath, { recursive: true, force: true });
@@ -104,7 +106,15 @@ app.get('/api/git/status', async (req, res) => {
     const status = await getGitStatus();
     const hasRemote = await hasGitRemote();
     const ahead = await getGitAheadCount();
-    const hasGemini = !!process.env.GEMINI_API_KEY;
+    let hasGemini = !!process.env.GEMINI_API_KEY;
+    if (!hasGemini) {
+      try {
+        const row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key';").get() as { value: string } | undefined;
+        hasGemini = !!(row && row.value);
+      } catch (err) {
+        // ignore
+      }
+    }
     res.json({ status, hasRemote, ahead, hasGemini });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -169,6 +179,9 @@ app.post('/api/workspaces/select', async (req, res) => {
   }
   try {
     const resolvedPath = path.resolve(targetPath);
+    if (!isWorkspacePathAllowed(resolvedPath)) {
+      return res.status(403).json({ error: 'Access denied: Workspace path is outside allowed roots' });
+    }
     await fs.access(resolvedPath);
     await fs.access(path.join(resolvedPath, '.git'));
     
@@ -203,6 +216,9 @@ app.post('/api/workspaces/clone', async (req, res) => {
   }
   try {
     const resolvedPath = path.resolve(targetPath);
+    if (!isWorkspacePathAllowed(resolvedPath)) {
+      return res.status(403).json({ error: 'Access denied: Workspace path is outside allowed roots' });
+    }
     await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
     
     const result = await cloneRepo(url, resolvedPath);
@@ -216,6 +232,10 @@ app.post('/api/workspaces/clone', async (req, res) => {
 app.get('/api/fs/list', async (req, res) => {
   const { path: queryPath } = req.query as { path?: string };
   const targetPath = queryPath ? path.resolve(queryPath) : os.homedir();
+
+  if (!isWorkspacePathAllowed(targetPath)) {
+    return res.status(403).json({ error: 'Access denied: Directory path is outside allowed roots' });
+  }
 
   try {
     const entries = await fs.readdir(targetPath, { withFileTypes: true });
@@ -238,8 +258,48 @@ app.get('/api/fs/list', async (req, res) => {
   }
 });
 
+app.get('/api/config', (req, res) => {
+  try {
+    const hasEnvKey = !!process.env.GEMINI_API_KEY;
+    let hasDbKey = false;
+    try {
+      const row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key';").get() as { value: string } | undefined;
+      hasDbKey = !!(row && row.value);
+    } catch (err) {
+      // ignore
+    }
+    res.json({ hasGemini: hasEnvKey || hasDbKey });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.post('/api/config', async (req, res) => {
+  const { geminiApiKey } = req.body as { geminiApiKey: string };
+  if (geminiApiKey === undefined) {
+    return res.status(400).json({ error: 'Missing geminiApiKey' });
+  }
+  try {
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('gemini_api_key', ?);").run(geminiApiKey);
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 app.post('/api/git/suggest-commit-message', async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  let apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    try {
+      const row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key';").get() as { value: string } | undefined;
+      if (row && row.value) {
+        apiKey = row.value;
+      }
+    } catch (err) {
+      console.error('Failed to read API key from DB:', err);
+    }
+  }
+
   if (!apiKey) {
     return res.status(400).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
   }

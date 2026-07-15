@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, Plus, Trash2, ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { buildFileTree, type FileNode } from '../utils/treeBuilder';
 
@@ -121,6 +121,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [newFileName, setNewFileName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!activeFile) return;
+
+    const parts = activeFile.split('/');
+    if (parts.length <= 1) return;
+
+    const parentsToExpand: string[] = [];
+    let current = '';
+    for (let i = 0; i < parts.length - 1; i++) {
+      current = current ? `${current}/${parts[i]}` : parts[i];
+      parentsToExpand.push(current);
+    }
+
+    setExpandedDirs(prev => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const parent of parentsToExpand) {
+        if (!next.has(parent)) {
+          next.add(parent);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [activeFile]);
 
   const toggleExpand = (path: string) => {
     setExpandedDirs(prev => {

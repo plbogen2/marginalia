@@ -6,7 +6,8 @@ import { GitBar } from './components/GitBar';
 import { WorkspaceManager } from './components/WorkspaceManager';
 import './App.css';
 import { resolveRelativePath } from './utils/pathResolver';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Settings } from 'lucide-react';
+import { SettingsModal } from './components/SettingsModal';
 
 function App() {
   const [files, setFiles] = useState<string[]>([]);
@@ -50,6 +51,7 @@ function App() {
   const [hasRemote, setHasRemote] = useState(false);
   const [gitAhead, setGitAhead] = useState(0);
   const [hasGemini, setHasGemini] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const selectFile = (filePath: string | null) => {
     setActiveFile(filePath);
@@ -478,6 +480,9 @@ function App() {
             <button onClick={() => setPreviewOpen(!previewOpen)}>
               {previewOpen ? 'Hide Preview' : 'Show Preview'}
             </button>
+            <button onClick={() => setSettingsOpen(true)} title="Settings" className="settings-btn">
+              <Settings size={14} />
+            </button>
             {loading && <span className="loading-indicator">Loading...</span>}
           </div>
           <div className="panels-container">
@@ -502,6 +507,14 @@ function App() {
             setOriginalContent('');
             window.history.pushState(null, '', `/${encodeURIComponent(newName)}/`);
             handleRefresh();
+          }}
+        />
+      )}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          onSave={() => {
+            fetchGitStatus();
           }}
         />
       )}
