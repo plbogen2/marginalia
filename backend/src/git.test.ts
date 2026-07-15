@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import os from 'os';
 
 const execAsync = promisify(exec);
 const TEST_TARGET_DIR = '/tmp/marginalia_git_test_target';
@@ -88,6 +89,32 @@ test('Git Helpers', async (t) => {
       delete process.env.STORAGE_DIR;
     }
     await fs.rm(userStorageRoot, { recursive: true, force: true });
+  });
+
+  await t.test('gitCommit auto-configures user name and email in Local Mode using system defaults', async () => {
+    try {
+      await execAsync('git config --local --unset user.name', { cwd: TEST_TARGET_DIR });
+    } catch (e) { /* ignore */ }
+    
+    try {
+      await execAsync('git config --local --unset user.email', { cwd: TEST_TARGET_DIR });
+    } catch (e) { /* ignore */ }
+
+    await fs.writeFile(path.join(TEST_TARGET_DIR, 'newfile.md'), 'some local mode content');
+
+    const commitResult = await gitCommit('Test local mode auto config');
+    assert.match(commitResult, /Test local mode auto config/);
+
+    const { stdout: name } = await execAsync('git config user.name', { cwd: TEST_TARGET_DIR });
+    const { stdout: email } = await execAsync('git config user.email', { cwd: TEST_TARGET_DIR });
+
+    const expectedUserRaw = os.userInfo().username || process.env.USER || 'marginalia-user';
+    const expectedUser = expectedUserRaw.replace(/[^a-zA-Z0-9_\-\.\s]/g, '');
+    const expectedDomain = os.hostname() || 'localhost';
+    const expectedEmail = `${expectedUser}@${expectedDomain}`.replace(/[^a-zA-Z0-9_\-\.\s@]/g, '');
+
+    assert.strictEqual(name.trim(), expectedUser);
+    assert.strictEqual(email.trim(), expectedEmail);
   });
 
   await t.test('gitPush pushes to remote', async () => {

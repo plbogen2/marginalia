@@ -25,7 +25,8 @@ async function ensureGitUserConfig(req?: any): Promise<void> {
       systemEmailRaw = `${req.user}@users.noreply.github.com`;
     } else {
       systemUserRaw = os.userInfo().username || process.env.USER || 'marginalia-user';
-      systemEmailRaw = `${systemUserRaw}@google.com`;
+      const domain = os.hostname() || 'localhost';
+      systemEmailRaw = `${systemUserRaw}@${domain}`;
     }
 
     const systemUser = systemUserRaw.replace(/[^a-zA-Z0-9_\-\.\s]/g, '');
