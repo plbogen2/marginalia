@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { X, RefreshCw, FileText } from 'lucide-react';
+import { X, RefreshCw, FileText, GitCommit, Sparkles } from 'lucide-react';
 import { SideBySideDiff } from './SideBySideDiff';
 
 interface GitDiffModalProps {
   onClose: () => void;
   gitStatus: string;
   onRefreshStatus: () => void;
+  onCommit: (message: string) => Promise<void>;
+  hasGemini: boolean;
 }
 
 interface ModifiedFile {
@@ -13,11 +15,14 @@ interface ModifiedFile {
   path: string;
 }
 
-export const GitDiffModal: React.FC<GitDiffModalProps> = ({ onClose, gitStatus, onRefreshStatus }) => {
+export const GitDiffModal: React.FC<GitDiffModalProps> = ({ onClose, gitStatus, onRefreshStatus, onCommit, hasGemini }) => {
   const [selectedFile, setSelectedFile] = useState<ModifiedFile | null>(null);
   const [oldText, setOldText] = useState('');
   const [newText, setNewText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [commitMessage, setCommitMessage] = useState('');
+  const [committing, setCommitting] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Parse porcelain status
@@ -100,6 +105,36 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({ onClose, gitStatus, 
     loadContents();
   }, [selectedFile]);
 
+  const handleSuggestMessage = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/git/suggest-commit-message', { method: 'POST' });
+      const data = await res.json();
+      if (data.suggestion) {
+        setCommitMessage(data.suggestion);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleSubmitCommit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commitMessage.trim()) return;
+    setCommitting(true);
+    try {
+      await onCommit(commitMessage);
+      setCommitMessage('');
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCommitting(false);
+    }
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content sbs-diff-modal" onClick={(e) => e.stopPropagation()}>
@@ -160,6 +195,33 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({ onClose, gitStatus, 
             </>
           )}
         </div>
+        {files.length > 0 && (
+          <form onSubmit={handleSubmitCommit} className="diff-modal-commit-form">
+            <input
+              type="text"
+              placeholder="Commit message..."
+              value={commitMessage}
+              onChange={(e) => setCommitMessage(e.target.value)}
+              required
+              disabled={committing || generating}
+            />
+            {hasGemini && (
+              <button
+                type="button"
+                className="suggest-message-btn"
+                onClick={handleSuggestMessage}
+                disabled={committing || generating}
+                title="Suggest commit message (Gemini)"
+              >
+                <Sparkles size={16} className={generating ? 'spin' : ''} />
+              </button>
+            )}
+            <button type="submit" disabled={committing || generating || !commitMessage.trim()}>
+              <GitCommit size={16} />
+              <span>{committing ? 'Committing...' : 'Commit Changes'}</span>
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

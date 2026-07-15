@@ -4,7 +4,7 @@ import { Editor } from './components/Editor';
 import { Preview } from './components/Preview';
 import { GitBar } from './components/GitBar';
 import { WorkspaceManager } from './components/WorkspaceManager';
-import './App.css';
+import './App.scss';
 import { resolveRelativePath } from './utils/pathResolver';
 import { SettingsModal } from './components/SettingsModal';
 import { MarkdownGuideModal } from './components/MarkdownGuideModal';
@@ -621,6 +621,8 @@ function App() {
           onClose={() => setDiffOpen(false)}
           gitStatus={gitStatus}
           onRefreshStatus={handleRefresh}
+          onCommit={handleCommit}
+          hasGemini={hasGemini}
         />
       )}
     </div>
