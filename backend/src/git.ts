@@ -71,3 +71,11 @@ export async function getCommitDiff(req?: any): Promise<string> {
   await runGit(['add', '.'], req);
   return runGit(['diff', '--cached'], req);
 }
+
+export async function gitShowHead(filePath: string, req?: any): Promise<string> {
+  try {
+    return await runGit(['show', `HEAD:${filePath}`], req);
+  } catch (err) {
+    return '';
+  }
+}

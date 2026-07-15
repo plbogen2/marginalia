@@ -619,6 +619,8 @@ function App() {
       {diffOpen && (
         <GitDiffModal
           onClose={() => setDiffOpen(false)}
+          gitStatus={gitStatus}
+          onRefreshStatus={handleRefresh}
         />
       )}
     </div>

@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, getActiveWorkspaceName, selectWorkspaceByName, IGNORED_DIRS, getUserStorageRoot } from './config.js';
-import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote, getGitAheadCount, getCommitDiff } from './git.js';
+import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote, getGitAheadCount, getCommitDiff, gitShowHead } from './git.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { addIgnoredWord, getIgnoredWords, getAllApplicableIgnoredWords } from './dictionary.js';
 import { isPathSafe, isWorkspacePathAllowed } from './utils/pathSafety.js';
@@ -130,6 +130,7 @@ app.get('/api/files', async (req, res) => {
 
 app.get('/api/file', async (req, res) => {
   const filePath = req.query.path as string;
+  const version = req.query.version as string;
   if (!filePath) {
     return res.status(400).json({ error: 'Missing path parameter' });
   }
@@ -139,6 +140,12 @@ app.get('/api/file', async (req, res) => {
     if (!isPathSafe(safePath, targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
     }
+
+    if (version === 'HEAD') {
+      const content = await gitShowHead(filePath, req);
+      return res.json({ content });
+    }
+
     const content = await fs.readFile(safePath, 'utf-8');
     res.json({ content });
   } catch (err) {
