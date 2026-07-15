@@ -76,6 +76,14 @@ function initTables() {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_feedback_cache 
     ON ai_feedback_cache(workspace_name, file_path, persona);
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS languagetool_cache (
+      hash TEXT PRIMARY KEY,
+      matches TEXT NOT NULL,
+      created_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+  `);
 }
 
 export { db };

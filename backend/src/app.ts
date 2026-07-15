@@ -10,6 +10,7 @@ import { isPathSafe, isWorkspacePathAllowed } from './utils/pathSafety.js';
 import { db } from './db.js';
 import { verifySessionToken, createSessionToken } from './utils/auth.js';
 import { lint as markdownLint } from 'markdownlint/sync';
+import crypto from 'crypto';
 
 const app = express();
 
@@ -805,29 +806,70 @@ app.post('/api/languagetool/check', async (req, res) => {
   }
 
   try {
-    const params = new URLSearchParams();
-    params.append('text', text);
-    params.append('language', 'en-US');
-
-    const ltRes = await fetch('https://api.languagetool.org/v2/check', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
-      },
-      body: params
-    });
-
-    if (!ltRes.ok) {
-      throw new Error(`LanguageTool API returned status ${ltRes.status}`);
+    const paragraphs: { text: string; start: number }[] = [];
+    const parts = text.split('\n\n');
+    let currentOffset = 0;
+    for (const part of parts) {
+      paragraphs.push({ text: part, start: currentOffset });
+      currentOffset += part.length + 2;
     }
 
-    const data = (await ltRes.json()) as { matches: any[] };
-    const matches = data.matches || [];
+    const allMatches: any[] = [];
+
+    for (const p of paragraphs) {
+      if (!p.text.trim()) continue;
+
+      const hash = crypto.createHash('md5').update(p.text).digest('hex');
+      let rawMatches: any[] | null = null;
+
+      try {
+        const row = db.prepare("SELECT matches FROM languagetool_cache WHERE hash = ?;").get(hash) as { matches: string } | undefined;
+        if (row && row.matches) {
+          rawMatches = JSON.parse(row.matches) as any[];
+        }
+      } catch (err) {
+        console.warn('Failed to query languagetool_cache:', err);
+      }
+
+      if (!rawMatches) {
+        const params = new URLSearchParams();
+        params.append('text', p.text);
+        params.append('language', 'en-US');
+
+        const ltRes = await fetch('https://api.languagetool.org/v2/check', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+          },
+          body: params
+        });
+
+        if (!ltRes.ok) {
+          throw new Error(`LanguageTool API returned status ${ltRes.status}`);
+        }
+
+        const data = (await ltRes.json()) as { matches: any[] };
+        rawMatches = data.matches || [];
+
+        try {
+          db.prepare("INSERT OR REPLACE INTO languagetool_cache (hash, matches) VALUES (?, ?);").run(hash, JSON.stringify(rawMatches));
+        } catch (err) {
+          console.warn('Failed to insert into languagetool_cache:', err);
+        }
+      }
+
+      for (const m of rawMatches) {
+        allMatches.push({
+          ...m,
+          offset: m.offset + p.start
+        });
+      }
+    }
 
     const ignoredWords = await getAllApplicableIgnoredWords(getTargetDir(req));
 
-    const filteredMatches = matches.filter((match) => {
+    const filteredMatches = allMatches.filter((match) => {
       const isSpelling = match.rule?.issueType === 'misspelling';
       if (!isSpelling) return true;
 
