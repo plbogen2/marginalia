@@ -104,8 +104,14 @@ export const GitBar: React.FC<GitBarProps> = ({
         <button 
           type="button" 
           onClick={onPush} 
-          disabled={loading || !hasRemote} 
-          title={hasRemote ? "Push to GitHub" : "No remote configured"}
+          disabled={loading || !hasRemote || ahead === 0} 
+          title={
+            !hasRemote 
+              ? "No remote configured" 
+              : ahead === 0 
+                ? "Nothing to push (local commits are up-to-date with remote)" 
+                : `Push ${ahead} commit(s) to GitHub`
+          }
         >
           <Upload size={16} />
           <span>Push{ahead > 0 ? ` (${ahead}↑)` : ''}</span>

@@ -42,6 +42,12 @@ before(async () => {
 after(async () => {
   await fs.rm(TEST_TARGET_DIR, { recursive: true, force: true });
   await fs.rm(TEST_REMOTE_DIR, { recursive: true, force: true });
+  try {
+    const { DB_PATH } = await import('./db.js');
+    await fs.rm(DB_PATH, { force: true });
+  } catch (err) {
+    // ignore
+  }
 });
 
 test('Backend APIs', async (t) => {
@@ -412,28 +418,30 @@ test('Backend APIs', async (t) => {
     }
   });
 
-  await t.test('Configuration Settings APIs (Gemini Key)', async (st) => {
+  await t.test('Configuration Settings APIs (Gemini Key & Simulation Mode)', async (st) => {
     const oldKey = process.env.GEMINI_API_KEY;
     delete process.env.GEMINI_API_KEY;
 
     try {
       const res1 = await fetch(`http://localhost:${port}/api/config`);
       assert.strictEqual(res1.status, 200);
-      const body1 = await res1.json() as { hasGemini: boolean };
+      const body1 = await res1.json() as { hasGemini: boolean, simulateHostedMode: boolean };
       assert.strictEqual(body1.hasGemini, false);
+      assert.strictEqual(body1.simulateHostedMode, false);
 
       const res2 = await fetch(`http://localhost:${port}/api/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ geminiApiKey: 'test_dummy_key_value' })
+        body: JSON.stringify({ geminiApiKey: 'test_dummy_key_value', simulateHostedMode: true })
       });
       assert.strictEqual(res2.status, 200);
       const body2 = await res2.json() as { status: string };
       assert.strictEqual(body2.status, 'ok');
 
       const res3 = await fetch(`http://localhost:${port}/api/config`);
-      const body3 = await res3.json() as { hasGemini: boolean };
+      const body3 = await res3.json() as { hasGemini: boolean, simulateHostedMode: boolean };
       assert.strictEqual(body3.hasGemini, true);
+      assert.strictEqual(body3.simulateHostedMode, true);
 
       const res4 = await fetch(`http://localhost:${port}/api/git/suggest-commit-message`, {
         method: 'POST'
@@ -442,6 +450,7 @@ test('Backend APIs', async (t) => {
 
       const { db } = await import('./db.js');
       db.prepare("DELETE FROM settings WHERE key = 'gemini_api_key';").run();
+      db.prepare("DELETE FROM settings WHERE key = 'simulate_hosted_mode';").run();
     } finally {
       process.env.GEMINI_API_KEY = oldKey;
     }

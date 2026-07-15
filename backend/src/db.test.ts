@@ -1,6 +1,15 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert';
-import { db } from './db.js';
+import fs from 'node:fs/promises';
+import { db, DB_PATH } from './db.js';
+
+after(async () => {
+  try {
+    await fs.rm(DB_PATH, { force: true });
+  } catch (err) {
+    // ignore
+  }
+});
 
 test('Database Initialization', () => {
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table';").all() as { name: string }[];
@@ -18,6 +27,9 @@ test('Database Initialization', () => {
 
   // Test ignored_words constraints
   db.prepare("DELETE FROM ignored_words;").run();
+  db.prepare("DELETE FROM workspaces;").run();
+  db.prepare("INSERT INTO workspaces (id, path, name) VALUES (1, '/workspace/1', 'WS 1');").run();
+  db.prepare("INSERT INTO workspaces (id, path, name) VALUES (2, '/workspace/2', 'WS 2');").run();
 
   // Test global uniqueness (workspace_id = null)
   db.prepare("INSERT INTO ignored_words (word, workspace_id) VALUES (?, ?);").run('hello', null);

@@ -21,7 +21,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 16px;
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 16px;
   background-color: #252526;
   border-bottom: 1px solid #3c3c3c;
   font-size: 13px;
@@ -247,7 +249,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  height: 35px;
+  box-sizing: border-box;
+  padding: 0 16px;
   background-color: #1e1e1e;
   border-bottom: 1px solid #2d2d2d;
 }
@@ -1207,4 +1211,25 @@
   background-color: #1e1e1e;
   color: #858585;
   font-size: 16px;
+}
+
+/* Checkbox groups inside settings */
+.checkbox-group {
+  margin-top: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #cccccc;
+  font-weight: normal !important;
+}
+
+.checkbox-label input {
+  cursor: pointer;
+  margin: 0;
+  width: auto !important;
 }

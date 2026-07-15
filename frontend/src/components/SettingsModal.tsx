@@ -10,6 +10,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
   const [geminiKey, setGeminiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
+  const [simulateHosted, setSimulateHosted] = useState(false);
+  const [initialSimulateHosted, setInitialSimulateHosted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,6 +20,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
       const res = await fetch('/api/config');
       const data = await res.json();
       setIsConfigured(data.hasGemini);
+      setSimulateHosted(!!data.simulateHostedMode);
+      setInitialSimulateHosted(!!data.simulateHostedMode);
     } catch (err) {
       console.error('Failed to load configuration status:', err);
     }
@@ -29,15 +33,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!geminiKey.trim()) return;
 
     setSaving(true);
     setError(null);
     try {
+      const payload: { geminiApiKey?: string, simulateHostedMode?: boolean } = {};
+      if (geminiKey.trim()) {
+        payload.geminiApiKey = geminiKey.trim();
+      }
+      if (simulateHosted !== initialSimulateHosted) {
+        payload.simulateHostedMode = simulateHosted;
+      }
+
       const res = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ geminiApiKey: geminiKey.trim() })
+        body: JSON.stringify(payload)
       });
       if (!res.ok) {
         const data = await res.json();
@@ -46,12 +57,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
       setGeminiKey('');
       await fetchConfigStatus();
       onSave();
+      
+      if (simulateHosted !== initialSimulateHosted) {
+        window.location.reload();
+      } else {
+        onClose();
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setSaving(false);
     }
   };
+
+  const isDirty = geminiKey.trim() !== '' || simulateHosted !== initialSimulateHosted;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -70,10 +89,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
               <input
                 id="geminiKey"
                 type={showKey ? 'text' : 'password'}
-                placeholder="Enter Gemini API Key"
+                placeholder={isConfigured ? "••••••••••••••••" : "Enter Gemini API Key"}
                 value={geminiKey}
                 onChange={(e) => setGeminiKey(e.target.value)}
-                required
               />
               <button
                 type="button"
@@ -86,6 +104,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
             </div>
             <p className="help-text">
               Providing a Gemini Key enables automatic git commit message summaries.
+            </p>
+          </div>
+
+          <div className="form-group checkbox-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={simulateHosted}
+                onChange={(e) => setSimulateHosted(e.target.checked)}
+              />
+              <span>Simulate Hosted (Remote) Mode</span>
+            </label>
+            <p className="help-text">
+              Forces the app to require login and runs VFS Sandboxed workspace directories on localhost.
             </p>
           </div>
 
@@ -111,7 +143,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={saving || !geminiKey.trim()}>
+            <button type="submit" className="btn-primary" disabled={saving || !isDirty}>
               {saving ? 'Saving...' : 'Save Settings'}
             </button>
           </div>

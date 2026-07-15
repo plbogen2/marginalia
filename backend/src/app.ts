@@ -14,9 +14,18 @@ const app = express();
 
 app.use(express.json());
 
+function isHostedModeActive(): boolean {
+  if (process.env.GITHUB_CLIENT_ID) return true;
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'simulate_hosted_mode';").get() as { value: string } | undefined;
+    return row?.value === 'true';
+  } catch (err) {
+    return false;
+  }
+}
+
 function authMiddleware(req: any, res: any, next: any) {
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  if (!clientId) {
+  if (!isHostedModeActive()) {
     return next();
   }
 
@@ -50,7 +59,7 @@ function authMiddleware(req: any, res: any, next: any) {
 }
 
 app.use((req: any, res: any, next: any) => {
-  if (req.path.startsWith('/api/auth/') || req.path === '/api/health') {
+  if (req.path.startsWith('/api/auth/') || req.path === '/api/health' || req.path === '/api/config') {
     return next();
   }
   authMiddleware(req, res, next);
@@ -311,25 +320,37 @@ app.get('/api/config', (req, res) => {
   try {
     const hasEnvKey = !!process.env.GEMINI_API_KEY;
     let hasDbKey = false;
+    let simulateHostedMode = false;
     try {
       const row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key';").get() as { value: string } | undefined;
       hasDbKey = !!(row && row.value);
     } catch (err) {
       // ignore
     }
-    res.json({ hasGemini: hasEnvKey || hasDbKey });
+    try {
+      const row = db.prepare("SELECT value FROM settings WHERE key = 'simulate_hosted_mode';").get() as { value: string } | undefined;
+      simulateHostedMode = row?.value === 'true';
+    } catch (err) {
+      // ignore
+    }
+    res.json({ 
+      hasGemini: hasEnvKey || hasDbKey,
+      simulateHostedMode
+    });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
 });
 
 app.post('/api/config', async (req, res) => {
-  const { geminiApiKey } = req.body as { geminiApiKey: string };
-  if (geminiApiKey === undefined) {
-    return res.status(400).json({ error: 'Missing geminiApiKey' });
-  }
+  const { geminiApiKey, simulateHostedMode } = req.body as { geminiApiKey?: string, simulateHostedMode?: boolean };
   try {
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('gemini_api_key', ?);").run(geminiApiKey);
+    if (geminiApiKey !== undefined) {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('gemini_api_key', ?);").run(geminiApiKey);
+    }
+    if (simulateHostedMode !== undefined) {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('simulate_hosted_mode', ?);").run(simulateHostedMode ? 'true' : 'false');
+    }
     res.json({ status: 'ok' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -450,10 +471,16 @@ app.post('/api/languagetool/check', async (req, res) => {
 
 /* Authentication & OAuth Routes */
 app.get('/api/auth/login', (req, res) => {
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  if (!clientId) {
+  if (!isHostedModeActive()) {
     return res.redirect('/');
   }
+
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  if (!clientId) {
+    // Simulated mode bypass: immediately redirect to callback
+    return res.redirect('/api/auth/github/callback?code=mock_dev_code');
+  }
+
   const redirectUri = `${process.env.BASE_URL || 'http://localhost:3000'}/api/auth/github/callback`;
   const authorizeUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user`;
   res.redirect(authorizeUrl);
@@ -471,38 +498,50 @@ app.get('/api/auth/github/callback', async (req, res) => {
   const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
 
   try {
-    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code
-      })
-    });
-    
-    const tokenData = await tokenRes.json() as { access_token?: string, error?: string };
-    if (tokenData.error || !tokenData.access_token) {
-      throw new Error(tokenData.error || 'Failed to retrieve access token');
-    }
+    let githubUser = '';
 
-    const userRes = await fetch('https://api.github.com/user', {
-      headers: {
-        'Authorization': `token ${tokenData.access_token}`,
-        'User-Agent': 'marginalia-app'
+    if (!clientId) {
+      // Mock bypass
+      const simulateRow = db.prepare("SELECT value FROM settings WHERE key = 'simulate_hosted_mode';").get() as { value: string } | undefined;
+      if (simulateRow?.value === 'true') {
+        githubUser = allowed || 'dev_mock_user';
+      } else {
+        throw new Error('OAuth Client ID is not configured');
       }
-    });
-    const userData = await userRes.json() as { login: string };
-    const githubUser = userData.login;
+    } else {
+      const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code
+        })
+      });
+      
+      const tokenData = await tokenRes.json() as { access_token?: string, error?: string };
+      if (tokenData.error || !tokenData.access_token) {
+        throw new Error(tokenData.error || 'Failed to retrieve access token');
+      }
+
+      const userRes = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `token ${tokenData.access_token}`,
+          'User-Agent': 'marginalia-app'
+        }
+      });
+      const userData = await userRes.json() as { login: string };
+      githubUser = userData.login;
+    }
 
     if (!githubUser) {
       throw new Error('Failed to retrieve GitHub profile info');
     }
 
-    if (githubUser.toLowerCase() !== allowed.toLowerCase()) {
+    if (clientId && allowed && githubUser.toLowerCase() !== allowed.toLowerCase()) {
       return res.status(403).send(`Access Denied: User ${githubUser} is not whitelisted`);
     }
 
@@ -521,8 +560,7 @@ app.get('/api/auth/github/callback', async (req, res) => {
 });
 
 app.get('/api/auth/status', (req, res) => {
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  if (!clientId) {
+  if (!isHostedModeActive()) {
     return res.json({ loggedIn: true, user: 'local', isOAuthMode: false });
   }
 
