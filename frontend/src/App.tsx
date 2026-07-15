@@ -148,6 +148,32 @@ function App() {
     }
   };
 
+  const handleApplyChange = (original: string, replacement: string): boolean => {
+    if (!editorValue.includes(original)) {
+      return false;
+    }
+    const updated = editorValue.replace(original, replacement);
+    setEditorValue(updated);
+    
+    if (activeFile) {
+      fetch('/api/file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: activeFile, content: updated })
+      }).then(res => {
+        if (res.ok) {
+          setOriginalContent(updated);
+          fetchGitStatus();
+        } else {
+          console.error('Failed to auto-save change application to disk');
+        }
+      }).catch(err => {
+        console.error('Error auto-saving change application:', err);
+      });
+    }
+    return true;
+  };
+
   const fetchFiles = async () => {
     try {
       const res = await fetch('/api/files');
@@ -608,7 +634,11 @@ function App() {
               <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />
             )}
             {aiPanelOpen && activeFile && hasGemini && (
-              <AiPanel activeFile={activeFile} onClose={() => setAiPanelOpen(false)} />
+              <AiPanel 
+                activeFile={activeFile} 
+                editorValue={editorValue}
+                onApplyChange={handleApplyChange}
+              />
             )}
           </div>
         </div>

@@ -551,7 +551,12 @@ app.post('/api/git/suggest-commit-message', async (req, res) => {
 });
 
 app.post('/api/ai/analyze', async (req, res) => {
-  const { path: filePath, persona } = req.body as { path: string, persona: string };
+  const { path: filePath, persona, message, history } = req.body as { 
+    path: string; 
+    persona: string;
+    message?: string;
+    history?: { role: 'user' | 'model', content: string }[];
+  };
   if (!filePath || !persona) {
     return res.status(400).json({ error: 'Missing path or persona parameter' });
   }
@@ -604,35 +609,65 @@ app.post('/api/ai/analyze', async (req, res) => {
     let systemInstruction = '';
     switch (persona) {
       case 'developmental':
-        systemInstruction = 'You are a professional Developmental (or Structural) Editor. Analyze the following chapter draft. Focus on big-picture elements like structural pacing, character arcs, plot progression, narrative tension, and general concept. Provide constructive feedback, highlighting what works and listing specific suggestions for structural revision. Format your response in clean Markdown.';
+        systemInstruction = 'You are a professional Developmental (or Structural) Editor. Analyze the chapter draft. Focus on big-picture elements like structural pacing, character arcs, plot progression, narrative tension, and general concept. Provide constructive feedback, highlighting what works and listing specific suggestions for structural revision.';
         break;
       case 'line':
-        systemInstruction = 'You are a professional Line Editor. Analyze the following chapter draft. Focus on sentence-level and paragraph-level polishing, style, tone, clarity, flow, vocabulary choices, and sentence variety. Highlight weak phrasing, passive voice, run-on sentences, or tonal inconsistencies, and suggest clear revisions. Format your response in clean Markdown.';
+        systemInstruction = 'You are a professional Line Editor. Analyze the chapter draft. Focus on sentence-level and paragraph-level polishing, style, tone, clarity, flow, vocabulary choices, and sentence variety. Highlight weak phrasing, passive voice, run-on sentences, or tonal inconsistencies, and suggest clear revisions.';
         break;
       case 'copy':
-        systemInstruction = 'You are a professional Copy Editor. Analyze the following chapter draft. Focus on technical accuracy, grammar, punctuation, spelling, syntax errors, and stylistic consistency. Call out specific grammatical errors and provide clear corrections. Format your response in clean Markdown.';
+        systemInstruction = 'You are a professional Copy Editor. Analyze the chapter draft. Focus on technical accuracy, grammar, punctuation, spelling, syntax errors, and stylistic consistency. Call out specific grammatical errors and provide clear corrections.';
         break;
       case 'proofreader':
-        systemInstruction = 'You are a professional Proofreader. Analyze the following chapter draft. Perform a final pass on the text, checking for remaining typos, formatting bugs, missing punctuation, double spaces, and minor slip-ups. List the errors found and how to fix them. Format your response in clean Markdown.';
+        systemInstruction = 'You are a professional Proofreader. Analyze the chapter draft. Perform a final pass on the text, checking for remaining typos, formatting bugs, missing punctuation, double spaces, and minor slip-ups. List the errors found and how to fix them.';
         break;
       default:
         return res.status(400).json({ error: `Invalid editor persona: ${persona}` });
     }
 
+    systemInstruction += `
+
+Format your response exactly like this:
+1. Always start your response with a thinking block containing your step-by-step reasoning process (analyze pacing, tone, style, typos, etc.). Use this format:
+<thinking>
+[Detail your thinking process here]
+</thinking>
+
+2. Below the thinking block, write your final reader-facing markdown feedback review report.
+
+3. If you suggest specific text edits, always provide them as separate search/replace blocks at the end of your response. Format each search/replace block precisely as:
+<<<<
+[Original lines from the chapter text that you want to replace]
+====
+[New replacement lines]
+>>>>
+
+Ensure the text in the original block matches the chapter draft EXACTLY, word-for-word, including punctuation and newlines. If you are not recommending text changes, do not write these blocks.`;
+
     const fileContent = await fs.readFile(safePath, 'utf-8');
-    if (!fileContent.trim()) {
+    const cleanContent = fileContent.replace(/<!--[\s\S]*?-->/g, '');
+    if (!cleanContent.trim()) {
       return res.json({ feedback: 'This file is empty. Write some text before calling the AI Editor!' });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: cleanModelName });
+    const model = genAI.getGenerativeModel({ 
+      model: cleanModelName,
+      systemInstruction: systemInstruction
+    });
 
-    const prompt = `${systemInstruction}\n\nHere is the chapter text:\n\n${fileContent}`;
-
-    const result = await model.generateContent(prompt);
-    const feedback = result.response.text();
-
-    res.json({ feedback });
+    if (history && history.length > 0) {
+      const formattedHistory = history.map(h => ({
+        role: h.role === 'user' ? 'user' : 'model',
+        parts: [{ text: h.content }]
+      }));
+      const chat = model.startChat({ history: formattedHistory });
+      const result = await chat.sendMessage(message || '');
+      res.json({ feedback: result.response.text() });
+    } else {
+      const prompt = `Please analyze this chapter draft:\n\n${cleanContent}`;
+      const result = await model.generateContent(prompt);
+      res.json({ feedback: result.response.text() });
+    }
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
