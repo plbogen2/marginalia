@@ -830,8 +830,9 @@ app.post('/api/languagetool/check', async (req, res) => {
   }
 
   try {
+    const normalizedText = text.replace(/\r\n/g, '\n');
     const paragraphs: { text: string; start: number }[] = [];
-    const parts = text.split('\n\n');
+    const parts = normalizedText.split('\n\n');
     let currentOffset = 0;
     for (const part of parts) {
       paragraphs.push({ text: part, start: currentOffset });
@@ -897,7 +898,7 @@ app.post('/api/languagetool/check', async (req, res) => {
       const isSpelling = match.rule?.issueType === 'misspelling';
       if (!isSpelling) return true;
 
-      const misspelledWord = text.substring(match.offset, match.offset + match.length).trim().toLowerCase();
+      const misspelledWord = normalizedText.substring(match.offset, match.offset + match.length).trim().toLowerCase();
       return !ignoredWords.has(misspelledWord);
     });
 

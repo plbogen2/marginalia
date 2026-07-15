@@ -284,7 +284,10 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
             grammarLinter,
             markdownStyleLinter,
             EditorView.updateListener.of((update) => {
-              if (update.docChanged || update.transactions.some(tr => tr.effects.some(e => e.is(setDiagnosticsEffect)))) {
+              const hasDiagEffect = update.transactions.some(tr => tr.effects.some(e => e.is(setDiagnosticsEffect)));
+              const linesChanged = update.state.doc.lines !== update.startState.doc.lines;
+
+              if (hasDiagEffect || linesChanged) {
                 const list: { line: number; severity: string }[] = [];
                 forEachDiagnostic(update.state, (d) => {
                   try {

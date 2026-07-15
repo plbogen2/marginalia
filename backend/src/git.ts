@@ -17,16 +17,19 @@ async function runGit(args: string[], req?: any): Promise<string> {
 
 async function ensureGitUserConfig(req?: any): Promise<void> {
   try {
-    let systemUser = '';
-    let systemEmail = '';
+    let systemUserRaw = '';
+    let systemEmailRaw = '';
 
     if (req && req.user) {
-      systemUser = req.user;
-      systemEmail = `${req.user}@users.noreply.github.com`;
+      systemUserRaw = req.user;
+      systemEmailRaw = `${req.user}@users.noreply.github.com`;
     } else {
-      systemUser = os.userInfo().username || process.env.USER || 'marginalia-user';
-      systemEmail = `${systemUser}@google.com`;
+      systemUserRaw = os.userInfo().username || process.env.USER || 'marginalia-user';
+      systemEmailRaw = `${systemUserRaw}@google.com`;
     }
+
+    const systemUser = systemUserRaw.replace(/[^a-zA-Z0-9_\-\.\s]/g, '');
+    const systemEmail = systemEmailRaw.replace(/[^a-zA-Z0-9_\-\.\s@]/g, '');
 
     let hasName = false;
     try {
