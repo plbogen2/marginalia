@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Upload, GitCommit, RefreshCw, GitBranch, Folder, Sparkles } from 'lucide-react';
+import { Download, Upload, GitCommit, RefreshCw, GitBranch, Folder, Sparkles, ArrowLeft, ArrowRight, Settings, LogOut } from 'lucide-react';
 
 interface GitBarProps {
   status: string;
@@ -13,6 +13,13 @@ interface GitBarProps {
   loading: boolean;
   ahead: number;
   hasGemini: boolean;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+  previewOpen: boolean;
+  onTogglePreview: () => void;
+  onOpenSettings: () => void;
+  authInfo: { loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null;
+  onLogout: () => void;
 }
 
 export const GitBar: React.FC<GitBarProps> = ({
@@ -26,7 +33,14 @@ export const GitBar: React.FC<GitBarProps> = ({
   hasRemote,
   loading,
   ahead,
-  hasGemini
+  hasGemini,
+  sidebarOpen,
+  onToggleSidebar,
+  previewOpen,
+  onTogglePreview,
+  onOpenSettings,
+  authInfo,
+  onLogout
 }) => {
   const [message, setMessage] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -64,6 +78,14 @@ export const GitBar: React.FC<GitBarProps> = ({
   return (
     <div className="git-bar">
       <div className="git-info">
+        <div className="nav-buttons">
+          <button onClick={() => window.history.back()} title="Go Back">
+            <ArrowLeft size={14} />
+          </button>
+          <button onClick={() => window.history.forward()} title="Go Forward">
+            <ArrowRight size={14} />
+          </button>
+        </div>
         <button onClick={onSwitchWorkspace} disabled={loading} title="Switch Workspace">
           <Folder size={14} />
         </button>
@@ -126,6 +148,27 @@ export const GitBar: React.FC<GitBarProps> = ({
           <span>Pull</span>
         </button>
       </form>
+
+      <div className="git-options">
+        <button onClick={onToggleSidebar} disabled={loading}>
+          {sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
+        </button>
+        <button onClick={onTogglePreview} disabled={loading}>
+          {previewOpen ? 'Hide Preview' : 'Show Preview'}
+        </button>
+        <button onClick={onOpenSettings} title="Settings" className="settings-btn">
+          <Settings size={14} />
+        </button>
+        {authInfo?.isOAuthMode && authInfo.loggedIn && (
+          <div className="auth-toolbar-section">
+            <span className="user-badge">Logged in as {authInfo.user}</span>
+            <button onClick={onLogout} title="Log Out" className="logout-btn">
+              <LogOut size={14} />
+            </button>
+          </div>
+        )}
+        {loading && <span className="loading-indicator">Loading...</span>}
+      </div>
     </div>
   );
 };

@@ -245,36 +245,34 @@
   background-color: #1e1e1e;
 }
 
-.workspace-toolbar {
+.git-options {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 35px;
-  box-sizing: border-box;
-  padding: 0 16px;
-  background-color: #1e1e1e;
-  border-bottom: 1px solid #2d2d2d;
 }
 
-.workspace-toolbar button {
-  background-color: #2d2d2d;
-  color: #cccccc;
-  border: 1px solid #3c3c3c;
-  padding: 4px 8px;
-  border-radius: 3px;
+.git-options .settings-btn,
+.git-options .logout-btn {
+  background: none !important;
+  border: none !important;
+  color: #858585 !important;
+  padding: 4px !important;
   cursor: pointer;
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none !important;
 }
 
-.workspace-toolbar button:hover {
-  background-color: #3c3c3c;
-  color: #ffffff;
+.git-options .settings-btn:hover,
+.git-options .logout-btn:hover {
+  color: #ffffff !important;
+  background: none !important;
 }
 
 .loading-indicator {
   font-size: 12px;
   color: #858585;
-  margin-left: auto;
 }
 
 .panels-container {
@@ -1178,7 +1176,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
   border-left: 1px solid #3c3c3c;
   padding-left: 12px;
 }
@@ -1186,21 +1183,6 @@
 .user-badge {
   font-size: 11px;
   color: #858585;
-}
-
-.logout-btn {
-  background: none;
-  border: none;
-  color: #cccccc;
-  cursor: pointer;
-  padding: 4px !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.logout-btn:hover {
-  color: #ffffff;
 }
 
 .app-loading {

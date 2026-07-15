@@ -83,69 +83,71 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
         </div>
 
         <form onSubmit={handleSubmit} className="settings-form">
-          <div className="form-group">
-            <label htmlFor="geminiKey">Gemini API Key</label>
-            <div className="input-with-button">
-              <input
-                id="geminiKey"
-                type={showKey ? 'text' : 'password'}
-                placeholder={isConfigured ? "••••••••••••••••" : "Enter Gemini API Key"}
-                value={geminiKey}
-                onChange={(e) => setGeminiKey(e.target.value)}
-              />
-              <button
-                type="button"
-                className="input-icon-btn"
-                onClick={() => setShowKey(!showKey)}
-                title={showKey ? 'Hide key' : 'Show key'}
-              >
-                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+          <div className="modal-body">
+            <div className="form-group">
+              <label htmlFor="geminiKey">Gemini API Key</label>
+              <div className="input-with-button">
+                <input
+                  id="geminiKey"
+                  type={showKey ? 'text' : 'password'}
+                  placeholder={isConfigured ? "••••••••••••••••" : "Enter Gemini API Key"}
+                  value={geminiKey}
+                  onChange={(e) => setGeminiKey(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="input-icon-btn"
+                  onClick={() => setShowKey(!showKey)}
+                  title={showKey ? 'Hide key' : 'Show key'}
+                >
+                  {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <p className="help-text">
+                Providing a Gemini Key enables automatic git commit message summaries.
+              </p>
+            </div>
+
+            <div className="form-group checkbox-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={simulateHosted}
+                  onChange={(e) => setSimulateHosted(e.target.checked)}
+                />
+                <span>Simulate Hosted (Remote) Mode</span>
+              </label>
+              <p className="help-text">
+                Forces the app to require login and runs VFS Sandboxed workspace directories on localhost.
+              </p>
+            </div>
+
+            {isConfigured !== null && (
+              <div className={`status-badge ${isConfigured ? 'success' : 'warning'}`}>
+                {isConfigured ? (
+                  <>
+                    <Check size={16} />
+                    <span>Gemini API Key is configured on server</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={16} />
+                    <span>Gemini API Key is not configured</span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {error && <div className="error-message">{error}</div>}
+
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={onClose}>
+                Cancel
+              </button>
+              <button type="submit" className="btn-primary" disabled={saving || !isDirty}>
+                {saving ? 'Saving...' : 'Save Settings'}
               </button>
             </div>
-            <p className="help-text">
-              Providing a Gemini Key enables automatic git commit message summaries.
-            </p>
-          </div>
-
-          <div className="form-group checkbox-group">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={simulateHosted}
-                onChange={(e) => setSimulateHosted(e.target.checked)}
-              />
-              <span>Simulate Hosted (Remote) Mode</span>
-            </label>
-            <p className="help-text">
-              Forces the app to require login and runs VFS Sandboxed workspace directories on localhost.
-            </p>
-          </div>
-
-          {isConfigured !== null && (
-            <div className={`status-badge ${isConfigured ? 'success' : 'warning'}`}>
-              {isConfigured ? (
-                <>
-                  <Check size={16} />
-                  <span>Gemini API Key is configured on server</span>
-                </>
-              ) : (
-                <>
-                  <AlertCircle size={16} />
-                  <span>Gemini API Key is not configured</span>
-                </>
-              )}
-            </div>
-          )}
-
-          {error && <div className="error-message">{error}</div>}
-
-          <div className="form-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={saving || !isDirty}>
-              {saving ? 'Saving...' : 'Save Settings'}
-            </button>
           </div>
         </form>
       </div>

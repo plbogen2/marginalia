@@ -6,7 +6,6 @@ import { GitBar } from './components/GitBar';
 import { WorkspaceManager } from './components/WorkspaceManager';
 import './App.css';
 import { resolveRelativePath } from './utils/pathResolver';
-import { ArrowLeft, ArrowRight, Settings, LogOut } from 'lucide-react';
 import { SettingsModal } from './components/SettingsModal';
 
 function App() {
@@ -497,6 +496,13 @@ function App() {
         loading={loading}
         ahead={gitAhead}
         hasGemini={hasGemini}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        previewOpen={previewOpen}
+        onTogglePreview={() => setPreviewOpen(!previewOpen)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        authInfo={authInfo}
+        onLogout={handleLogout}
       />
       <div className="main-layout">
         {sidebarOpen && (
@@ -513,34 +519,6 @@ function App() {
           </>
         )}
         <div className="workspace">
-          <div className="workspace-toolbar">
-            <div className="nav-buttons">
-              <button onClick={() => window.history.back()} title="Go Back">
-                <ArrowLeft size={14} />
-              </button>
-              <button onClick={() => window.history.forward()} title="Go Forward">
-                <ArrowRight size={14} />
-              </button>
-            </div>
-            <button onClick={() => setSidebarOpen(!sidebarOpen)}>
-              {sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
-            </button>
-            <button onClick={() => setPreviewOpen(!previewOpen)}>
-              {previewOpen ? 'Hide Preview' : 'Show Preview'}
-            </button>
-            <button onClick={() => setSettingsOpen(true)} title="Settings" className="settings-btn">
-              <Settings size={14} />
-            </button>
-            {authInfo.isOAuthMode && authInfo.loggedIn && (
-              <div className="auth-toolbar-section">
-                <span className="user-badge">Logged in as {authInfo.user}</span>
-                <button onClick={handleLogout} title="Log Out" className="logout-btn">
-                  <LogOut size={14} />
-                </button>
-              </div>
-            )}
-            {loading && <span className="loading-indicator">Loading...</span>}
-          </div>
           <div className="panels-container">
             <Editor
               value={editorValue}
