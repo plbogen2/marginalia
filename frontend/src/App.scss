@@ -581,6 +581,46 @@ $input-border: #6b6b6b;
   .cm-gutters {
     display: none !important;
   }
+
+  .editor-minimap-gutter {
+    position: absolute;
+    right: 6px;
+    top: 8px;
+    bottom: 8px;
+    width: 8px;
+    background-color: transparent;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .minimap-tick {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 1px;
+    pointer-events: auto;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.1s, transform 0.1s;
+
+    &:hover {
+      opacity: 1;
+      transform: scaleY(1.7) scaleX(1.3);
+    }
+
+    &.error {
+      background-color: $error-color;
+    }
+
+    &.warning {
+      background-color: $gold-color;
+    }
+
+    &.info {
+      background-color: $branch-blue;
+    }
+  }
 }
 
 .editor-empty {

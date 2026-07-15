@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { linter, type Diagnostic, forEachDiagnostic, setDiagnostics } from '@codemirror/lint';
+import { linter, type Diagnostic, forEachDiagnostic, setDiagnostics, setDiagnosticsEffect } from '@codemirror/lint';
 import { checkGrammar } from '../utils/languagetool';
 import { lintMarkdown } from '../utils/markdownLinter';
 import { Copy, Scissors, Clipboard, EyeOff } from 'lucide-react';
@@ -126,6 +126,24 @@ const markdownStyleLinter = linter(async (view) => {
 export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) => {
 
   const editorRef = useRef<any>(null);
+  const [diagnostics, setDiagnosticsList] = useState<{ line: number; severity: string }[]>([]);
+  const [totalLines, setTotalLines] = useState<number>(1);
+
+  const scrollToLine = (lineNumber: number) => {
+    const view = editorRef.current;
+    if (!view) return;
+    try {
+      const line = view.state.doc.line(lineNumber);
+      view.dispatch({
+        effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
+        selection: { anchor: line.from }
+      });
+      view.focus();
+    } catch (e) {
+      console.error('Failed to scroll to line:', e);
+    }
+  };
+
   const [contextMenu, setContextMenu] = useState<{ 
     x: number; 
     y: number; 
@@ -255,6 +273,7 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
         <CodeMirror
           onCreateEditor={(view) => {
             editorRef.current = view;
+            setTotalLines(view.state.doc.lines);
           }}
           className="editor-cm-container"
           value={value}
@@ -263,7 +282,25 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
             markdown({ base: markdownLanguage }),
             EditorView.lineWrapping,
             grammarLinter,
-            markdownStyleLinter
+            markdownStyleLinter,
+            EditorView.updateListener.of((update) => {
+              if (update.docChanged || update.transactions.some(tr => tr.effects.some(e => e.is(setDiagnosticsEffect)))) {
+                const list: { line: number; severity: string }[] = [];
+                forEachDiagnostic(update.state, (d) => {
+                  try {
+                    const line = update.state.doc.lineAt(d.from);
+                    list.push({
+                      line: line.number,
+                      severity: d.severity
+                    });
+                  } catch (e) {
+                    // ignore
+                  }
+                });
+                setDiagnosticsList(list);
+                setTotalLines(update.state.doc.lines);
+              }
+            })
           ]}
           onChange={(val) => onChange(val)}
           theme="dark"
@@ -273,6 +310,23 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
             highlightActiveLine: false
           }}
         />
+
+        {diagnostics.length > 0 && (
+          <div className="editor-minimap-gutter">
+            {diagnostics.map((d, index) => {
+              const topPct = ((d.line - 1) / Math.max(1, totalLines)) * 100;
+              return (
+                <div
+                  key={index}
+                  className={`minimap-tick ${d.severity}`}
+                  style={{ top: `${topPct}%` }}
+                  onClick={() => scrollToLine(d.line)}
+                  title={`Go to ${d.severity} on line ${d.line}`}
+                />
+              );
+            })}
+          </div>
+        )}
 
         {contextMenu && (
           <div
