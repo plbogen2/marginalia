@@ -1019,15 +1019,15 @@ kbd {
   height: 90vh;
   display: flex;
   flex-direction: column;
-}
 
-.sbs-diff-modal-body {
-  display: flex;
-  flex-direction: row;
-  height: 100%;
-  overflow: hidden;
-  padding: 0 !important;
-  flex: 1;
+  .sbs-diff-modal-body {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    overflow: hidden;
+    padding: 0 !important;
+    flex: 1;
+  }
 }
 
 .diff-files-sidebar {
