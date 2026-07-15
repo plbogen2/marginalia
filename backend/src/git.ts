@@ -4,37 +4,37 @@ import { getTargetDir } from './config.js';
 
 const execAsync = promisify(exec);
 
-async function runGit(args: string[]): Promise<string> {
+async function runGit(args: string[], req?: any): Promise<string> {
   const cmd = `git ${args.join(' ')}`;
   try {
-    const { stdout, stderr } = await execAsync(cmd, { cwd: getTargetDir() });
+    const { stdout, stderr } = await execAsync(cmd, { cwd: getTargetDir(req) });
     return (stdout + '\n' + stderr).trim();
   } catch (err) {
     throw new Error(`Git command failed: ${cmd}\nError: ${(err as Error).message}`);
   }
 }
 
-export async function getGitStatus(): Promise<string> {
-  return runGit(['status', '--porcelain']);
+export async function getGitStatus(req?: any): Promise<string> {
+  return runGit(['status', '--porcelain'], req);
 }
 
-export async function gitCommit(message: string): Promise<string> {
-  await runGit(['add', '.']);
-  return runGit(['commit', '-m', `"${message}"`]);
+export async function gitCommit(message: string, req?: any): Promise<string> {
+  await runGit(['add', '.'], req);
+  return runGit(['commit', '-m', `"${message}"`], req);
 }
 
-export async function gitPush(): Promise<string> {
-  // Use current branch
-  const branch = await runGit(['branch', '--show-current']);
-  return runGit(['push', 'origin', branch]);
+export async function gitPush(req?: any): Promise<string> {
+  const branch = await runGit(['branch', '--show-current'], req);
+  return runGit(['push', 'origin', branch], req);
 }
 
-export async function gitPull(): Promise<string> {
-  const branch = await runGit(['branch', '--show-current']);
-  return runGit(['pull', 'origin', branch]);
+export async function gitPull(req?: any): Promise<string> {
+  const branch = await runGit(['branch', '--show-current'], req);
+  return runGit(['pull', 'origin', branch], req);
 }
-export async function getGitBranch(): Promise<string> {
-  return runGit(['branch', '--show-current']);
+
+export async function getGitBranch(req?: any): Promise<string> {
+  return runGit(['branch', '--show-current'], req);
 }
 
 export async function cloneRepo(url: string, targetPath: string): Promise<string> {
@@ -47,18 +47,18 @@ export async function cloneRepo(url: string, targetPath: string): Promise<string
   }
 }
 
-export async function hasGitRemote(): Promise<boolean> {
+export async function hasGitRemote(req?: any): Promise<boolean> {
   try {
-    const remotes = await runGit(['remote']);
+    const remotes = await runGit(['remote'], req);
     return remotes.trim().length > 0;
   } catch (err) {
     return false;
   }
 }
 
-export async function getGitAheadCount(): Promise<number> {
+export async function getGitAheadCount(req?: any): Promise<number> {
   try {
-    const targetDir = getTargetDir();
+    const targetDir = getTargetDir(req);
     await execAsync('git rev-parse --abbrev-ref @{u}', { cwd: targetDir });
     const { stdout } = await execAsync('git rev-list --count @{u}..HEAD', { cwd: targetDir });
     return parseInt(stdout.trim(), 10) || 0;
@@ -66,7 +66,8 @@ export async function getGitAheadCount(): Promise<number> {
     return 0;
   }
 }
-export async function getCommitDiff(): Promise<string> {
-  await runGit(['add', '.']);
-  return runGit(['diff', '--cached']);
+
+export async function getCommitDiff(req?: any): Promise<string> {
+  await runGit(['add', '.'], req);
+  return runGit(['diff', '--cached'], req);
 }

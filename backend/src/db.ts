@@ -33,12 +33,20 @@ function initTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       path TEXT UNIQUE NOT NULL,
       name TEXT,
-      last_opened INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+      last_opened INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      user TEXT
     );
   `);
 
+  try {
+    db.exec("ALTER TABLE workspaces ADD COLUMN user TEXT;");
+  } catch (err) {
+    // Ignore error if column already exists (e.g. table already altered)
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS ignored_words (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       word TEXT NOT NULL,
       workspace_id INTEGER,
       FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE

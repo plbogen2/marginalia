@@ -1,5 +1,6 @@
 import path from 'path';
 import os from 'os';
+import { getUserStorageRoot } from '../config.js';
 
 export function isPathSafe(targetPath: string, baseDir: string): boolean {
   const resolvedTarget = path.resolve(targetPath);
@@ -7,10 +8,15 @@ export function isPathSafe(targetPath: string, baseDir: string): boolean {
   return resolvedTarget.startsWith(resolvedBase + path.sep) || resolvedTarget === resolvedBase;
 }
 
-export function isWorkspacePathAllowed(targetPath: string): boolean {
+export function isWorkspacePathAllowed(targetPath: string, username?: string): boolean {
   const resolvedPath = path.resolve(targetPath);
-  const homeDir = os.homedir();
   
+  if (username) {
+    const userSandbox = getUserStorageRoot(username);
+    return resolvedPath.startsWith(userSandbox + path.sep) || resolvedPath === userSandbox;
+  }
+
+  const homeDir = os.homedir();
   if (resolvedPath.startsWith(homeDir + path.sep) || resolvedPath === homeDir) {
     return true;
   }

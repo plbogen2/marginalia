@@ -2,16 +2,59 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, getActiveWorkspaceName, selectWorkspaceByName, IGNORED_DIRS } from './config.js';
+import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, getActiveWorkspaceName, selectWorkspaceByName, IGNORED_DIRS, getUserStorageRoot } from './config.js';
 import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote, getGitAheadCount, getCommitDiff } from './git.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { addIgnoredWord, getIgnoredWords, getAllApplicableIgnoredWords } from './dictionary.js';
 import { isPathSafe, isWorkspacePathAllowed } from './utils/pathSafety.js';
 import { db } from './db.js';
+import { verifySessionToken, createSessionToken } from './utils/auth.js';
 
 const app = express();
 
 app.use(express.json());
+
+function authMiddleware(req: any, res: any, next: any) {
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  if (!clientId) {
+    return next();
+  }
+
+  const cookieHeader = req.headers.cookie || '';
+  const cookies = Object.fromEntries(
+    cookieHeader.split(';').map((c: string) => {
+      const parts = c.trim().split('=');
+      return [parts[0], parts.slice(1).join('=')];
+    })
+  );
+
+  const sessionToken = cookies['session_token'];
+  if (!sessionToken) {
+    if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
+      return res.redirect('/api/auth/login');
+    }
+    return res.status(401).json({ error: 'Unauthorized: Session missing' });
+  }
+
+  const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
+  const username = verifySessionToken(sessionToken, secret);
+  if (!username) {
+    if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
+      return res.redirect('/api/auth/login');
+    }
+    return res.status(401).json({ error: 'Unauthorized: Session invalid or expired' });
+  }
+
+  req.user = username;
+  next();
+}
+
+app.use((req: any, res: any, next: any) => {
+  if (req.path.startsWith('/api/auth/') || req.path === '/api/health') {
+    return next();
+  }
+  authMiddleware(req, res, next);
+});
 
 async function getFiles(dir: string, baseDir = dir): Promise<string[]> {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -38,7 +81,7 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/files', async (req, res) => {
   try {
-    const targetDir = getTargetDir();
+    const targetDir = getTargetDir(req);
     const files = await getFiles(targetDir);
     res.json(files);
   } catch (err) {
@@ -52,7 +95,7 @@ app.get('/api/file', async (req, res) => {
     return res.status(400).json({ error: 'Missing path parameter' });
   }
   try {
-    const targetDir = getTargetDir();
+    const targetDir = getTargetDir(req);
     const safePath = path.resolve(targetDir, filePath);
     if (!isPathSafe(safePath, targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
@@ -70,7 +113,7 @@ app.post('/api/file', async (req, res) => {
     return res.status(400).json({ error: 'Missing path or content' });
   }
   try {
-    const targetDir = getTargetDir();
+    const targetDir = getTargetDir(req);
     const safePath = path.resolve(targetDir, filePath);
     if (!isPathSafe(safePath, targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
@@ -89,7 +132,7 @@ app.delete('/api/file', async (req, res) => {
     return res.status(400).json({ error: 'Missing path parameter' });
   }
   try {
-    const targetDir = getTargetDir();
+    const targetDir = getTargetDir(req);
     const safePath = path.resolve(targetDir, filePath);
     if (!isPathSafe(safePath, targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
@@ -103,13 +146,17 @@ app.delete('/api/file', async (req, res) => {
 
 app.get('/api/git/status', async (req, res) => {
   try {
-    const status = await getGitStatus();
-    const hasRemote = await hasGitRemote();
-    const ahead = await getGitAheadCount();
+    const status = await getGitStatus(req);
+    const hasRemote = await hasGitRemote(req);
+    const ahead = await getGitAheadCount(req);
     let hasGemini = !!process.env.GEMINI_API_KEY;
     if (!hasGemini) {
       try {
-        const row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key';").get() as { value: string } | undefined;
+        const key = req.user ? `gemini_api_key:${req.user}` : 'gemini_api_key';
+        let row = db.prepare("SELECT value FROM settings WHERE key = ?;").get(key) as { value: string } | undefined;
+        if ((!row || !row.value) && req.user) {
+          row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key';").get() as { value: string } | undefined;
+        }
         hasGemini = !!(row && row.value);
       } catch (err) {
         // ignore
@@ -127,7 +174,7 @@ app.post('/api/git/commit', async (req, res) => {
     return res.status(400).json({ error: 'Missing commit message' });
   }
   try {
-    const result = await gitCommit(message);
+    const result = await gitCommit(message, req);
     res.json({ result });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -136,7 +183,7 @@ app.post('/api/git/commit', async (req, res) => {
 
 app.post('/api/git/push', async (req, res) => {
   try {
-    const result = await gitPush();
+    const result = await gitPush(req);
     res.json({ result });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -145,7 +192,7 @@ app.post('/api/git/push', async (req, res) => {
 
 app.post('/api/git/pull', async (req, res) => {
   try {
-    const result = await gitPull();
+    const result = await gitPull(req);
     res.json({ result });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -154,7 +201,7 @@ app.post('/api/git/pull', async (req, res) => {
 
 app.get('/api/git/branch', async (req, res) => {
   try {
-    const branch = await getGitBranch();
+    const branch = await getGitBranch(req);
     res.json({ branch });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -163,9 +210,9 @@ app.get('/api/git/branch', async (req, res) => {
 
 app.get('/api/workspaces', (req, res) => {
   try {
-    const active = getTargetDir();
-    const activeName = getActiveWorkspaceName();
-    const recents = getRecentWorkspaces();
+    const active = getTargetDir(req);
+    const activeName = getActiveWorkspaceName(req);
+    const recents = getRecentWorkspaces(req.user);
     res.json({ active, activeName, recents });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -179,14 +226,14 @@ app.post('/api/workspaces/select', async (req, res) => {
   }
   try {
     const resolvedPath = path.resolve(targetPath);
-    if (!isWorkspacePathAllowed(resolvedPath)) {
+    if (!isWorkspacePathAllowed(resolvedPath, req.user)) {
       return res.status(403).json({ error: 'Access denied: Workspace path is outside allowed roots' });
     }
     await fs.access(resolvedPath);
     await fs.access(path.join(resolvedPath, '.git'));
     
-    setTargetDir(resolvedPath);
-    res.json({ status: 'ok', path: resolvedPath, name: getActiveWorkspaceName() });
+    setTargetDir(resolvedPath, req.user);
+    res.json({ status: 'ok', path: resolvedPath, name: getActiveWorkspaceName(req) });
   } catch (err) {
     res.status(400).json({ error: `Invalid workspace path: ${(err as Error).message}` });
   }
@@ -198,7 +245,7 @@ app.post('/api/workspaces/select-by-name', async (req, res) => {
     return res.status(400).json({ error: 'Missing name' });
   }
   try {
-    const resolvedPath = selectWorkspaceByName(name);
+    const resolvedPath = selectWorkspaceByName(name, req.user);
     if (resolvedPath) {
       res.json({ status: 'ok', path: resolvedPath, name });
     } else {
@@ -216,14 +263,14 @@ app.post('/api/workspaces/clone', async (req, res) => {
   }
   try {
     const resolvedPath = path.resolve(targetPath);
-    if (!isWorkspacePathAllowed(resolvedPath)) {
+    if (!isWorkspacePathAllowed(resolvedPath, req.user)) {
       return res.status(403).json({ error: 'Access denied: Workspace path is outside allowed roots' });
     }
     await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
     
     const result = await cloneRepo(url, resolvedPath);
-    setTargetDir(resolvedPath);
-    res.json({ status: 'ok', result: `Cloned successfully.\n${result}`, path: resolvedPath, name: getActiveWorkspaceName() });
+    setTargetDir(resolvedPath, req.user);
+    res.json({ status: 'ok', result: `Cloned successfully.\n${result}`, path: resolvedPath, name: getActiveWorkspaceName(req) });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -231,9 +278,11 @@ app.post('/api/workspaces/clone', async (req, res) => {
 
 app.get('/api/fs/list', async (req, res) => {
   const { path: queryPath } = req.query as { path?: string };
-  const targetPath = queryPath ? path.resolve(queryPath) : os.homedir();
+  const targetPath = queryPath 
+    ? path.resolve(queryPath) 
+    : (req.user ? getUserStorageRoot(req.user) : os.homedir());
 
-  if (!isWorkspacePathAllowed(targetPath)) {
+  if (!isWorkspacePathAllowed(targetPath, req.user)) {
     return res.status(403).json({ error: 'Access denied: Directory path is outside allowed roots' });
   }
 
@@ -339,7 +388,7 @@ app.post('/api/dictionary/add', async (req, res) => {
   }
 
   try {
-    const workspacePath = scope === 'workspace' ? getTargetDir() : null;
+    const workspacePath = scope === 'workspace' ? getTargetDir(req) : null;
     await addIgnoredWord(word, workspacePath);
     res.json({ status: 'ok' });
   } catch (err) {
@@ -349,7 +398,7 @@ app.post('/api/dictionary/add', async (req, res) => {
 
 app.get('/api/dictionary', async (req, res) => {
   try {
-    const dictionary = await getIgnoredWords(getTargetDir());
+    const dictionary = await getIgnoredWords(getTargetDir(req));
     res.json(dictionary);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -383,7 +432,7 @@ app.post('/api/languagetool/check', async (req, res) => {
     const data = (await ltRes.json()) as { matches: any[] };
     const matches = data.matches || [];
 
-    const ignoredWords = await getAllApplicableIgnoredWords(getTargetDir());
+    const ignoredWords = await getAllApplicableIgnoredWords(getTargetDir(req));
 
     const filteredMatches = matches.filter((match) => {
       const isSpelling = match.rule?.issueType === 'misspelling';
@@ -397,6 +446,110 @@ app.post('/api/languagetool/check', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
+});
+
+/* Authentication & OAuth Routes */
+app.get('/api/auth/login', (req, res) => {
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  if (!clientId) {
+    return res.redirect('/');
+  }
+  const redirectUri = `${process.env.BASE_URL || 'http://localhost:3000'}/api/auth/github/callback`;
+  const authorizeUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user`;
+  res.redirect(authorizeUrl);
+});
+
+app.get('/api/auth/github/callback', async (req, res) => {
+  const { code } = req.query as { code: string };
+  if (!code) {
+    return res.status(400).send('OAuth callback code missing');
+  }
+
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+  const allowed = process.env.ALLOWED_USER || '';
+  const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
+
+  try {
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code
+      })
+    });
+    
+    const tokenData = await tokenRes.json() as { access_token?: string, error?: string };
+    if (tokenData.error || !tokenData.access_token) {
+      throw new Error(tokenData.error || 'Failed to retrieve access token');
+    }
+
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `token ${tokenData.access_token}`,
+        'User-Agent': 'marginalia-app'
+      }
+    });
+    const userData = await userRes.json() as { login: string };
+    const githubUser = userData.login;
+
+    if (!githubUser) {
+      throw new Error('Failed to retrieve GitHub profile info');
+    }
+
+    if (githubUser.toLowerCase() !== allowed.toLowerCase()) {
+      return res.status(403).send(`Access Denied: User ${githubUser} is not whitelisted`);
+    }
+
+    await fs.mkdir(getUserStorageRoot(githubUser), { recursive: true });
+
+    const sessionToken = createSessionToken(githubUser, secret);
+
+    res.setHeader('Set-Cookie', `session_token=${sessionToken}; HttpOnly; Path=/; Max-Age=${30 * 24 * 60 * 60}; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`);
+
+    const frontendUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : '/';
+    res.redirect(frontendUrl);
+  } catch (err) {
+    console.error('OAuth callback failed:', err);
+    res.status(500).send(`OAuth Authentication failed: ${(err as Error).message}`);
+  }
+});
+
+app.get('/api/auth/status', (req, res) => {
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  if (!clientId) {
+    return res.json({ loggedIn: true, user: 'local', isOAuthMode: false });
+  }
+
+  const cookieHeader = req.headers.cookie || '';
+  const cookies = Object.fromEntries(
+    cookieHeader.split(';').map((c: string) => {
+      const parts = c.trim().split('=');
+      return [parts[0], parts.slice(1).join('=')];
+    })
+  );
+  const sessionToken = cookies['session_token'];
+  if (!sessionToken) {
+    return res.json({ loggedIn: false, user: null, isOAuthMode: true });
+  }
+
+  const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
+  const username = verifySessionToken(sessionToken, secret);
+  if (!username) {
+    return res.json({ loggedIn: false, user: null, isOAuthMode: true });
+  }
+
+  res.json({ loggedIn: true, user: username, isOAuthMode: true });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.setHeader('Set-Cookie', 'session_token=; HttpOnly; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  res.json({ status: 'ok' });
 });
 
 export { app };

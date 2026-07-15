@@ -521,5 +521,101 @@ test('Backend APIs', async (t) => {
     await fs.rm(dictFilePath, { force: true });
   });
 
+  await t.test('Optional GitHub OAuth & VFS Sandbox', async (st) => {
+    await st.test('GET /api/auth/status in Local Mode returns loggedIn: true', async () => {
+      const res = await fetch(`http://localhost:${port}/api/auth/status`);
+      assert.strictEqual(res.status, 200);
+      const body = await res.json() as { loggedIn: boolean, isOAuthMode: boolean };
+      assert.strictEqual(body.loggedIn, true);
+      assert.strictEqual(body.isOAuthMode, false);
+    });
+
+    await st.test('Hosted Mode restricts access without session token', async () => {
+      const oldClientId = process.env.GITHUB_CLIENT_ID;
+      process.env.GITHUB_CLIENT_ID = 'test_github_client_id';
+
+      try {
+        const statusRes = await fetch(`http://localhost:${port}/api/auth/status`);
+        const statusBody = await statusRes.json() as { loggedIn: boolean, isOAuthMode: boolean };
+        assert.strictEqual(statusBody.loggedIn, false);
+        assert.strictEqual(statusBody.isOAuthMode, true);
+
+        const filesRes = await fetch(`http://localhost:${port}/api/files`);
+        assert.strictEqual(filesRes.status, 401);
+      } finally {
+        if (oldClientId === undefined) {
+          delete process.env.GITHUB_CLIENT_ID;
+        } else {
+          process.env.GITHUB_CLIENT_ID = oldClientId;
+        }
+      }
+    });
+
+    await st.test('Accessing file with valid session token is sandboxed to user directory', async () => {
+      const oldClientId = process.env.GITHUB_CLIENT_ID;
+      const oldSecret = process.env.SESSION_SECRET;
+      const oldStorage = process.env.STORAGE_DIR;
+
+      process.env.GITHUB_CLIENT_ID = 'test_github_client_id';
+      process.env.SESSION_SECRET = 'test_session_secret_for_signing_tokens';
+      process.env.STORAGE_DIR = '/tmp/marginalia_oauth_vfs_test';
+
+      const user = 'plbogen';
+      const userSandbox = path.join(process.env.STORAGE_DIR, user);
+      await fs.mkdir(userSandbox, { recursive: true });
+
+      const testWorkspace = path.join(userSandbox, 'my-sandbox-workspace');
+      await fs.mkdir(testWorkspace, { recursive: true });
+      
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+      await execAsync('git init', { cwd: testWorkspace });
+      await fs.writeFile(path.join(testWorkspace, 'chapter1.md'), '# Chapter 1 inside VFS');
+
+      const { createSessionToken } = await import('./utils/auth.js');
+      const token = createSessionToken(user, process.env.SESSION_SECRET);
+
+      try {
+        const selectRes = await fetch(`http://localhost:${port}/api/workspaces/select`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cookie': `session_token=${token}`
+          },
+          body: JSON.stringify({ path: testWorkspace })
+        });
+        assert.strictEqual(selectRes.status, 200);
+
+        const fileRes = await fetch(`http://localhost:${port}/api/file?path=chapter1.md`, {
+          headers: {
+            'Cookie': `session_token=${token}`
+          }
+        });
+        assert.strictEqual(fileRes.status, 200);
+        const fileData = await fileRes.json() as { content: string };
+        assert.strictEqual(fileData.content, '# Chapter 1 inside VFS');
+
+        const badFileRes = await fetch(`http://localhost:${port}/api/file?path=../../../../etc/passwd`, {
+          headers: {
+            'Cookie': `session_token=${token}`
+          }
+        });
+        assert.strictEqual(badFileRes.status, 403);
+      } finally {
+        if (oldClientId === undefined) delete process.env.GITHUB_CLIENT_ID;
+        else process.env.GITHUB_CLIENT_ID = oldClientId;
+
+        if (oldSecret === undefined) delete process.env.SESSION_SECRET;
+        else process.env.SESSION_SECRET = oldSecret;
+
+        if (oldStorage === undefined) delete process.env.STORAGE_DIR;
+        else process.env.STORAGE_DIR = oldStorage;
+
+        await fs.rm('/tmp/marginalia_oauth_vfs_test', { recursive: true, force: true });
+      }
+    });
+  });
+
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });

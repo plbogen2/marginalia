@@ -6,7 +6,7 @@ import { GitBar } from './components/GitBar';
 import { WorkspaceManager } from './components/WorkspaceManager';
 import './App.css';
 import { resolveRelativePath } from './utils/pathResolver';
-import { ArrowLeft, ArrowRight, Settings } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Settings, LogOut } from 'lucide-react';
 import { SettingsModal } from './components/SettingsModal';
 
 function App() {
@@ -52,6 +52,34 @@ function App() {
   const [gitAhead, setGitAhead] = useState(0);
   const [hasGemini, setHasGemini] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [authInfo, setAuthInfo] = useState<{ loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null>(null);
+
+  const fetchAuthStatus = async () => {
+    try {
+      const res = await fetch('/api/auth/status');
+      const data = await res.json();
+      setAuthInfo(data);
+    } catch (err) {
+      console.error('Failed to fetch auth status:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAuthStatus();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      const res = await fetch('/api/auth/logout', { method: 'POST' });
+      if (res.ok) {
+        setAuthInfo({ loggedIn: false, user: null, isOAuthMode: true });
+        setActiveFile(null);
+        setEditorValue('');
+      }
+    } catch (err) {
+      console.error('Failed to log out:', err);
+    }
+  };
 
   const selectFile = (filePath: string | null) => {
     setActiveFile(filePath);
@@ -185,8 +213,10 @@ function App() {
   };
 
   useEffect(() => {
-    initWorkspaceAndLoad();
-  }, []);
+    if (authInfo && authInfo.loggedIn) {
+      initWorkspaceAndLoad();
+    }
+  }, [authInfo]);
 
   useEffect(() => {
     const handlePopState = async () => {
@@ -435,6 +465,24 @@ function App() {
     fetchGitBranch();
   };
 
+  if (!authInfo) {
+    return <div className="app-loading">Loading...</div>;
+  }
+
+  if (authInfo.isOAuthMode && !authInfo.loggedIn) {
+    return (
+      <div className="login-container">
+        <div className="login-box">
+          <h1>Marginalia</h1>
+          <p>A distraction-free markdown book editor and writing environment.</p>
+          <a href="/api/auth/login" className="github-login-btn">
+            <span>Log in with GitHub</span>
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       <GitBar
@@ -483,6 +531,14 @@ function App() {
             <button onClick={() => setSettingsOpen(true)} title="Settings" className="settings-btn">
               <Settings size={14} />
             </button>
+            {authInfo.isOAuthMode && authInfo.loggedIn && (
+              <div className="auth-toolbar-section">
+                <span className="user-badge">Logged in as {authInfo.user}</span>
+                <button onClick={handleLogout} title="Log Out" className="logout-btn">
+                  <LogOut size={14} />
+                </button>
+              </div>
+            )}
             {loading && <span className="loading-indicator">Loading...</span>}
           </div>
           <div className="panels-container">
