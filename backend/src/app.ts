@@ -388,8 +388,12 @@ app.get('/api/gemini/models', async (req, res) => {
   }
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-    const response = await fetch(url);
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models';
+    const response = await fetch(url, {
+      headers: {
+        'x-goog-api-key': apiKey
+      }
+    });
     if (!response.ok) {
       throw new Error(`Google API returned status ${response.status}`);
     }
@@ -429,7 +433,17 @@ app.get('/api/gemini/models', async (req, res) => {
       }));
     res.json(models);
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    console.warn('Failed to fetch from live Gemini API, returning fallback list:', err);
+    res.json([
+      { name: 'models/gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
+      { name: 'models/gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
+      { name: 'models/gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
+      { name: 'models/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+      { name: 'models/gemini-3.5-flash', displayName: 'Gemini 3.5 Flash' },
+      { name: 'models/gemini-3.5-pro', displayName: 'Gemini 3.5 Pro' },
+      { name: 'models/gemini-flash-latest', displayName: 'Gemini Flash Latest' },
+      { name: 'models/gemini-pro-latest', displayName: 'Gemini Pro Latest' }
+    ]);
   }
 });
 
@@ -839,10 +853,8 @@ app.post('/api/languagetool/check', async (req, res) => {
       currentOffset += part.length + 2;
     }
 
-    const allMatches: any[] = [];
-
-    for (const p of paragraphs) {
-      if (!p.text.trim()) continue;
+    const checkPromises = paragraphs.map(async (p) => {
+      if (!p.text.trim()) return [];
 
       const hash = crypto.createHash('md5').update(p.text).digest('hex');
       let rawMatches: any[] | null = null;
@@ -884,13 +896,14 @@ app.post('/api/languagetool/check', async (req, res) => {
         }
       }
 
-      for (const m of rawMatches) {
-        allMatches.push({
-          ...m,
-          offset: m.offset + p.start
-        });
-      }
-    }
+      return rawMatches.map((m: any) => ({
+        ...m,
+        offset: m.offset + p.start
+      }));
+    });
+
+    const results = await Promise.all(checkPromises);
+    const allMatches = results.flat();
 
     const ignoredWords = await getAllApplicableIgnoredWords(getTargetDir(req));
 

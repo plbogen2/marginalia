@@ -255,6 +255,26 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
     setContextMenu(null);
   };
 
+  const dedupedDiagnostics = React.useMemo(() => {
+    const map: { [line: number]: { line: number; severity: string } } = {};
+    const severityPriority: { [key: string]: number } = { error: 3, warning: 2, info: 1 };
+
+    diagnostics.forEach((d) => {
+      const existing = map[d.line];
+      if (!existing) {
+        map[d.line] = d;
+      } else {
+        const currentPriority = severityPriority[d.severity] || 0;
+        const existingPriority = severityPriority[existing.severity] || 0;
+        if (currentPriority > existingPriority) {
+          map[d.line] = d;
+        }
+      }
+    });
+
+    return Object.values(map);
+  }, [diagnostics]);
+
   if (!activeFile) {
     return (
       <div className="editor-empty">
@@ -314,9 +334,9 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
           }}
         />
 
-        {diagnostics.length > 0 && (
+        {dedupedDiagnostics.length > 0 && (
           <div className="editor-minimap-gutter">
-            {diagnostics.map((d, index) => {
+            {dedupedDiagnostics.map((d, index) => {
               const topPct = ((d.line - 1) / Math.max(1, totalLines)) * 100;
               return (
                 <div
