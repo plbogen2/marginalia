@@ -377,7 +377,8 @@ app.get('/api/gemini/models', async (req, res) => {
       { name: 'models/gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
       { name: 'models/gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
       { name: 'models/gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
-      { name: 'models/gemini-2.0-pro-exp', displayName: 'Gemini 2.0 Pro Experimental' }
+      { name: 'models/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+      { name: 'models/gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' }
     ]);
   }
 
@@ -389,7 +390,13 @@ app.get('/api/gemini/models', async (req, res) => {
     }
     const data = await response.json();
     const models = (data.models || [])
-      .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+      .filter((m: any) => {
+        const isSupported = m.supportedGenerationMethods?.includes('generateContent');
+        const name = m.name || '';
+        // Only modern models (1.5, 2.0, 2.5, etc.) to filter out obsolete models
+        const isModern = /gemini-(1\.5|2\.0|2\.5|3\.0)/i.test(name);
+        return isSupported && isModern;
+      })
       .map((m: any) => ({
         name: m.name,
         displayName: m.displayName || m.name.replace('models/', '')
