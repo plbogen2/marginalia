@@ -290,7 +290,7 @@
   border-right: 1px solid #2d2d2d;
 }
 
-.editor-header, .preview-header {
+.workspace-file-header {
   padding: 8px 16px;
   background-color: #1e1e1e;
   border-bottom: 1px solid #2d2d2d;
@@ -298,6 +298,9 @@
   color: #858585;
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  height: 33px;
+  box-sizing: border-box;
 }
 
 .editor-cm-wrapper {
@@ -925,6 +928,16 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   padding: 8px !important;
   position: relative;
+  
+  /* Wrap and narrow width */
+  max-width: 300px !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+
+  /* Font size and styling */
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
 }
 
 .cm-tooltip-lint::before {
@@ -937,6 +950,24 @@
   background-color: transparent;
 }
 
+.cm-tooltip-lint::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background-color: transparent;
+}
+
+.cm-diagnostic {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 2px 0;
+}
+
 .cm-lint-action {
   background-color: #0e639c !important;
   color: white !important;
@@ -944,8 +975,8 @@
   padding: 4px 8px !important;
   border-radius: 3px !important;
   cursor: pointer !important;
-  margin: 4px !important;
-  font-size: 12px !important;
+  margin: 4px 0 0 0 !important;
+  font-size: 11px !important;
   font-family: inherit !important;
   transition: background-color 0.1s, transform 0.1s;
 }
@@ -1356,4 +1387,95 @@ kbd {
   padding: 2px 4px;
   font-size: 10px;
   box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+}
+
+.status-badge.clickable {
+  cursor: pointer;
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+}
+
+.status-badge.clickable:hover {
+  color: #ffffff;
+}
+
+/* Git Diff Modal styles */
+.git-diff-modal {
+  max-width: 800px !important;
+  width: 90%;
+}
+
+.git-diff-pre {
+  background-color: #1e1e1e;
+  border: 1px solid #2d2d2d;
+  border-radius: 4px;
+  padding: 12px;
+  font-family: "Fira Code", monospace;
+  font-size: 12px;
+  overflow: auto;
+  max-height: 70vh;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.diff-line {
+  color: #cccccc;
+  line-height: 1.5;
+}
+
+.diff-added {
+  color: #4ec9b0;
+  background-color: rgba(78, 201, 176, 0.08);
+}
+
+.diff-removed {
+  color: #f48771;
+  background-color: rgba(244, 135, 113, 0.08);
+}
+
+.diff-hunk {
+  color: #b5cea8;
+  font-style: italic;
+}
+
+.diff-header {
+  color: #569cd6;
+  font-weight: bold;
+}
+
+.diff-empty {
+  color: #858585;
+  text-align: center;
+  padding: 20px 0;
+  font-style: italic;
+}
+
+.diff-loading {
+  color: #858585;
+  text-align: center;
+  padding: 20px 0;
+  font-style: italic;
+}
+
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-header-actions .refresh-btn {
+  background: none;
+  border: none;
+  color: #858585;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-header-actions .refresh-btn:hover {
+  background-color: #3c3c3c;
+  color: #ffffff;
 }

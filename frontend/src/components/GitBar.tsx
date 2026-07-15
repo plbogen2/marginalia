@@ -16,6 +16,7 @@ interface GitBarProps {
   onOpenSettings: () => void;
   authInfo: { loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null;
   onLogout: () => void;
+  onShowDiff: () => void;
 }
 
 export const GitBar: React.FC<GitBarProps> = ({
@@ -32,7 +33,8 @@ export const GitBar: React.FC<GitBarProps> = ({
   hasGemini,
   onOpenSettings,
   authInfo,
-  onLogout
+  onLogout,
+  onShowDiff
 }) => {
   const [message, setMessage] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -83,7 +85,11 @@ export const GitBar: React.FC<GitBarProps> = ({
         </button>
         <GitBranch size={16} />
         <span className="branch-name">{branch || 'unknown'}</span>
-        <span className={`status-badge ${hasChanges ? 'modified' : 'clean'}`}>
+        <span 
+          className={`status-badge ${hasChanges ? 'modified clickable' : 'clean'}`}
+          onClick={hasChanges ? onShowDiff : undefined}
+          title={hasChanges ? "Click to view uncommitted changes diff" : undefined}
+        >
           {hasChanges ? 'Uncommitted Changes' : 'Clean'}
         </span>
         <button onClick={onRefresh} disabled={loading} title="Refresh Status">

@@ -8,7 +8,8 @@ import './App.css';
 import { resolveRelativePath } from './utils/pathResolver';
 import { SettingsModal } from './components/SettingsModal';
 import { MarkdownGuideModal } from './components/MarkdownGuideModal';
-import { ChevronRight } from 'lucide-react';
+import { GitDiffModal } from './components/GitDiffModal';
+import { ChevronRight, Eye, EyeOff } from 'lucide-react';
 
 function App() {
   const [files, setFiles] = useState<string[]>([]);
@@ -54,7 +55,22 @@ function App() {
   const [hasGemini, setHasGemini] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [diffOpen, setDiffOpen] = useState(false);
   const [authInfo, setAuthInfo] = useState<{ loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null>(null);
+
+  const [pageFormat, setPageFormat] = useState<'paperback' | 'hardback'>(() => {
+    const saved = localStorage.getItem('marginalia_page_format');
+    return (saved === 'paperback' || saved === 'hardback') ? saved : 'paperback';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('marginalia_page_format', pageFormat);
+  }, [pageFormat]);
+
+  const cleanText = editorValue.replace(/<!--[\s\S]*?-->/g, '');
+  const wordCount = cleanText.trim() ? cleanText.trim().split(/\s+/).length : 0;
+  const wordsPerPage = pageFormat === 'paperback' ? 300 : 250;
+  const pageCount = Math.ceil(wordCount / wordsPerPage);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -513,6 +529,7 @@ function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         authInfo={authInfo}
         onLogout={handleLogout}
+        onShowDiff={() => setDiffOpen(true)}
       />
       <div className="main-layout">
         {!sidebarOpen && (
@@ -535,13 +552,37 @@ function App() {
           </>
         )}
         <div className="workspace">
+          {activeFile && (
+            <div className="workspace-file-header">
+              <span className="file-path">{activeFile}</span>
+              <div className="stats">
+                <span>{wordCount} words</span>
+                <span>~{pageCount} pages</span>
+                <select
+                  value={pageFormat}
+                  onChange={(e) => setPageFormat(e.target.value as 'paperback' | 'hardback')}
+                  className="format-select"
+                  title="Page count estimation format"
+                >
+                  <option value="paperback">Paperback</option>
+                  <option value="hardback">Hardback</option>
+                </select>
+                <button
+                  type="button"
+                  className={`preview-toggle-btn ${previewOpen ? 'active' : ''}`}
+                  onClick={() => setPreviewOpen(!previewOpen)}
+                  title={previewOpen ? "Hide Markdown Preview" : "Show Markdown Preview"}
+                >
+                  {previewOpen ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+          )}
           <div className="panels-container">
             <Editor
               value={editorValue}
               onChange={setEditorValue}
               activeFile={activeFile}
-              previewOpen={previewOpen}
-              onTogglePreview={() => setPreviewOpen(!previewOpen)}
             />
             {previewOpen && activeFile && (
               <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />
@@ -573,6 +614,11 @@ function App() {
       {guideOpen && (
         <MarkdownGuideModal
           onClose={() => setGuideOpen(false)}
+        />
+      )}
+      {diffOpen && (
+        <GitDiffModal
+          onClose={() => setDiffOpen(false)}
         />
       )}
     </div>

@@ -179,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="sidebar" style={{ width: `${width}px` }}>
       <div className="sidebar-header">
-        <h3>Chapters</h3>
+        <h3>Files</h3>
         <div className="sidebar-actions">
           <button onClick={() => setIsCreating(!isCreating)} title="New File">
             <Plus size={16} />

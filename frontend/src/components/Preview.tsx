@@ -35,9 +35,6 @@ export const Preview: React.FC<PreviewProps> = ({ markdown, onNavigateLink }) =>
 
   return (
     <div className="preview-container">
-      <div className="preview-header">
-        <span>Preview</span>
-      </div>
       <div
         className="preview-content markdown-body"
         dangerouslySetInnerHTML={{ __html: html }}

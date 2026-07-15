@@ -412,6 +412,15 @@ app.post('/api/config', async (req, res) => {
   }
 });
 
+app.get('/api/git/diff', async (req, res) => {
+  try {
+    const diff = await getCommitDiff(req);
+    res.json({ diff });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 app.post('/api/git/suggest-commit-message', async (req, res) => {
   let apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
