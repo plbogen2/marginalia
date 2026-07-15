@@ -731,6 +731,18 @@ test('Backend APIs', async (t) => {
       assert.strictEqual(getBody2.messages.length, 1);
       assert.strictEqual(getBody2.messages[0].content, 'Cached advice');
     });
+
+    await st.test('POST /api/markdown/lint detects structural issues', async () => {
+      const res = await fetch(`http://localhost:${port}/api/markdown/lint`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: '# Header 1\n\n### Subheader 3 (leap)' })
+      });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json() as { violations: any[] };
+      assert.ok(body.violations.length > 0);
+      assert.ok(body.violations.some(v => v.ruleNames.includes('MD001')));
+    });
   });
 
   await new Promise<void>((resolve) => server.close(() => resolve()));

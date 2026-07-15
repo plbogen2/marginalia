@@ -9,6 +9,7 @@ import { addIgnoredWord, getIgnoredWords, getAllApplicableIgnoredWords } from '.
 import { isPathSafe, isWorkspacePathAllowed } from './utils/pathSafety.js';
 import { db } from './db.js';
 import { verifySessionToken, createSessionToken } from './utils/auth.js';
+import { lint as markdownLint } from 'markdownlint/sync';
 
 const app = express();
 
@@ -835,6 +836,31 @@ app.post('/api/languagetool/check', async (req, res) => {
     });
 
     res.json({ matches: filteredMatches });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.post('/api/markdown/lint', (req, res) => {
+  const { text } = req.body as { text: string };
+  if (typeof text !== 'string') {
+    return res.status(400).json({ error: 'Missing text parameter' });
+  }
+
+  try {
+    const results = markdownLint({
+      strings: {
+        doc: text
+      },
+      config: {
+        "default": true,
+        "MD013": false,
+        "MD033": false
+      }
+    });
+
+    const violations = results.doc || [];
+    res.json({ violations });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

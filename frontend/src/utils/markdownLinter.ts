@@ -1,98 +1,47 @@
 import type { Diagnostic } from '@codemirror/lint';
 
-export const lintMarkdown = (text: string): Diagnostic[] => {
-  const diagnostics: Diagnostic[] = [];
-  const lines = text.split('\n');
+export const lintMarkdown = async (text: string): Promise<Diagnostic[]> => {
+  try {
+    const res = await fetch('/api/markdown/lint', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    if (!res.ok) throw new Error('Markdown lint request failed');
+    const { violations } = await res.json() as { violations: any[] };
 
-  let inCodeBlock = false;
-  let lastHeaderLevel = 0;
-  let hasH1 = false;
+    const lines = text.split('\n');
+    const diagnostics: Diagnostic[] = [];
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    
-    // Calculate character offsets for CodeMirror Diagnostic
-    let from = 0;
-    for (let j = 0; j < i; j++) {
-      from += lines[j].length + 1; // +1 for the newline
-    }
-    const to = from + line.length;
+    for (const v of violations) {
+      const lineIdx = v.lineNumber - 1;
+      if (lineIdx < 0 || lineIdx >= lines.length) continue;
 
-    // Code blocks check
-    if (line.trim().startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
-      continue;
-    }
-
-    if (inCodeBlock) continue;
-
-    // Rule 1: Trailing whitespace (excluding valid line break spacing of exactly 2 spaces)
-    if (line.endsWith(' ') && !line.endsWith('  ')) {
-      const trailingLength = line.length - line.trimEnd().length;
-      if (trailingLength > 0) {
-        diagnostics.push({
-          from: to - trailingLength,
-          to: to,
-          severity: 'warning',
-          message: 'Trailing whitespace is not recommended. Remove it, or use exactly two spaces for a line break.'
-        });
-      }
-    }
-
-    // Rule 2: Heading validations
-    const headerMatch = line.match(/^(#{1,6})\s+(.+)$/);
-    if (headerMatch) {
-      const level = headerMatch[1].length;
-      const title = headerMatch[2].trim();
-
-      // First header should be H1
-      if (!hasH1 && level !== 1) {
-        diagnostics.push({
-          from: from,
-          to: to,
-          severity: 'warning',
-          message: 'Document structure check: The first heading should be a level 1 heading (#).'
-        });
-      }
-      if (level === 1) {
-        hasH1 = true;
+      let from = 0;
+      for (let i = 0; i < lineIdx; i++) {
+        from += lines[i].length + 1; // +1 for the newline
       }
 
-      // Heading levels should increment by only one (no H1 -> H3)
-      if (lastHeaderLevel > 0 && level > lastHeaderLevel + 1) {
-        diagnostics.push({
-          from: from,
-          to: to,
-          severity: 'warning',
-          message: `Heading level structure check: Level jumps from H${lastHeaderLevel} to H${level}. Heading levels should increment by only one at a time.`
-        });
+      let to = from + lines[lineIdx].length;
+      if (v.errorRange && v.errorRange.length === 2) {
+        const [col, len] = v.errorRange;
+        from += (col - 1);
+        to = from + len;
       }
-      lastHeaderLevel = level;
 
-      // Heading should not end with punctuation marks
-      if (/[.,;:!?]$/.test(title)) {
-        diagnostics.push({
-          from: from,
-          to: to,
-          severity: 'warning',
-          message: 'Styling check: Headings should not end with a punctuation mark.'
-        });
-      }
-    }
-
-    // Rule 3: Missing descriptive alt text inside images
-    const imgMatch = line.match(/!\[\]\((.+?)\)/);
-    if (imgMatch) {
       diagnostics.push({
-        from: from,
-        to: to,
+        from,
+        to,
         severity: 'warning',
-        message: 'Accessibility check: Image is missing descriptive alternative text (![alt text](url)).'
+        message: `${v.ruleNames.join('/')}: ${v.ruleDescription}${v.errorDetail ? ` (${v.errorDetail})` : ''}`
       });
     }
-  }
 
-  return diagnostics;
+    return diagnostics;
+  } catch (err) {
+    console.error('Error linting markdown:', err);
+    return [];
+  }
 };
 
 export const formatMarkdown = (text: string): string => {

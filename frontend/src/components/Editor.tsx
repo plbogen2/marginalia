@@ -118,9 +118,9 @@ const grammarLinter = linter(async (view) => {
   delay: 1500
 });
 
-const markdownStyleLinter = linter((view) => {
+const markdownStyleLinter = linter(async (view) => {
   const text = view.state.doc.toString();
-  return lintMarkdown(text);
+  return await lintMarkdown(text);
 });
 
 export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) => {
