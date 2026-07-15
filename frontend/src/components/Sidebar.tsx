@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Plus, Trash2, ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import { FileText, Plus, Trash2, ChevronDown, ChevronRight, Folder, FolderOpen, ChevronLeft } from 'lucide-react';
 import { buildFileTree, type FileNode } from '../utils/treeBuilder';
 
 interface SidebarProps {
@@ -9,6 +9,7 @@ interface SidebarProps {
   onCreateFile: (path: string) => void;
   onDeleteFile: (path: string) => void;
   width: number;
+  onCollapse: () => void;
 }
 
 interface SidebarNodeProps {
@@ -116,7 +117,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectFile,
   onCreateFile,
   onDeleteFile,
-  width
+  width,
+  onCollapse
 }) => {
   const [newFileName, setNewFileName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -178,9 +180,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <div className="sidebar" style={{ width: `${width}px` }}>
       <div className="sidebar-header">
         <h3>Chapters</h3>
-        <button onClick={() => setIsCreating(!isCreating)} title="New File">
-          <Plus size={16} />
-        </button>
+        <div className="sidebar-actions">
+          <button onClick={() => setIsCreating(!isCreating)} title="New File">
+            <Plus size={16} />
+          </button>
+          <button onClick={onCollapse} title="Collapse Sidebar" className="collapse-btn">
+            <ChevronLeft size={16} />
+          </button>
+        </div>
       </div>
 
       {isCreating && (

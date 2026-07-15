@@ -12,6 +12,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [simulateHosted, setSimulateHosted] = useState(false);
   const [initialSimulateHosted, setInitialSimulateHosted] = useState(false);
+
+  const [githubClientId, setGithubClientId] = useState('');
+  const [initialGithubClientId, setInitialGithubClientId] = useState('');
+  const [githubClientSecret, setGithubClientSecret] = useState('');
+  const [hasGithubSecret, setHasGithubSecret] = useState<boolean | null>(null);
+  const [showSecret, setShowSecret] = useState(false);
+  
+  const [allowedUser, setAllowedUser] = useState('');
+  const [initialAllowedUser, setInitialAllowedUser] = useState('');
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,6 +32,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
       setIsConfigured(data.hasGemini);
       setSimulateHosted(!!data.simulateHostedMode);
       setInitialSimulateHosted(!!data.simulateHostedMode);
+
+      setGithubClientId(data.githubClientId || '');
+      setInitialGithubClientId(data.githubClientId || '');
+      setHasGithubSecret(!!data.hasGithubSecret);
+      setAllowedUser(data.allowedUser || '');
+      setInitialAllowedUser(data.allowedUser || '');
     } catch (err) {
       console.error('Failed to load configuration status:', err);
     }
@@ -37,12 +53,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
     setSaving(true);
     setError(null);
     try {
-      const payload: { geminiApiKey?: string, simulateHostedMode?: boolean } = {};
+      const payload: { 
+        geminiApiKey?: string;
+        simulateHostedMode?: boolean;
+        githubClientId?: string;
+        githubClientSecret?: string;
+        allowedUser?: string;
+      } = {};
+
       if (geminiKey.trim()) {
         payload.geminiApiKey = geminiKey.trim();
       }
       if (simulateHosted !== initialSimulateHosted) {
         payload.simulateHostedMode = simulateHosted;
+      }
+      if (githubClientId.trim() !== initialGithubClientId) {
+        payload.githubClientId = githubClientId.trim();
+      }
+      if (githubClientSecret.trim()) {
+        payload.githubClientSecret = githubClientSecret.trim();
+      }
+      if (allowedUser.trim() !== initialAllowedUser) {
+        payload.allowedUser = allowedUser.trim();
       }
 
       const res = await fetch('/api/config', {
@@ -55,6 +87,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
         throw new Error(data.error || 'Failed to save settings');
       }
       setGeminiKey('');
+      setGithubClientSecret('');
       await fetchConfigStatus();
       onSave();
       
@@ -70,7 +103,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
     }
   };
 
-  const isDirty = geminiKey.trim() !== '' || simulateHosted !== initialSimulateHosted;
+  const isDirty = 
+    geminiKey.trim() !== '' || 
+    simulateHosted !== initialSimulateHosted ||
+    githubClientId.trim() !== initialGithubClientId ||
+    githubClientSecret.trim() !== '' ||
+    allowedUser.trim() !== initialAllowedUser;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -121,6 +159,56 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
                 Forces the app to require login and runs VFS Sandboxed workspace directories on localhost.
               </p>
             </div>
+
+            {simulateHosted && (
+              <div className="oauth-settings-block">
+                <div className="form-group">
+                  <label htmlFor="githubClientId">GitHub Client ID</label>
+                  <input
+                    id="githubClientId"
+                    type="text"
+                    placeholder="Enter GitHub OAuth Client ID"
+                    value={githubClientId}
+                    onChange={(e) => setGithubClientId(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="githubClientSecret">GitHub Client Secret</label>
+                  <div className="input-with-button">
+                    <input
+                      id="githubClientSecret"
+                      type={showSecret ? 'text' : 'password'}
+                      placeholder={hasGithubSecret ? "••••••••••••••••" : "Enter GitHub OAuth Client Secret"}
+                      value={githubClientSecret}
+                      onChange={(e) => setGithubClientSecret(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="input-icon-btn"
+                      onClick={() => setShowSecret(!showSecret)}
+                      title={showSecret ? 'Hide secret' : 'Show secret'}
+                    >
+                      {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="allowedUser">Allowed GitHub Username</label>
+                  <input
+                    id="allowedUser"
+                    type="text"
+                    placeholder="e.g. your-github-handle"
+                    value={allowedUser}
+                    onChange={(e) => setAllowedUser(e.target.value)}
+                  />
+                  <p className="help-text">
+                    Restricts login access only to this GitHub user handle (leave blank to allow any user to sign in).
+                  </p>
+                </div>
+              </div>
+            )}
 
             {isConfigured !== null && (
               <div className={`status-badge ${isConfigured ? 'success' : 'warning'}`}>

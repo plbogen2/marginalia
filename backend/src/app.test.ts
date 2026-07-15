@@ -420,28 +420,59 @@ test('Backend APIs', async (t) => {
 
   await t.test('Configuration Settings APIs (Gemini Key & Simulation Mode)', async (st) => {
     const oldKey = process.env.GEMINI_API_KEY;
+    const oldClientId = process.env.GITHUB_CLIENT_ID;
+    const oldClientSecret = process.env.GITHUB_CLIENT_SECRET;
+    const oldAllowed = process.env.ALLOWED_USER;
+    
     delete process.env.GEMINI_API_KEY;
+    delete process.env.GITHUB_CLIENT_ID;
+    delete process.env.GITHUB_CLIENT_SECRET;
+    delete process.env.ALLOWED_USER;
 
     try {
       const res1 = await fetch(`http://localhost:${port}/api/config`);
       assert.strictEqual(res1.status, 200);
-      const body1 = await res1.json() as { hasGemini: boolean, simulateHostedMode: boolean };
+      const body1 = await res1.json() as { 
+        hasGemini: boolean;
+        simulateHostedMode: boolean;
+        githubClientId: string;
+        hasGithubSecret: boolean;
+        allowedUser: string;
+      };
       assert.strictEqual(body1.hasGemini, false);
       assert.strictEqual(body1.simulateHostedMode, false);
+      assert.strictEqual(body1.githubClientId, '');
+      assert.strictEqual(body1.hasGithubSecret, false);
+      assert.strictEqual(body1.allowedUser, '');
 
       const res2 = await fetch(`http://localhost:${port}/api/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ geminiApiKey: 'test_dummy_key_value', simulateHostedMode: true })
+        body: JSON.stringify({ 
+          geminiApiKey: 'test_dummy_key_value', 
+          simulateHostedMode: true,
+          githubClientId: 'my-custom-client-id',
+          githubClientSecret: 'my-custom-client-secret',
+          allowedUser: 'my-whitelisted-user'
+        })
       });
       assert.strictEqual(res2.status, 200);
       const body2 = await res2.json() as { status: string };
       assert.strictEqual(body2.status, 'ok');
 
       const res3 = await fetch(`http://localhost:${port}/api/config`);
-      const body3 = await res3.json() as { hasGemini: boolean, simulateHostedMode: boolean };
+      const body3 = await res3.json() as { 
+        hasGemini: boolean;
+        simulateHostedMode: boolean;
+        githubClientId: string;
+        hasGithubSecret: boolean;
+        allowedUser: string;
+      };
       assert.strictEqual(body3.hasGemini, true);
       assert.strictEqual(body3.simulateHostedMode, true);
+      assert.strictEqual(body3.githubClientId, 'my-custom-client-id');
+      assert.strictEqual(body3.hasGithubSecret, true);
+      assert.strictEqual(body3.allowedUser, 'my-whitelisted-user');
 
       const res4 = await fetch(`http://localhost:${port}/api/git/suggest-commit-message`, {
         method: 'POST'
@@ -449,10 +480,12 @@ test('Backend APIs', async (t) => {
       assert.notStrictEqual(res4.status, 400);
 
       const { db } = await import('./db.js');
-      db.prepare("DELETE FROM settings WHERE key = 'gemini_api_key';").run();
-      db.prepare("DELETE FROM settings WHERE key = 'simulate_hosted_mode';").run();
+      db.prepare("DELETE FROM settings WHERE key IN ('gemini_api_key', 'simulate_hosted_mode', 'github_client_id', 'github_client_secret', 'allowed_user');").run();
     } finally {
       process.env.GEMINI_API_KEY = oldKey;
+      if (oldClientId) process.env.GITHUB_CLIENT_ID = oldClientId;
+      if (oldClientSecret) process.env.GITHUB_CLIENT_SECRET = oldClientSecret;
+      if (oldAllowed) process.env.ALLOWED_USER = oldAllowed;
     }
   });
 

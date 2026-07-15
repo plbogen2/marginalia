@@ -13,10 +13,6 @@ interface GitBarProps {
   loading: boolean;
   ahead: number;
   hasGemini: boolean;
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
-  previewOpen: boolean;
-  onTogglePreview: () => void;
   onOpenSettings: () => void;
   authInfo: { loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null;
   onLogout: () => void;
@@ -34,10 +30,6 @@ export const GitBar: React.FC<GitBarProps> = ({
   loading,
   ahead,
   hasGemini,
-  sidebarOpen,
-  onToggleSidebar,
-  previewOpen,
-  onTogglePreview,
   onOpenSettings,
   authInfo,
   onLogout
@@ -150,12 +142,6 @@ export const GitBar: React.FC<GitBarProps> = ({
       </form>
 
       <div className="git-options">
-        <button onClick={onToggleSidebar} disabled={loading}>
-          {sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
-        </button>
-        <button onClick={onTogglePreview} disabled={loading}>
-          {previewOpen ? 'Hide Preview' : 'Show Preview'}
-        </button>
         <button onClick={onOpenSettings} title="Settings" className="settings-btn">
           <Settings size={14} />
         </button>

@@ -3,12 +3,14 @@ import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { linter, type Diagnostic, forEachDiagnostic, setDiagnostics } from '@codemirror/lint';
 import { checkGrammar } from '../utils/languagetool';
-import { Copy, Scissors, Clipboard, EyeOff } from 'lucide-react';
+import { Copy, Scissors, Clipboard, Eye, EyeOff } from 'lucide-react';
 
 interface EditorProps {
   value: string;
   onChange: (val: string) => void;
   activeFile: string | null;
+  previewOpen: boolean;
+  onTogglePreview: () => void;
 }
 
 const grammarLinter = linter(async (view) => {
@@ -90,9 +92,19 @@ const grammarLinter = linter(async (view) => {
   delay: 1500
 });
 
-export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) => {
+export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile, previewOpen, onTogglePreview }) => {
+  const [pageFormat, setPageFormat] = useState<'paperback' | 'hardback'>(() => {
+    const saved = localStorage.getItem('marginalia_page_format');
+    return (saved === 'paperback' || saved === 'hardback') ? saved : 'paperback';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('marginalia_page_format', pageFormat);
+  }, [pageFormat]);
+
   const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
-  const charCount = value.length;
+  const wordsPerPage = pageFormat === 'paperback' ? 300 : 250;
+  const pageCount = Math.ceil(wordCount / wordsPerPage);
 
   const editorRef = useRef<any>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, word: string | null } | null>(null);
@@ -212,7 +224,24 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
         <span className="file-path">{activeFile}</span>
         <div className="stats">
           <span>{wordCount} words</span>
-          <span>{charCount} chars</span>
+          <span>~{pageCount} pages</span>
+          <select
+            value={pageFormat}
+            onChange={(e) => setPageFormat(e.target.value as 'paperback' | 'hardback')}
+            className="format-select"
+            title="Page count estimation format"
+          >
+            <option value="paperback">Paperback</option>
+            <option value="hardback">Hardback</option>
+          </select>
+          <button
+            type="button"
+            className={`preview-toggle-btn ${previewOpen ? 'active' : ''}`}
+            onClick={onTogglePreview}
+            title={previewOpen ? "Hide Markdown Preview" : "Show Markdown Preview"}
+          >
+            {previewOpen ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
         </div>
       </div>
       <div className="editor-cm-wrapper" onContextMenu={handleContextMenu}>

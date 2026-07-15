@@ -14,8 +14,38 @@ const app = express();
 
 app.use(express.json());
 
+function getGitHubClientId(): string {
+  if (process.env.GITHUB_CLIENT_ID) return process.env.GITHUB_CLIENT_ID;
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'github_client_id';").get() as { value: string } | undefined;
+    return row?.value || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function getGitHubClientSecret(): string {
+  if (process.env.GITHUB_CLIENT_SECRET) return process.env.GITHUB_CLIENT_SECRET;
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'github_client_secret';").get() as { value: string } | undefined;
+    return row?.value || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function getAllowedUser(): string {
+  if (process.env.ALLOWED_USER) return process.env.ALLOWED_USER;
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'allowed_user';").get() as { value: string } | undefined;
+    return row?.value || '';
+  } catch (err) {
+    return '';
+  }
+}
+
 function isHostedModeActive(): boolean {
-  if (process.env.GITHUB_CLIENT_ID) return true;
+  if (getGitHubClientId()) return true;
   try {
     const row = db.prepare("SELECT value FROM settings WHERE key = 'simulate_hosted_mode';").get() as { value: string } | undefined;
     return row?.value === 'true';
@@ -333,9 +363,13 @@ app.get('/api/config', (req, res) => {
     } catch (err) {
       // ignore
     }
+
     res.json({ 
       hasGemini: hasEnvKey || hasDbKey,
-      simulateHostedMode
+      simulateHostedMode,
+      githubClientId: getGitHubClientId(),
+      hasGithubSecret: !!getGitHubClientSecret(),
+      allowedUser: getAllowedUser()
     });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -343,13 +377,34 @@ app.get('/api/config', (req, res) => {
 });
 
 app.post('/api/config', async (req, res) => {
-  const { geminiApiKey, simulateHostedMode } = req.body as { geminiApiKey?: string, simulateHostedMode?: boolean };
+  const { 
+    geminiApiKey, 
+    simulateHostedMode, 
+    githubClientId, 
+    githubClientSecret, 
+    allowedUser 
+  } = req.body as { 
+    geminiApiKey?: string;
+    simulateHostedMode?: boolean;
+    githubClientId?: string;
+    githubClientSecret?: string;
+    allowedUser?: string;
+  };
   try {
     if (geminiApiKey !== undefined) {
       db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('gemini_api_key', ?);").run(geminiApiKey);
     }
     if (simulateHostedMode !== undefined) {
       db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('simulate_hosted_mode', ?);").run(simulateHostedMode ? 'true' : 'false');
+    }
+    if (githubClientId !== undefined) {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('github_client_id', ?);").run(githubClientId);
+    }
+    if (githubClientSecret !== undefined) {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('github_client_secret', ?);").run(githubClientSecret);
+    }
+    if (allowedUser !== undefined) {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('allowed_user', ?);").run(allowedUser);
     }
     res.json({ status: 'ok' });
   } catch (err) {
@@ -475,7 +530,7 @@ app.get('/api/auth/login', (req, res) => {
     return res.redirect('/');
   }
 
-  const clientId = process.env.GITHUB_CLIENT_ID;
+  const clientId = getGitHubClientId();
   if (!clientId) {
     // Simulated mode bypass: immediately redirect to callback
     return res.redirect('/api/auth/github/callback?code=mock_dev_code');
@@ -492,9 +547,9 @@ app.get('/api/auth/github/callback', async (req, res) => {
     return res.status(400).send('OAuth callback code missing');
   }
 
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
-  const allowed = process.env.ALLOWED_USER || '';
+  const clientId = getGitHubClientId();
+  const clientSecret = getGitHubClientSecret();
+  const allowed = getAllowedUser();
   const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
 
   try {
@@ -541,7 +596,7 @@ app.get('/api/auth/github/callback', async (req, res) => {
       throw new Error('Failed to retrieve GitHub profile info');
     }
 
-    if (clientId && allowed && githubUser.toLowerCase() !== allowed.toLowerCase()) {
+    if (allowed && githubUser.toLowerCase() !== allowed.toLowerCase()) {
       return res.status(403).send(`Access Denied: User ${githubUser} is not whitelisted`);
     }
 

@@ -7,6 +7,8 @@ import { WorkspaceManager } from './components/WorkspaceManager';
 import './App.css';
 import { resolveRelativePath } from './utils/pathResolver';
 import { SettingsModal } from './components/SettingsModal';
+import { MarkdownGuideModal } from './components/MarkdownGuideModal';
+import { ChevronRight } from 'lucide-react';
 
 function App() {
   const [files, setFiles] = useState<string[]>([]);
@@ -51,7 +53,19 @@ function App() {
   const [gitAhead, setGitAhead] = useState(0);
   const [hasGemini, setHasGemini] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [authInfo, setAuthInfo] = useState<{ loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setGuideOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const fetchAuthStatus = async () => {
     try {
@@ -496,15 +510,16 @@ function App() {
         loading={loading}
         ahead={gitAhead}
         hasGemini={hasGemini}
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        previewOpen={previewOpen}
-        onTogglePreview={() => setPreviewOpen(!previewOpen)}
         onOpenSettings={() => setSettingsOpen(true)}
         authInfo={authInfo}
         onLogout={handleLogout}
       />
       <div className="main-layout">
+        {!sidebarOpen && (
+          <div className="collapsed-sidebar-bar" onClick={() => setSidebarOpen(true)} title="Expand Sidebar">
+            <ChevronRight size={12} />
+          </div>
+        )}
         {sidebarOpen && (
           <>
             <Sidebar
@@ -514,6 +529,7 @@ function App() {
               onCreateFile={handleCreateFile}
               onDeleteFile={handleDeleteFile}
               width={sidebarWidth}
+              onCollapse={() => setSidebarOpen(false)}
             />
             <div className="sidebar-resizer" onMouseDown={startResizing} />
           </>
@@ -524,6 +540,8 @@ function App() {
               value={editorValue}
               onChange={setEditorValue}
               activeFile={activeFile}
+              previewOpen={previewOpen}
+              onTogglePreview={() => setPreviewOpen(!previewOpen)}
             />
             {previewOpen && activeFile && (
               <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />
@@ -550,6 +568,11 @@ function App() {
           onSave={() => {
             fetchGitStatus();
           }}
+        />
+      )}
+      {guideOpen && (
+        <MarkdownGuideModal
+          onClose={() => setGuideOpen(false)}
         />
       )}
     </div>
