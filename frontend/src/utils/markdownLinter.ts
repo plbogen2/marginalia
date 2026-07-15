@@ -94,3 +94,13 @@ export const lintMarkdown = (text: string): Diagnostic[] => {
 
   return diagnostics;
 };
+
+export const formatMarkdown = (text: string): string => {
+  return text.split('\n').map(line => {
+    // Trim trailing whitespace (but preserve double space line break marker)
+    if (line.endsWith(' ') && !line.endsWith('  ')) {
+      return line.trimEnd();
+    }
+    return line;
+  }).join('\n');
+};

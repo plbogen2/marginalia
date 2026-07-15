@@ -550,6 +550,22 @@ app.post('/api/git/suggest-commit-message', async (req, res) => {
   }
 });
 
+async function getMarkdownFilesRecursively(dir: string, targetDir: string): Promise<string[]> {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
+    const fullPath = path.resolve(dir, entry.name);
+    if (!isPathSafe(fullPath, targetDir)) continue;
+    if (entry.isDirectory()) {
+      files.push(...(await getMarkdownFilesRecursively(fullPath, targetDir)));
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      files.push(fullPath);
+    }
+  }
+  return files;
+}
+
 app.post('/api/ai/analyze', async (req, res) => {
   const { path: filePath, persona, message, history, contextFiles } = req.body as { 
     path: string; 
@@ -661,13 +677,26 @@ CRITICAL CONSTRAINT: You must only propose text replacements (using search/repla
           return res.status(403).json({ error: `Access denied for context file: ${cFile}` });
         }
         try {
-          const cContent = await fs.readFile(cSafePath, 'utf-8');
-          const cleanCContent = cContent.replace(/<!--[\s\S]*?-->/g, '');
-          if (cleanCContent.trim().length > 0) {
-            contextString += `\n--- Context File: ${cFile} ---\n${cleanCContent}\n`;
+          const stat = await fs.stat(cSafePath);
+          if (stat.isDirectory()) {
+            const allFiles = await getMarkdownFilesRecursively(cSafePath, targetDir);
+            for (const subFile of allFiles) {
+              const subContent = await fs.readFile(subFile, 'utf-8');
+              const cleanSub = subContent.replace(/<!--[\s\S]*?-->/g, '');
+              if (cleanSub.trim().length > 0) {
+                const relativePath = path.relative(targetDir, subFile);
+                contextString += `\n--- Context File: ${relativePath} ---\n${cleanSub}\n`;
+              }
+            }
+          } else {
+            const cContent = await fs.readFile(cSafePath, 'utf-8');
+            const cleanCContent = cContent.replace(/<!--[\s\S]*?-->/g, '');
+            if (cleanCContent.trim().length > 0) {
+              contextString += `\n--- Context File: ${cFile} ---\n${cleanCContent}\n`;
+            }
           }
         } catch (e) {
-          console.warn(`Could not read context file ${cFile}`, e);
+          console.warn(`Could not read context path ${cFile}`, e);
         }
       }
     }

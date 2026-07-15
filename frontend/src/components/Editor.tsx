@@ -26,14 +26,41 @@ const grammarLinter = linter(async (view) => {
       severity = 'info';
     }
 
-    const actions = match.replacements.slice(0, 3).map((rep) => ({
-      name: `Replace with "${rep.value}"`,
-      apply: (view: any, from: number, to: number) => {
-        view.dispatch({
-          changes: { from, to, insert: rep.value }
+    const actions: { name: string; apply: (view: any, from: number, to: number) => void }[] = [];
+
+    match.replacements.slice(0, 3).forEach((rep) => {
+      actions.push({
+        name: `Replace with "${rep.value}"`,
+        apply: (view: any, from: number, to: number) => {
+          view.dispatch({
+            changes: { from, to, insert: rep.value }
+          });
+        }
+      });
+
+      if (isSpelling) {
+        actions.push({
+          name: `Replace all with "${rep.value}"`,
+          apply: (view: any) => {
+            const misspelledWord = text.slice(match.offset, match.offset + match.length);
+            const docText = view.state.doc.toString();
+            const changes: { from: number; to: number; insert: string }[] = [];
+            let pos = 0;
+            while ((pos = docText.indexOf(misspelledWord, pos)) !== -1) {
+              changes.push({
+                from: pos,
+                to: pos + misspelledWord.length,
+                insert: rep.value
+              });
+              pos += misspelledWord.length;
+            }
+            if (changes.length > 0) {
+              view.dispatch({ changes });
+            }
+          }
         });
       }
-    }));
+    });
 
     if (isSpelling) {
       const misspelledWord = text.slice(match.offset, match.offset + match.length);
@@ -99,7 +126,13 @@ const markdownStyleLinter = linter((view) => {
 export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) => {
 
   const editorRef = useRef<any>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, word: string | null } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ 
+    x: number; 
+    y: number; 
+    word: string | null;
+    suggestions?: { name: string; apply: (view: any, from: number, to: number) => void }[];
+    range?: { from: number; to: number };
+  } | null>(null);
 
   useEffect(() => {
     const handleGlobalClick = () => {
@@ -119,12 +152,16 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
 
     const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
     let spellingErrorWord: string | null = null;
+    let suggestions: any[] | undefined;
+    let range: { from: number; to: number } | undefined;
 
     if (pos !== null) {
       forEachDiagnostic(view.state, (d: any) => {
         if (pos >= d.from && pos <= d.to) {
           const word = view.state.doc.sliceString(d.from, d.to);
           spellingErrorWord = word;
+          suggestions = d.actions;
+          range = { from: d.from, to: d.to };
         }
       });
     }
@@ -132,7 +169,9 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
     setContextMenu({
       x: e.clientX,
       y: e.clientY,
-      word: spellingErrorWord
+      word: spellingErrorWord,
+      suggestions,
+      range
     });
   };
 
@@ -264,6 +303,22 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
 
             {contextMenu.word && (
               <>
+                <div className="context-menu-separator" />
+                {contextMenu.suggestions && contextMenu.suggestions.map((s, idx) => (
+                  <button
+                    key={idx}
+                    className="context-menu-item suggestion-item"
+                    onClick={() => {
+                      const view = editorRef.current;
+                      if (view && contextMenu.range) {
+                        s.apply(view, contextMenu.range.from, contextMenu.range.to);
+                        setContextMenu(null);
+                      }
+                    }}
+                  >
+                    <span>{s.name}</span>
+                  </button>
+                ))}
                 <div className="context-menu-separator" />
                 <button
                   onClick={() => handleIgnoreWord('workspace')}

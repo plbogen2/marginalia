@@ -11,6 +11,7 @@ import { MarkdownGuideModal } from './components/MarkdownGuideModal';
 import { GitDiffModal } from './components/GitDiffModal';
 import { AiPanel } from './components/AiPanel';
 import { ChevronRight, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { formatMarkdown } from './utils/markdownLinter';
 
 function App() {
   const [files, setFiles] = useState<string[]>([]);
@@ -172,6 +173,29 @@ function App() {
       });
     }
     return true;
+  };
+
+  const handleFormatDocument = () => {
+    const formatted = formatMarkdown(editorValue);
+    if (formatted !== editorValue) {
+      setEditorValue(formatted);
+      if (activeFile) {
+        fetch('/api/file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: activeFile, content: formatted })
+        }).then(res => {
+          if (res.ok) {
+            setOriginalContent(formatted);
+            fetchGitStatus();
+          } else {
+            console.error('Failed to auto-save formatted text to disk');
+          }
+        }).catch(err => {
+          console.error('Error auto-saving formatted text:', err);
+        });
+      }
+    }
   };
 
   const fetchFiles = async () => {
@@ -603,6 +627,14 @@ function App() {
                   <option value="paperback">Paperback</option>
                   <option value="hardback">Hardback</option>
                 </select>
+                <button
+                  type="button"
+                  className="format-doc-btn"
+                  onClick={handleFormatDocument}
+                  title="Auto-format trailing spaces and clean up Markdown style warnings"
+                >
+                  Format
+                </button>
                 <button
                   type="button"
                   className={`preview-toggle-btn ${previewOpen ? 'active' : ''}`}

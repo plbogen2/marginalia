@@ -537,6 +537,7 @@ test('Backend APIs', async (t) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: testTextWorkspace })
     });
+    assert.strictEqual(checkWS1.status, 200);
     const checkWSBody1 = await checkWS1.json() as { matches: any[] };
     assert.ok(checkWSBody1.matches.some(m => m.rule?.issueType === 'misspelling'));
 
@@ -561,6 +562,7 @@ test('Backend APIs', async (t) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: testTextWorkspace })
     });
+    assert.strictEqual(checkWS2.status, 200);
     const checkWSBody2 = await checkWS2.json() as { matches: any[] };
     const spellingMistakesWS2 = checkWSBody2.matches.filter(m => m.rule?.issueType === 'misspelling');
     assert.strictEqual(spellingMistakesWS2.length, 0);
@@ -690,6 +692,19 @@ test('Backend APIs', async (t) => {
         body: JSON.stringify({ path: 'chapter1.md', persona: 'invalid-persona' })
       });
       assert.strictEqual(res.status, 400);
+    });
+
+    await st.test('POST /api/ai/analyze returns 403 for path traversal inside contextFiles', async () => {
+      const res = await fetch(`http://localhost:${port}/api/ai/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          path: 'chapter1.md', 
+          persona: 'developmental',
+          contextFiles: ['../../etc/passwd']
+        })
+      });
+      assert.strictEqual(res.status, 403);
     });
 
     await st.test('GET and POST /api/ai/cache manages session cache details', async () => {

@@ -85,6 +85,8 @@ const ContextTreeNode: React.FC<ContextTreeNodeProps> = ({
     const hasVisibleChildren = node.children && node.children.some(c => !c.isDirectory && c.path !== activeFile || c.isDirectory);
     if (!hasVisibleChildren) return null;
 
+    const isChecked = selectedContextFiles.includes(node.path);
+
     return (
       <div className="context-tree-folder">
         <div 
@@ -92,6 +94,15 @@ const ContextTreeNode: React.FC<ContextTreeNodeProps> = ({
           style={{ paddingLeft: `${depth * 12 + 6}px` }}
           onClick={() => onToggleExpand(node.path)}
         >
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleFile(node.path);
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
           <span className="chevron-icon">
             {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </span>
