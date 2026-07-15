@@ -378,6 +378,8 @@ app.get('/api/gemini/models', async (req, res) => {
     return res.json([
       { name: 'models/gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
       { name: 'models/gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
+      { name: 'models/gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
+      { name: 'models/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
       { name: 'models/gemini-3.5-flash', displayName: 'Gemini 3.5 Flash' },
       { name: 'models/gemini-3.5-pro', displayName: 'Gemini 3.5 Pro' },
       { name: 'models/gemini-flash-latest', displayName: 'Gemini Flash Latest' },
@@ -398,8 +400,8 @@ app.get('/api/gemini/models', async (req, res) => {
         const name = m.name || '';
         const stage = m.modelStage || '';
 
-        // Exclude legacy/deprecated and unstable experimental models
-        if (stage === 'LEGACY' || stage === 'DEPRECATED' || stage === 'UNSTABLE_EXPERIMENTAL') {
+        // Exclude only officially legacy and deprecated models (keep experimental/previews)
+        if (stage === 'LEGACY' || stage === 'DEPRECATED') {
           return false;
         }
 
