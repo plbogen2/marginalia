@@ -30,13 +30,16 @@ echo "--> Configuring iptables firewall to open port 80..."
 sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
 sudo netfilter-persistent save
 
-# 4. Clone the repository
+# 4. Clone or update the repository
 if [ ! -d "marginalia" ]; then
   echo "--> Cloning Marginalia repository..."
   git clone https://github.com/plbogen2/marginalia.git
+  cd marginalia
+else
+  echo "--> Updating Marginalia repository..."
+  cd marginalia
+  git pull origin main
 fi
-
-cd marginalia
 
 # 5. Setup environment configurations
 if [ ! -f ".env" ]; then
