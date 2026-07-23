@@ -1562,6 +1562,10 @@ kbd {
   margin: 4px 0 0 0 !important;
   font-size: 11px !important;
   font-family: inherit !important;
+  text-align: left !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
   transition: background-color 0.1s, transform 0.1s;
 
   &:hover {
