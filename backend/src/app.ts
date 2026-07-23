@@ -936,20 +936,27 @@ app.post('/api/languagetool/check', async (req, res) => {
       currentOffset += part.length + 2;
     }
 
+    const nonEvParagraphs = paragraphs.filter(p => p.text.trim().length > 0);
+    const hashes = nonEvParagraphs.map(p => crypto.createHash('md5').update(p.text).digest('hex'));
+
+    const cacheMap = new Map<string, any[]>();
+    if (hashes.length > 0) {
+      try {
+        const placeholders = hashes.map(() => '?').join(',');
+        const rows = db.prepare(`SELECT hash, matches FROM languagetool_cache WHERE hash IN (${placeholders});`).all(...hashes) as { hash: string; matches: string }[];
+        for (const row of rows) {
+          cacheMap.set(row.hash, JSON.parse(row.matches));
+        }
+      } catch (err) {
+        console.warn('Failed to query languagetool_cache in batch:', err);
+      }
+    }
+
     const checkPromises = paragraphs.map(async (p) => {
       if (!p.text.trim()) return [];
 
       const hash = crypto.createHash('md5').update(p.text).digest('hex');
-      let rawMatches: any[] | null = null;
-
-      try {
-        const row = db.prepare("SELECT matches FROM languagetool_cache WHERE hash = ?;").get(hash) as { matches: string } | undefined;
-        if (row && row.matches) {
-          rawMatches = JSON.parse(row.matches) as any[];
-        }
-      } catch (err) {
-        console.warn('Failed to query languagetool_cache:', err);
-      }
+      let rawMatches = cacheMap.get(hash) || null;
 
       if (!rawMatches) {
         const params = new URLSearchParams();

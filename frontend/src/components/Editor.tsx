@@ -50,28 +50,26 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile, onC
               }
             });
 
-            if (isSpelling) {
-              actions.push({
-                name: `Replace all with "${rep.value}"`,
-                apply: (view: any) => {
-                  const misspelledWord = text.slice(match.offset, match.offset + match.length);
-                  const docText = view.state.doc.toString();
-                  const changes: { from: number; to: number; insert: string }[] = [];
-                  let pos = 0;
-                  while ((pos = docText.indexOf(misspelledWord, pos)) !== -1) {
-                    changes.push({
-                      from: pos,
-                      to: pos + misspelledWord.length,
-                      insert: rep.value
-                    });
-                    pos += misspelledWord.length;
-                  }
-                  if (changes.length > 0) {
-                    view.dispatch({ changes });
-                  }
+            actions.push({
+              name: `Replace all with "${rep.value}"`,
+              apply: (view: any) => {
+                const matchedText = text.slice(match.offset, match.offset + match.length);
+                const docText = view.state.doc.toString();
+                const changes: { from: number; to: number; insert: string }[] = [];
+                let pos = 0;
+                while ((pos = docText.indexOf(matchedText, pos)) !== -1) {
+                  changes.push({
+                    from: pos,
+                    to: pos + matchedText.length,
+                    insert: rep.value
+                  });
+                  pos += matchedText.length;
                 }
-              });
-            }
+                if (changes.length > 0) {
+                  view.dispatch({ changes });
+                }
+              }
+            });
           });
 
           if (isSpelling) {
