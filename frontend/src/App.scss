@@ -462,6 +462,16 @@ $input-border: #6b6b6b;
       align-items: center;
       gap: $spacing-md;
 
+      .grammar-checking-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: $text-muted;
+        margin-right: 8px;
+        opacity: 0.8;
+      }
+
       .format-select {
         background-color: transparent;
         border: none;

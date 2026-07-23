@@ -10,7 +10,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { MarkdownGuideModal } from './components/MarkdownGuideModal';
 import { GitDiffModal } from './components/GitDiffModal';
 import { AiPanel } from './components/AiPanel';
-import { ChevronRight, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { ChevronRight, Eye, EyeOff, Sparkles, Loader2 } from 'lucide-react';
 import { formatMarkdown } from './utils/markdownLinter';
 
 function App() {
@@ -49,6 +49,7 @@ function App() {
   const [gitStatus, setGitStatus] = useState('');
   const [gitBranch, setGitBranch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkingGrammar, setCheckingGrammar] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(true);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
@@ -616,6 +617,12 @@ function App() {
             <div className="workspace-file-header">
               <span className="file-path">{activeFile}</span>
               <div className="stats">
+                {checkingGrammar && (
+                  <div className="grammar-checking-status" title="Running grammar and spell check...">
+                    <Loader2 size={12} className="spinner" />
+                    <span>Checking...</span>
+                  </div>
+                )}
                 <span>{wordCount} words</span>
                 <span>~{pageCount} pages</span>
                 <select
@@ -661,6 +668,7 @@ function App() {
               value={editorValue}
               onChange={setEditorValue}
               activeFile={activeFile}
+              onCheckStatusChange={setCheckingGrammar}
             />
             {previewOpen && activeFile && (
               <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />
