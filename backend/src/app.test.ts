@@ -544,6 +544,9 @@ test('Backend APIs', async (t) => {
   });
 
   await t.test('Dictionary and LanguageTool Proxy APIs', async () => {
+    const { setTargetDir } = await import('./config.js');
+    setTargetDir(TEST_TARGET_DIR);
+
     const testText = "This is a misspelledwordok.";
     const checkRes1 = await fetch(`http://localhost:${port}/api/languagetool/check`, {
       method: 'POST',
@@ -640,6 +643,87 @@ test('Backend APIs', async (t) => {
     const wsMistakes = checkOffsetBody.matches.filter(m => m.rule?.issueType === 'misspelling');
     assert.strictEqual(wsMistakes.length, 1);
     assert.strictEqual(wsMistakes[0].offset, 25);
+
+    // Test ignoring a grammar rule (EN_A_VS_AN for "an car")
+    const grammarText = "This is an car.";
+    const checkGrammarRes = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: grammarText })
+    });
+    assert.strictEqual(checkGrammarRes.status, 200);
+    const checkGrammarBody = await checkGrammarRes.json() as { matches: any[] };
+    const hasAAnError = checkGrammarBody.matches.some(m => m.rule.id === 'EN_A_VS_AN');
+    assert.ok(hasAAnError);
+
+    // Call POST /api/grammar/ignore to ignore it
+    const ignoreRuleRes = await fetch(`http://localhost:${port}/api/grammar/ignore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ruleId: 'EN_A_VS_AN', scope: 'workspace' })
+    });
+    assert.strictEqual(ignoreRuleRes.status, 200);
+
+    // Query /api/grammar/ignored to verify it's registered
+    const ignoredRes = await fetch(`http://localhost:${port}/api/grammar/ignored`);
+    assert.strictEqual(ignoredRes.status, 200);
+    const ignoredBody = await ignoredRes.json() as { global: string[], workspace: string[] };
+    assert.ok(ignoredBody.workspace.includes('EN_A_VS_AN'));
+
+    // Re-check: the grammar error should now be filtered out
+    const checkGrammarRes2 = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: grammarText })
+    });
+    assert.strictEqual(checkGrammarRes2.status, 200);
+    const checkGrammarBody2 = await checkGrammarRes2.json() as { matches: any[] };
+    const hasAAnError2 = checkGrammarBody2.matches.some(m => m.rule.id === 'EN_A_VS_AN');
+    assert.strictEqual(hasAAnError2, false);
+
+    // Clean up rule ignore
+    const { db: testDb } = await import('./db.js');
+    testDb.prepare("DELETE FROM ignored_rules WHERE rule_id = 'EN_A_VS_AN';").run();
+
+    // Test ignoring a specific instance of a grammar rule
+    const instanceText = "This is an car.";
+    const testFile = "chapter1.md";
+    
+    const ignoreInstanceRes = await fetch(`http://localhost:${port}/api/grammar/ignore-instance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        ruleId: 'EN_A_VS_AN', 
+        sentence: 'This is an car.', 
+        filePath: testFile 
+      })
+    });
+    assert.strictEqual(ignoreInstanceRes.status, 200);
+
+    // Re-check with same filePath (should be ignored)
+    const checkInstanceRes1 = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: instanceText, filePath: testFile })
+    });
+    assert.strictEqual(checkInstanceRes1.status, 200);
+    const checkInstanceBody1 = await checkInstanceRes1.json() as { matches: any[] };
+    const hasAAnErrorWS1 = checkInstanceBody1.matches.some(m => m.rule.id === 'EN_A_VS_AN');
+    assert.strictEqual(hasAAnErrorWS1, false);
+
+    // Re-check with different filePath (should NOT be ignored)
+    const checkInstanceRes2 = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: instanceText, filePath: 'chapter2.md' })
+    });
+    assert.strictEqual(checkInstanceRes2.status, 200);
+    const checkInstanceBody2 = await checkInstanceRes2.json() as { matches: any[] };
+    const hasAAnErrorWS2 = checkInstanceBody2.matches.some(m => m.rule.id === 'EN_A_VS_AN');
+    assert.strictEqual(hasAAnErrorWS2, true);
+
+    // Clean up instances
+    testDb.prepare("DELETE FROM ignored_instances WHERE rule_id = 'EN_A_VS_AN';").run();
 
     await fs.rm(dictFilePath, { force: true });
   });

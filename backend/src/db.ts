@@ -97,6 +97,40 @@ function initTables() {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_ignored_words_workspace_id ON ignored_words(workspace_id);
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ignored_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rule_id TEXT NOT NULL,
+      workspace_id INTEGER,
+      FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    );
+  `);
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_rules_global ON ignored_rules(rule_id) WHERE workspace_id IS NULL;
+  `);
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_rules_local ON ignored_rules(rule_id, workspace_id) WHERE workspace_id IS NOT NULL;
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ignored_instances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_path TEXT NOT NULL,
+      workspace_id INTEGER,
+      rule_id TEXT NOT NULL,
+      context_hash TEXT NOT NULL,
+      FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    );
+  `);
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_instances_local 
+    ON ignored_instances(file_path, workspace_id, rule_id, context_hash) 
+    WHERE workspace_id IS NOT NULL;
+  `);
 }
 
 export { db };

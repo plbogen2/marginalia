@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { linter, type Diagnostic, forEachDiagnostic, setDiagnostics, setDiagnosticsEffect } from '@codemirror/lint';
@@ -12,111 +12,7 @@ interface EditorProps {
   activeFile: string | null;
 }
 
-const grammarLinter = linter(async (view) => {
-  const text = view.state.doc.toString();
-  const matches = await checkGrammar(text);
 
-  const diagnostics: Diagnostic[] = matches.map((match) => {
-    let severity: 'error' | 'warning' | 'info' = 'warning';
-    const isSpelling = match.rule.issueType === 'misspelling';
-
-    if (isSpelling) {
-      severity = 'error';
-    } else if (match.rule.issueType === 'style') {
-      severity = 'info';
-    }
-
-    const actions: { name: string; apply: (view: any, from: number, to: number) => void }[] = [];
-
-    match.replacements.slice(0, 3).forEach((rep) => {
-      actions.push({
-        name: `Replace with "${rep.value}"`,
-        apply: (view: any, from: number, to: number) => {
-          view.dispatch({
-            changes: { from, to, insert: rep.value }
-          });
-        }
-      });
-
-      if (isSpelling) {
-        actions.push({
-          name: `Replace all with "${rep.value}"`,
-          apply: (view: any) => {
-            const misspelledWord = text.slice(match.offset, match.offset + match.length);
-            const docText = view.state.doc.toString();
-            const changes: { from: number; to: number; insert: string }[] = [];
-            let pos = 0;
-            while ((pos = docText.indexOf(misspelledWord, pos)) !== -1) {
-              changes.push({
-                from: pos,
-                to: pos + misspelledWord.length,
-                insert: rep.value
-              });
-              pos += misspelledWord.length;
-            }
-            if (changes.length > 0) {
-              view.dispatch({ changes });
-            }
-          }
-        });
-      }
-    });
-
-    if (isSpelling) {
-      const misspelledWord = text.slice(match.offset, match.offset + match.length);
-      actions.push({
-        name: `Ignore globally`,
-        apply: (view: any) => {
-          fetch('/api/dictionary/add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ word: misspelledWord, scope: 'global' })
-          });
-          const remaining: any[] = [];
-          forEachDiagnostic(view.state, (d: any) => {
-            const word = view.state.doc.sliceString(d.from, d.to);
-            if (word.toLowerCase() !== misspelledWord.toLowerCase()) {
-              remaining.push(d);
-            }
-          });
-          view.dispatch(setDiagnostics(view.state, remaining));
-          view.focus();
-        }
-      } as any);
-      actions.push({
-        name: `Ignore in workspace`,
-        apply: (view: any) => {
-          fetch('/api/dictionary/add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ word: misspelledWord, scope: 'workspace' })
-          });
-          const remaining: any[] = [];
-          forEachDiagnostic(view.state, (d: any) => {
-            const word = view.state.doc.sliceString(d.from, d.to);
-            if (word.toLowerCase() !== misspelledWord.toLowerCase()) {
-              remaining.push(d);
-            }
-          });
-          view.dispatch(setDiagnostics(view.state, remaining));
-          view.focus();
-        }
-      } as any);
-    }
-
-    return {
-      from: match.offset,
-      to: match.offset + match.length,
-      severity,
-      message: match.message,
-      actions
-    };
-  });
-
-  return diagnostics;
-}, {
-  delay: 1500
-});
 
 const markdownStyleLinter = linter(async (view) => {
   const text = view.state.doc.toString();
@@ -124,7 +20,178 @@ const markdownStyleLinter = linter(async (view) => {
 });
 
 export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) => {
+  const grammarLinter = useMemo(() => {
+    return linter(async (view) => {
+      const text = view.state.doc.toString();
+      const matches = await checkGrammar(text, activeFile);
 
+      const diagnostics: Diagnostic[] = matches.map((match) => {
+        let severity: 'error' | 'warning' | 'info' = 'warning';
+        const isSpelling = match.rule.issueType === 'misspelling';
+
+        if (isSpelling) {
+          severity = 'error';
+        } else if (match.rule.issueType === 'style') {
+          severity = 'info';
+        }
+
+        const actions: { name: string; apply: (view: any, from: number, to: number) => void }[] = [];
+
+        match.replacements.slice(0, 3).forEach((rep) => {
+          actions.push({
+            name: `Replace with "${rep.value}"`,
+            apply: (view: any, from: number, to: number) => {
+              view.dispatch({
+                changes: { from, to, insert: rep.value }
+              });
+            }
+          });
+
+          if (isSpelling) {
+            actions.push({
+              name: `Replace all with "${rep.value}"`,
+              apply: (view: any) => {
+                const misspelledWord = text.slice(match.offset, match.offset + match.length);
+                const docText = view.state.doc.toString();
+                const changes: { from: number; to: number; insert: string }[] = [];
+                let pos = 0;
+                while ((pos = docText.indexOf(misspelledWord, pos)) !== -1) {
+                  changes.push({
+                    from: pos,
+                    to: pos + misspelledWord.length,
+                    insert: rep.value
+                  });
+                  pos += misspelledWord.length;
+                }
+                if (changes.length > 0) {
+                  view.dispatch({ changes });
+                }
+              }
+            });
+          }
+        });
+
+        if (isSpelling) {
+          const misspelledWord = text.slice(match.offset, match.offset + match.length);
+          actions.push({
+            name: `Ignore globally`,
+            apply: (view: any) => {
+              fetch('/api/dictionary/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ word: misspelledWord, scope: 'global' })
+              });
+              const remaining: any[] = [];
+              forEachDiagnostic(view.state, (d: any) => {
+                const word = view.state.doc.sliceString(d.from, d.to);
+                if (word.toLowerCase() !== misspelledWord.toLowerCase()) {
+                  remaining.push(d);
+                }
+              });
+              view.dispatch(setDiagnostics(view.state, remaining));
+              view.focus();
+            }
+          } as any);
+          actions.push({
+            name: `Ignore in workspace`,
+            apply: (view: any) => {
+              fetch('/api/dictionary/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ word: misspelledWord, scope: 'workspace' })
+              });
+              const remaining: any[] = [];
+              forEachDiagnostic(view.state, (d: any) => {
+                const word = view.state.doc.sliceString(d.from, d.to);
+                if (word.toLowerCase() !== misspelledWord.toLowerCase()) {
+                  remaining.push(d);
+                }
+              });
+              view.dispatch(setDiagnostics(view.state, remaining));
+              view.focus();
+            }
+          } as any);
+        } else {
+          const ruleId = match.rule.id;
+          const ruleDesc = match.rule.description || ruleId;
+
+          actions.push({
+            name: `Ignore this instance`,
+            apply: (view: any) => {
+              if (activeFile) {
+                fetch('/api/grammar/ignore-instance', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ruleId, sentence: match.sentence, filePath: activeFile })
+                });
+              }
+              const remaining: any[] = [];
+              forEachDiagnostic(view.state, (d: any) => {
+                if (!(d.ruleId === ruleId && d.from === match.offset)) {
+                  remaining.push(d);
+                }
+              });
+              view.dispatch(setDiagnostics(view.state, remaining));
+              view.focus();
+            }
+          });
+
+          actions.push({
+            name: `Ignore rule in workspace: ${ruleDesc}`,
+            apply: (view: any) => {
+              fetch('/api/grammar/ignore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ruleId, scope: 'workspace' })
+              });
+              const remaining: any[] = [];
+              forEachDiagnostic(view.state, (d: any) => {
+                if (d.ruleId !== ruleId) {
+                  remaining.push(d);
+                }
+              });
+              view.dispatch(setDiagnostics(view.state, remaining));
+              view.focus();
+            }
+          });
+
+          actions.push({
+            name: `Ignore rule globally: ${ruleDesc}`,
+            apply: (view: any) => {
+              fetch('/api/grammar/ignore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ruleId, scope: 'global' })
+              });
+              const remaining: any[] = [];
+              forEachDiagnostic(view.state, (d: any) => {
+                if (d.ruleId !== ruleId) {
+                  remaining.push(d);
+                }
+              });
+              view.dispatch(setDiagnostics(view.state, remaining));
+              view.focus();
+            }
+          });
+        }
+
+        const diag: Diagnostic = {
+          from: match.offset,
+          to: match.offset + match.length,
+          severity,
+          message: match.message,
+          actions
+        };
+        (diag as any).ruleId = match.rule.id;
+        (diag as any).sentence = match.sentence;
+        return diag;
+      });
+
+      return diagnostics;
+    }, {
+      delay: 1500
+    });
+  }, [activeFile]);
   const editorRef = useRef<any>(null);
   const [diagnostics, setDiagnosticsList] = useState<{ line: number; severity: string }[]>([]);
   const [totalLines, setTotalLines] = useState<number>(1);
@@ -142,6 +209,14 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
     } catch (e) {
       console.error('Failed to scroll to line:', e);
     }
+  };
+
+  const handleGutterClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickY = e.clientY - rect.top;
+    const pct = clickY / rect.height;
+    const targetLine = Math.max(1, Math.min(totalLines, Math.round(pct * totalLines)));
+    scrollToLine(targetLine);
   };
 
   const [contextMenu, setContextMenu] = useState<{ 
@@ -335,7 +410,7 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
         />
 
         {dedupedDiagnostics.length > 0 && (
-          <div className="editor-minimap-gutter">
+          <div className="editor-minimap-gutter" onClick={handleGutterClick}>
             {dedupedDiagnostics.map((d, index) => {
               const topPct = ((d.line - 1) / Math.max(1, totalLines)) * 100;
               return (
@@ -343,7 +418,10 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile }) =
                   key={index}
                   className={`minimap-tick ${d.severity}`}
                   style={{ top: `${topPct}%` }}
-                  onClick={() => scrollToLine(d.line)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    scrollToLine(d.line);
+                  }}
                   title={`Go to ${d.severity} on line ${d.line}`}
                 />
               );

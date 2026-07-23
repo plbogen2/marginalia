@@ -3,14 +3,16 @@ export interface LTMatch {
   shortMessage: string;
   offset: number;
   length: number;
+  sentence: string;
   replacements: { value: string }[];
   rule: {
     id: string;
     issueType: string;
+    description?: string;
   };
 }
 
-export const checkGrammar = async (text: string): Promise<LTMatch[]> => {
+export const checkGrammar = async (text: string, filePath?: string | null): Promise<LTMatch[]> => {
   if (!text || text.trim().length === 0) {
     return [];
   }
@@ -21,7 +23,7 @@ export const checkGrammar = async (text: string): Promise<LTMatch[]> => {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ text })
+      body: JSON.stringify({ text, filePath })
     });
 
     if (!res.ok) {

@@ -852,8 +852,75 @@ app.get('/api/dictionary', async (req, res) => {
   }
 });
 
+app.post('/api/grammar/ignore', async (req, res) => {
+  const { ruleId, scope } = req.body as { ruleId: string, scope: 'global' | 'workspace' };
+  if (!ruleId) {
+    return res.status(400).json({ error: 'Missing ruleId' });
+  }
+  if (scope !== 'global' && scope !== 'workspace') {
+    return res.status(400).json({ error: 'Invalid scope, must be global or workspace' });
+  }
+
+  try {
+    const workspaceId = scope === 'workspace' ? getActiveWorkspaceId() : null;
+    db.prepare(`
+      INSERT OR IGNORE INTO ignored_rules (rule_id, workspace_id) VALUES (?, ?);
+    `).run(ruleId, workspaceId);
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/api/grammar/ignored', async (req, res) => {
+  try {
+    const workspaceId = getActiveWorkspaceId();
+    const rows = db.prepare(`
+      SELECT rule_id, workspace_id FROM ignored_rules 
+      WHERE workspace_id IS NULL OR workspace_id = ?;
+    `).all(workspaceId) as { rule_id: string, workspace_id: number | null }[];
+
+    const result = {
+      global: rows.filter(r => r.workspace_id === null).map(r => r.rule_id),
+      workspace: rows.filter(r => r.workspace_id !== null).map(r => r.rule_id)
+    };
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.post('/api/grammar/ignore-instance', async (req, res) => {
+  const { ruleId, sentence, filePath } = req.body as { 
+    ruleId: string; 
+    sentence: string; 
+    filePath: string; 
+  };
+  if (!ruleId || !sentence || !filePath) {
+    return res.status(400).json({ error: 'Missing ruleId, sentence, or filePath parameter' });
+  }
+
+  try {
+    const workspaceId = getActiveWorkspaceId();
+    if (!workspaceId) {
+      return res.status(400).json({ error: 'No active workspace selected' });
+    }
+    const cleanSentence = sentence.trim();
+    const hash = crypto.createHash('md5').update(cleanSentence).digest('hex');
+
+    db.prepare(`
+      INSERT OR IGNORE INTO ignored_instances (file_path, workspace_id, rule_id, context_hash)
+      VALUES (?, ?, ?, ?);
+    `).run(filePath, workspaceId, ruleId, hash);
+
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 app.post('/api/languagetool/check', async (req, res) => {
-  const { text } = req.body as { text: string };
+  const { text, filePath } = req.body as { text: string; filePath?: string };
   if (typeof text !== 'string') {
     return res.status(400).json({ error: 'Missing text parameter' });
   }
@@ -923,7 +990,38 @@ app.post('/api/languagetool/check', async (req, res) => {
 
     const ignoredWords = await getAllApplicableIgnoredWords(getTargetDir(req));
 
+    const workspaceId = getActiveWorkspaceId();
+    const ignoredRulesRows = db.prepare(`
+      SELECT rule_id FROM ignored_rules 
+      WHERE workspace_id IS NULL OR workspace_id = ?;
+    `).all(workspaceId) as { rule_id: string }[];
+    const ignoredRules = new Set(ignoredRulesRows.map(r => r.rule_id));
+
+    let ignoredInstances = new Set<string>();
+    if (filePath && workspaceId) {
+      const instanceRows = db.prepare(`
+        SELECT rule_id, context_hash FROM ignored_instances
+        WHERE file_path = ? AND workspace_id = ?;
+      `).all(filePath, workspaceId) as { rule_id: string, context_hash: string }[];
+      ignoredInstances = new Set(instanceRows.map(r => `${r.rule_id}:${r.context_hash}`));
+    }
+
     const filteredMatches = allMatches.filter((match) => {
+      // 1. Filter out ignored grammar rule IDs
+      if (match.rule?.id && ignoredRules.has(match.rule.id)) {
+        return false;
+      }
+
+      // 2. Filter out ignored grammar instances
+      if (match.rule?.id && match.sentence) {
+        const cleanSentence = match.sentence.trim();
+        const contextHash = crypto.createHash('md5').update(cleanSentence).digest('hex');
+        if (ignoredInstances.has(`${match.rule.id}:${contextHash}`)) {
+          return false;
+        }
+      }
+
+      // 3. Filter out spelling ignored words
       const isSpelling = match.rule?.issueType === 'misspelling';
       if (!isSpelling) return true;
 
