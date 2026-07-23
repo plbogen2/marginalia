@@ -616,6 +616,31 @@ test('Backend APIs', async (t) => {
     const spellingMistakesWS2 = checkWSBody2.matches.filter(m => m.rule?.issueType === 'misspelling');
     assert.strictEqual(spellingMistakesWS2.length, 0);
 
+    // Test HTML comments ignoring
+    const commentText = "This has <!-- a misspelledwordok comment --> normal text.";
+    const checkCommentRes = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: commentText })
+    });
+    assert.strictEqual(checkCommentRes.status, 200);
+    const checkCommentBody = await checkCommentRes.json() as { matches: any[] };
+    const mistakes = checkCommentBody.matches.filter(m => m.rule?.issueType === 'misspelling');
+    assert.strictEqual(mistakes.length, 0);
+
+    // Test comment offset alignment offset preservation
+    const commentOffsetTest = "This <!-- comment --> is anotherunrecognizedwordok.";
+    const checkOffsetRes = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: commentOffsetTest })
+    });
+    assert.strictEqual(checkOffsetRes.status, 200);
+    const checkOffsetBody = await checkOffsetRes.json() as { matches: any[] };
+    const wsMistakes = checkOffsetBody.matches.filter(m => m.rule?.issueType === 'misspelling');
+    assert.strictEqual(wsMistakes.length, 1);
+    assert.strictEqual(wsMistakes[0].offset, 25);
+
     await fs.rm(dictFilePath, { force: true });
   });
 

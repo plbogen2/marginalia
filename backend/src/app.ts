@@ -860,8 +860,9 @@ app.post('/api/languagetool/check', async (req, res) => {
 
   try {
     const normalizedText = text.replace(/\r\n/g, '\n');
+    const cleanText = normalizedText.replace(/<!--[\s\S]*?-->/g, (match) => ' '.repeat(match.length));
     const paragraphs: { text: string; start: number }[] = [];
-    const parts = normalizedText.split('\n\n');
+    const parts = cleanText.split('\n\n');
     let currentOffset = 0;
     for (const part of parts) {
       paragraphs.push({ text: part, start: currentOffset });
