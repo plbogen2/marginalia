@@ -2,6 +2,7 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
+RUN [ -f package-lock.json ] && sed -i 's|https://us-npm.pkg.dev/artifact-foundry-prod/ah-3p-staging-npm/|https://registry.npmjs.org/|g' package-lock.json || true
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
@@ -16,6 +17,7 @@ RUN apk add --no-cache git openssh-client
 # Install backend dependencies
 COPY backend/package*.json ./backend/
 WORKDIR /app/backend
+RUN [ -f package-lock.json ] && sed -i 's|https://us-npm.pkg.dev/artifact-foundry-prod/ah-3p-staging-npm/|https://registry.npmjs.org/|g' package-lock.json || true
 RUN npm ci
 
 # Copy backend source code and build it
