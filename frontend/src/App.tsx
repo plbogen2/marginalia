@@ -687,6 +687,7 @@ function App() {
       {workspaceOpen && (
         <WorkspaceManager
           onClose={() => setWorkspaceOpen(false)}
+          authInfo={authInfo}
           onWorkspaceChanged={(newName) => {
             setActiveWorkspaceName(newName);
             setActiveFile(null);

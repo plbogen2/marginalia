@@ -2400,3 +2400,176 @@ kbd {
     background-color: #202021;
   }
 }
+
+/* Workspace Manager & GitHub Repos Styling */
+.workspace-manager {
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: $spacing-sm;
+
+    h3 {
+      margin: 0;
+    }
+
+    .refresh-btn {
+      background: none;
+      border: none;
+      color: $text-muted;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      border-radius: $radius-sm;
+
+      &:hover {
+        color: $text-light;
+        background-color: $bg-hover;
+      }
+    }
+  }
+
+  .repo-search-bar {
+    position: relative;
+    margin-bottom: $spacing-md;
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: $text-muted;
+    }
+
+    input {
+      width: 100%;
+      padding: 8px 12px 8px 32px;
+      background-color: $bg-main;
+      border: 1px solid $border-color;
+      border-radius: $radius-md;
+      color: $text-light;
+      font-size: $font-sm;
+
+      &:focus {
+        outline: none;
+        border-color: $accent-color;
+      }
+    }
+  }
+
+  .repos-list {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-sm;
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 4px;
+
+    .repo-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background-color: $bg-main;
+      border: 1px solid $border-color;
+      border-radius: $radius-md;
+      transition: border-color $transition-normal;
+
+      &:hover {
+        border-color: $border-light;
+      }
+
+      .repo-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow: hidden;
+
+        .repo-title {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+
+          .private-icon { color: $gold-color; }
+          .public-icon { color: $branch-blue; }
+
+          .repo-name {
+            font-weight: 600;
+            font-size: $font-md;
+            color: $text-light;
+          }
+        }
+
+        .repo-desc {
+          font-size: $font-sm;
+          color: $text-muted;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin: 0;
+        }
+      }
+
+      .clone-repo-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background-color: $accent-color;
+        color: white;
+        border: none;
+        border-radius: $radius-sm;
+        font-size: $font-sm;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+
+        &:hover {
+          background-color: $accent-hover;
+        }
+      }
+    }
+  }
+
+  .clone-form-inline {
+    display: flex;
+    gap: $spacing-sm;
+
+    input {
+      flex: 1;
+      padding: 8px 12px;
+      background-color: $bg-main;
+      border: 1px solid $border-color;
+      border-radius: $radius-md;
+      color: $text-light;
+      font-size: $font-sm;
+
+      &:focus {
+        outline: none;
+        border-color: $accent-color;
+      }
+    }
+
+    button {
+      padding: 8px 16px;
+      background-color: $accent-color;
+      color: white;
+      border: none;
+      border-radius: $radius-md;
+      font-size: $font-sm;
+      font-weight: 500;
+      cursor: pointer;
+
+      &:hover {
+        background-color: $accent-hover;
+      }
+
+      &:disabled {
+        background-color: $disabled-bg;
+        color: $disabled-color;
+        cursor: not-allowed;
+      }
+    }
+  }
+}

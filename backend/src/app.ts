@@ -79,15 +79,16 @@ function authMiddleware(req: any, res: any, next: any) {
   }
 
   const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
-  const username = verifySessionToken(sessionToken, secret);
-  if (!username) {
+  const sessionData = verifySessionToken(sessionToken, secret);
+  if (!sessionData) {
     if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
       return next();
     }
     return res.status(401).json({ error: 'Unauthorized: Session invalid or expired' });
   }
 
-  req.user = username;
+  req.user = sessionData.username;
+  req.accessToken = sessionData.accessToken;
   next();
 }
 
@@ -317,14 +318,22 @@ app.post('/api/workspaces/select-by-name', async (req, res) => {
 });
 
 app.post('/api/workspaces/clone', async (req, res) => {
-  const { url, path: targetPath } = req.body as { url: string, path: string };
-  if (!url || !targetPath) {
-    return res.status(400).json({ error: 'Missing url or path' });
+  const { url, path: inputPath } = req.body as { url: string, path?: string };
+  if (!url || !url.trim()) {
+    return res.status(400).json({ error: 'Missing url' });
   }
   if (url.trim().startsWith('-') || /\s/.test(url)) {
     return res.status(400).json({ error: 'Invalid clone URL format' });
   }
   try {
+    let targetPath = inputPath ? inputPath.trim() : '';
+    if (!targetPath) {
+      const match = url.match(/\/([^/]+?)(?:\.git)?$/);
+      const repoName = match ? match[1] : 'repository';
+      const userStorage = req.user ? getUserStorageRoot(req.user) : path.join(os.homedir(), 'github');
+      targetPath = path.join(userStorage, repoName);
+    }
+
     const resolvedPath = path.resolve(targetPath);
     if (!isWorkspacePathAllowed(resolvedPath, req.user)) {
       return res.status(403).json({ error: 'Access denied: Workspace path is outside allowed roots' });
@@ -334,6 +343,43 @@ app.post('/api/workspaces/clone', async (req, res) => {
     const result = await cloneRepo(url, resolvedPath);
     setTargetDir(resolvedPath, req.user);
     res.json({ status: 'ok', result: `Cloned successfully.\n${result}`, path: resolvedPath, name: getActiveWorkspaceName(req) });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/api/github/repos', async (req: any, res: any) => {
+  try {
+    const accessToken = req.accessToken;
+    let repos: any[] = [];
+    if (accessToken) {
+      const repoRes = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+        headers: {
+          'Authorization': `token ${accessToken}`,
+          'User-Agent': 'marginalia-app'
+        }
+      });
+      if (repoRes.ok) {
+        repos = await repoRes.json();
+      }
+    } else if (req.user) {
+      const repoRes = await fetch(`https://api.github.com/users/${req.user}/repos?per_page=100&sort=updated`, {
+        headers: { 'User-Agent': 'marginalia-app' }
+      });
+      if (repoRes.ok) {
+        repos = await repoRes.json();
+      }
+    }
+    const formatted = (Array.isArray(repos) ? repos : []).map((r: any) => ({
+      name: r.name,
+      full_name: r.full_name,
+      clone_url: r.clone_url,
+      ssh_url: r.ssh_url,
+      html_url: r.html_url,
+      description: r.description,
+      is_private: r.private
+    }));
+    res.json({ repos: formatted });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
