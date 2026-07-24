@@ -1079,7 +1079,10 @@ app.get('/api/auth/login', (req, res) => {
     return res.redirect('/api/auth/github/callback?code=mock_dev_code');
   }
 
-  const redirectUri = `${process.env.BASE_URL || 'http://localhost:3000'}/api/auth/github/callback`;
+  const host = req.get('host');
+  const protocol = req.protocol || 'http';
+  const defaultBase = `${protocol}://${host}`;
+  const redirectUri = `${process.env.BASE_URL || defaultBase}/api/auth/github/callback`;
   const authorizeUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user`;
   res.redirect(authorizeUrl);
 });
