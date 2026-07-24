@@ -27,6 +27,12 @@ Marginalia is a focused, web-based markdown editor designed for fiction writing 
 3.  Open your browser and navigate to:
     **`http://localhost:5173`**
 
+## Cloud VM Deployment
+To deploy Marginalia on an Oracle Cloud VM or Linux server:
+```bash
+./scripts/setup_vm.sh
+```
+
 ## Architecture
 *   **Frontend:** React + TypeScript + Vite.
 *   **Backend:** Express + Node's built-in SQLite database (`node:sqlite`).
