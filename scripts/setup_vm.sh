@@ -84,7 +84,6 @@ GEMINI_API_KEY=
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 ALLOWED_USER=
-CLOUDFLARE_TUNNEL_TOKEN=
 EOT
   echo ".env file created with secure session secrets."
 fi
