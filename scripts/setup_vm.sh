@@ -80,6 +80,9 @@ if [ ! -f ".env" ]; then
 PORT=3000
 SESSION_SECRET=$SECRET
 GEMINI_API_KEY=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+ALLOWED_USER=
 EOT
   echo ".env file created with secure session secrets."
 fi

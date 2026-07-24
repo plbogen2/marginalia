@@ -15,17 +15,41 @@ jobs:
 
     - name: SSH and Deploy to VM
       uses: appleboy/ssh-action@v1.0.3
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+        GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+        ALLOWED_USER: ${{ secrets.ALLOWED_USER }}
       with:
         host: ${{ vars.SSH_HOST }}
         username: ubuntu
         key: ${{ secrets.SSH_KEY }}
         port: 22
+        envs: GEMINI_API_KEY,GITHUB_CLIENT_ID,GITHUB_CLIENT_SECRET,ALLOWED_USER
         script: |
           if [ -d "marginalia" ]; then
             cd marginalia
             echo "--> Pulling latest changes..."
             git pull origin main
             
+            echo "--> Updating environment configuration..."
+            SESSION_SECRET=""
+            if [ -f ".env" ]; then
+              SESSION_SECRET=$(grep '^SESSION_SECRET=' .env | cut -d '=' -f2-)
+            fi
+            if [ -z "$SESSION_SECRET" ]; then
+              SESSION_SECRET=$(openssl rand -hex 24)
+            fi
+
+            cat <<EOT > .env
+PORT=3000
+SESSION_SECRET=$SESSION_SECRET
+GEMINI_API_KEY=$GEMINI_API_KEY
+GITHUB_CLIENT_ID=$GITHUB_CLIENT_ID
+GITHUB_CLIENT_SECRET=$GITHUB_CLIENT_SECRET
+ALLOWED_USER=$ALLOWED_USER
+EOT
+
             echo "--> Rebuilding and starting containers..."
             sudo docker-compose up -d --build
           else
