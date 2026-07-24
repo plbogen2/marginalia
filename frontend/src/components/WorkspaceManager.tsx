@@ -16,6 +16,7 @@ interface GitHubRepo {
   html_url: string;
   description: string | null;
   is_private: boolean;
+  pushed_at?: string;
 }
 
 interface WorkspaceManagerProps {
@@ -40,6 +41,7 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
   // GitHub Repos State
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [repoFilter, setRepoFilter] = useState('');
+  const [sortBy, setSortBy] = useState<'activity' | 'name'>('activity');
   const [fetchingRepos, setFetchingRepos] = useState(false);
 
   const fetchWorkspaces = async () => {
@@ -136,10 +138,33 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
     setPickerOpen(false);
   };
 
-  const filteredRepos = repos.filter(r => 
-    r.name.toLowerCase().includes(repoFilter.toLowerCase()) || 
-    (r.description && r.description.toLowerCase().includes(repoFilter.toLowerCase()))
-  );
+  const getClonedPath = (repoName: string): string | null => {
+    const lowerName = repoName.toLowerCase();
+    if (active) {
+      const activeName = active.substring(active.lastIndexOf('/') + 1);
+      if (activeName.toLowerCase() === lowerName) {
+        return active;
+      }
+    }
+    const match = recents.find((r) => r.name.toLowerCase() === lowerName);
+    return match ? match.path : null;
+  };
+
+  const filteredAndSortedRepos = repos
+    .filter(
+      (r) =>
+        r.name.toLowerCase().includes(repoFilter.toLowerCase()) ||
+        (r.description && r.description.toLowerCase().includes(repoFilter.toLowerCase()))
+    )
+    .sort((a, b) => {
+      if (sortBy === 'name') {
+        return a.name.localeCompare(b.name);
+      } else {
+        const timeA = a.pushed_at ? new Date(a.pushed_at).getTime() : 0;
+        const timeB = b.pushed_at ? new Date(b.pushed_at).getTime() : 0;
+        return timeB - timeA;
+      }
+    });
 
   const isServerHosted = !!authInfo?.isOAuthMode;
 
@@ -193,15 +218,28 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
               <h3>
                 <GitBranch size={14} /> Browse GitHub Repositories
               </h3>
-              <button 
-                type="button" 
-                onClick={fetchRepos} 
-                className="icon-btn refresh-btn" 
-                title="Refresh Repositories"
-                disabled={fetchingRepos}
-              >
-                <RefreshCw size={14} className={fetchingRepos ? 'spin' : ''} />
-              </button>
+              <div className="header-actions">
+                <div className="sort-controls">
+                  <label htmlFor="repo-sort-select">Sort:</label>
+                  <select
+                    id="repo-sort-select"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as 'activity' | 'name')}
+                  >
+                    <option value="activity">Last Activity</option>
+                    <option value="name">Name (A-Z)</option>
+                  </select>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={fetchRepos} 
+                  className="icon-btn refresh-btn" 
+                  title="Refresh Repositories"
+                  disabled={fetchingRepos}
+                >
+                  <RefreshCw size={14} className={fetchingRepos ? 'spin' : ''} />
+                </button>
+              </div>
             </div>
 
             <div className="repo-search-bar">
@@ -216,27 +254,43 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
 
             {fetchingRepos ? (
               <div className="loading-state">Loading repositories...</div>
-            ) : filteredRepos.length > 0 ? (
+            ) : filteredAndSortedRepos.length > 0 ? (
               <div className="repos-list">
-                {filteredRepos.map((repo) => (
-                  <div key={repo.full_name} className="repo-card">
-                    <div className="repo-info">
-                      <div className="repo-title">
-                        {repo.is_private ? <Lock size={12} className="private-icon" /> : <Globe size={12} className="public-icon" />}
-                        <span className="repo-name">{repo.name}</span>
+                {filteredAndSortedRepos.map((repo) => {
+                  const existingPath = getClonedPath(repo.name);
+                  const isCurrentActive = existingPath === active;
+
+                  return (
+                    <div key={repo.full_name} className="repo-card">
+                      <div className="repo-info">
+                        <div className="repo-title">
+                          {repo.is_private ? <span title="Private Repository"><Lock size={12} className="private-icon" /></span> : <span title="Public Repository"><Globe size={12} className="public-icon" /></span>}
+                          <span className="repo-name">{repo.name}</span>
+                        </div>
+                        {repo.description && <p className="repo-desc">{repo.description}</p>}
                       </div>
-                      {repo.description && <p className="repo-desc">{repo.description}</p>}
+                      {existingPath ? (
+                        <button
+                          type="button"
+                          className={`open-repo-btn ${isCurrentActive ? 'active' : ''}`}
+                          onClick={() => handleSelect(existingPath)}
+                          disabled={loading || isCurrentActive}
+                        >
+                          <FolderOpen size={14} /> {isCurrentActive ? 'Active' : 'Open'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="clone-repo-btn"
+                          onClick={() => handleCloneUrl(repo.clone_url || repo.ssh_url)}
+                          disabled={loading}
+                        >
+                          <Download size={14} /> Clone & Open
+                        </button>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      className="clone-repo-btn"
-                      onClick={() => handleCloneUrl(repo.clone_url || repo.ssh_url)}
-                      disabled={loading}
-                    >
-                      <Download size={14} /> Clone & Open
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="empty-state">No repositories found. Paste a URL below to clone.</div>

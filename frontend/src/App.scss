@@ -2413,19 +2413,47 @@ kbd {
       margin: 0;
     }
 
-    .refresh-btn {
-      background: none;
-      border: none;
-      color: $text-muted;
-      cursor: pointer;
-      padding: 4px;
+    .header-actions {
       display: flex;
       align-items: center;
-      border-radius: $radius-sm;
+      gap: 12px;
 
-      &:hover {
-        color: $text-light;
-        background-color: $bg-hover;
+      .sort-controls {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: $font-sm;
+        color: $text-muted;
+
+        select {
+          background-color: $bg-main;
+          color: $text-light;
+          border: 1px solid $border-color;
+          border-radius: $radius-sm;
+          padding: 3px 6px;
+          font-size: $font-sm;
+
+          &:focus {
+            outline: none;
+            border-color: $accent-color;
+          }
+        }
+      }
+
+      .refresh-btn {
+        background: none;
+        border: none;
+        color: $text-muted;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        border-radius: $radius-sm;
+
+        &:hover {
+          color: $text-light;
+          background-color: $bg-hover;
+        }
       }
     }
   }
@@ -2527,6 +2555,32 @@ kbd {
 
         &:hover {
           background-color: $accent-hover;
+        }
+      }
+
+      .open-repo-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background-color: #2da44e;
+        color: white;
+        border: none;
+        border-radius: $radius-sm;
+        font-size: $font-sm;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+
+        &:hover {
+          background-color: #2c974b;
+        }
+
+        &.active {
+          background-color: $bg-active;
+          color: $text-muted;
+          cursor: default;
+          border: 1px solid $border-color;
         }
       }
     }

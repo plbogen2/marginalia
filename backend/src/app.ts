@@ -338,6 +338,16 @@ app.post('/api/workspaces/clone', async (req, res) => {
     if (!isWorkspacePathAllowed(resolvedPath, req.user)) {
       return res.status(403).json({ error: 'Access denied: Workspace path is outside allowed roots' });
     }
+
+    // If repository is already cloned on disk, open it immediately
+    try {
+      await fs.access(path.join(resolvedPath, '.git'));
+      setTargetDir(resolvedPath, req.user);
+      return res.json({ status: 'ok', result: 'Workspace already exists on disk and is now open.', path: resolvedPath, name: getActiveWorkspaceName(req) });
+    } catch {
+      // Not cloned yet, proceed to clone
+    }
+
     await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
     
     const result = await cloneRepo(url, resolvedPath, req.accessToken);
@@ -387,7 +397,8 @@ app.get('/api/github/repos', async (req: any, res: any) => {
       ssh_url: r.ssh_url,
       html_url: r.html_url,
       description: r.description,
-      is_private: r.private
+      is_private: r.private,
+      pushed_at: r.pushed_at || r.updated_at || ''
     }));
     res.json({ repos: formatted });
   } catch (err) {
@@ -626,7 +637,7 @@ app.post('/api/git/suggest-commit-message', async (req, res) => {
   }
 
   try {
-    const diff = await getCommitDiff();
+    const diff = await getCommitDiff(req);
     if (!diff || diff.trim().length === 0) {
       return res.json({ suggestion: '' });
     }
