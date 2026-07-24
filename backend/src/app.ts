@@ -1156,7 +1156,7 @@ app.get('/api/auth/github/callback', async (req, res) => {
 
   try {
     let githubUser = '';
-
+    let accessToken: string | undefined;
     if (!clientId) {
       // Mock bypass
       const simulateRow = db.prepare("SELECT value FROM settings WHERE key = 'simulate_hosted_mode';").get() as { value: string } | undefined;
@@ -1191,9 +1191,11 @@ app.get('/api/auth/github/callback', async (req, res) => {
         throw new Error(tokenData.error_description || tokenData.error || 'Failed to retrieve access token');
       }
 
+      accessToken = tokenData.access_token;
+
       const userRes = await fetch('https://api.github.com/user', {
         headers: {
-          'Authorization': `token ${tokenData.access_token}`,
+          'Authorization': `token ${accessToken}`,
           'User-Agent': 'marginalia-app'
         }
       });
@@ -1211,7 +1213,7 @@ app.get('/api/auth/github/callback', async (req, res) => {
 
     await fs.mkdir(getUserStorageRoot(githubUser), { recursive: true });
 
-    const sessionToken = createSessionToken(githubUser, secret);
+    const sessionToken = createSessionToken(githubUser, secret, accessToken);
     const isSecureReq = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
     res.setHeader('Set-Cookie', `session_token=${sessionToken}; HttpOnly; Path=/; Max-Age=${30 * 24 * 60 * 60}; ${isSecureReq ? 'Secure;' : ''} SameSite=Lax`);
 
