@@ -1155,6 +1155,7 @@ app.get('/api/auth/github/callback', async (req, res) => {
 
     await fs.mkdir(getUserStorageRoot(githubUser), { recursive: true });
 
+    const sessionToken = createSessionToken(githubUser, secret);
     const isSecureReq = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
     res.setHeader('Set-Cookie', `session_token=${sessionToken}; HttpOnly; Path=/; Max-Age=${30 * 24 * 60 * 60}; ${isSecureReq ? 'Secure;' : ''} SameSite=Lax`);
 
