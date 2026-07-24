@@ -23,14 +23,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        if [ -n "$$TUNNEL_TOKEN" ]; then
-          exec cloudflared tunnel --no-autoupdate run
-        else
-          exec cloudflared tunnel --no-autoupdate --url http://marginalia:3000
-        fi
+    command: tunnel --no-autoupdate --url http://marginalia:3000
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
 
