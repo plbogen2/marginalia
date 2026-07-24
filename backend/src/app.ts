@@ -73,7 +73,7 @@ function authMiddleware(req: any, res: any, next: any) {
   const sessionToken = cookies['session_token'];
   if (!sessionToken) {
     if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
-      return res.redirect('/api/auth/login');
+      return next();
     }
     return res.status(401).json({ error: 'Unauthorized: Session missing' });
   }
@@ -82,7 +82,7 @@ function authMiddleware(req: any, res: any, next: any) {
   const username = verifySessionToken(sessionToken, secret);
   if (!username) {
     if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
-      return res.redirect('/api/auth/login');
+      return next();
     }
     return res.status(401).json({ error: 'Unauthorized: Session invalid or expired' });
   }
