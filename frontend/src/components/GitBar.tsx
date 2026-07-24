@@ -153,7 +153,7 @@ export const GitBar: React.FC<GitBarProps> = ({
         </button>
         {authInfo?.isOAuthMode && authInfo.loggedIn && (
           <div className="auth-toolbar-section">
-            <span className="user-badge">Logged in as {authInfo.user}</span>
+            <span className="user-badge">Logged in as {typeof authInfo.user === 'string' ? authInfo.user : (authInfo.user as any)?.username || 'User'}</span>
             <button onClick={onLogout} title="Log Out" className="logout-btn">
               <LogOut size={14} />
             </button>

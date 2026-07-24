@@ -1231,12 +1231,12 @@ app.get('/api/auth/status', (req, res) => {
   }
 
   const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
-  const username = verifySessionToken(sessionToken, secret);
-  if (!username) {
+  const sessionData = verifySessionToken(sessionToken, secret);
+  if (!sessionData) {
     return res.json({ loggedIn: false, user: null, isOAuthMode: true });
   }
 
-  res.json({ loggedIn: true, user: username, isOAuthMode: true });
+  res.json({ loggedIn: true, user: sessionData.username, isOAuthMode: true });
 });
 
 app.post('/api/auth/logout', (req, res) => {
