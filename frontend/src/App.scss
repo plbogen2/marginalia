@@ -2403,6 +2403,112 @@ kbd {
 
 /* Workspace Manager & GitHub Repos Styling */
 .workspace-manager {
+  .error-message {
+    padding: 8px 12px;
+    background-color: $error-bg;
+    border: 1px solid $error-color;
+    border-radius: $radius-sm;
+    color: $error-color;
+    font-size: $font-sm;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  .active-workspace {
+    .active-path {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: $font-sm;
+      color: $text-bright;
+      font-family: $font-mono;
+      background-color: $bg-main;
+      padding: 6px 10px;
+      border-radius: $radius-sm;
+      border: 1px solid $border-color;
+      word-break: break-all;
+    }
+  }
+
+  .storage-usage-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+
+    .storage-text {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: $font-xs;
+      color: $text-muted;
+
+      span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+    }
+
+    .progress-track {
+      height: 4px;
+      background-color: $border-color;
+      border-radius: 2px;
+      overflow: hidden;
+
+      .progress-fill {
+        height: 100%;
+        background-color: $accent-color;
+        border-radius: 2px;
+        transition: width 0.3s ease;
+
+        &.warning {
+          background-color: $gold-color;
+        }
+
+        &.danger {
+          background-color: $error-color;
+        }
+      }
+    }
+  }
+
+  .recent-workspaces {
+    .recents-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+
+      .recent-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .recent-item {
+          flex: 1;
+        }
+
+        .delete-workspace-btn {
+          background: none;
+          border: 1px solid transparent;
+          color: $text-muted;
+          cursor: pointer;
+          padding: 6px;
+          border-radius: $radius-sm;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          &:hover:not(:disabled) {
+            color: $error-color;
+            background-color: $bg-hover;
+            border-color: rgba(241, 112, 112, 0.2);
+          }
+        }
+      }
+    }
+  }
+
   .section-header {
     display: flex;
     justify-content: space-between;
@@ -2416,7 +2522,37 @@ kbd {
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+
+      .repo-search-bar-compact {
+        position: relative;
+        display: flex;
+        align-items: center;
+
+        .search-icon {
+          position: absolute;
+          left: 8px;
+          color: $text-muted;
+          pointer-events: none;
+        }
+
+        input {
+          width: 120px;
+          padding: 3px 8px 3px 24px;
+          background-color: $bg-main;
+          border: 1px solid $border-color;
+          border-radius: $radius-sm;
+          color: $text-light;
+          font-size: $font-sm;
+          transition: width 0.2s ease, border-color 0.15s ease;
+
+          &:focus {
+            outline: none;
+            border-color: $accent-color;
+            width: 150px;
+          }
+        }
+      }
 
       .sort-controls {
         display: flex;
@@ -2536,6 +2672,30 @@ kbd {
           overflow: hidden;
           text-overflow: ellipsis;
           margin: 0;
+        }
+      }
+
+      .repo-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .delete-repo-btn {
+          background: none;
+          border: 1px solid transparent;
+          color: $text-muted;
+          cursor: pointer;
+          padding: 6px;
+          border-radius: $radius-sm;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          &:hover:not(:disabled) {
+            color: $error-color;
+            background-color: $bg-hover;
+            border-color: rgba(241, 112, 112, 0.2);
+          }
         }
       }
 

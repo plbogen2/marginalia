@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FolderOpen, Download, History, Folder, GitBranch, Search, Lock, Globe, RefreshCw } from 'lucide-react';
+import { X, FolderOpen, Download, History, Folder, GitBranch, Search, Lock, Globe, RefreshCw, Trash2, HardDrive } from 'lucide-react';
 import { DirectoryPicker } from './DirectoryPicker';
 
 interface Workspace {
@@ -19,6 +19,11 @@ interface GitHubRepo {
   pushed_at?: string;
 }
 
+interface StorageUsage {
+  usedMB: number;
+  limitMB: number;
+}
+
 interface WorkspaceManagerProps {
   onClose: () => void;
   onWorkspaceChanged: (name: string) => void;
@@ -32,6 +37,7 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
 }) => {
   const [active, setActive] = useState('');
   const [recents, setRecents] = useState<Workspace[]>([]);
+  const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
   const [localPath, setLocalPath] = useState('');
   const [cloneUrl, setCloneUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -50,6 +56,9 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
       const data = await res.json();
       setActive(data.active);
       setRecents(data.recents || []);
+      if (data.storageUsage) {
+        setStorageUsage(data.storageUsage);
+      }
     } catch (err) {
       console.error('Failed to fetch workspaces:', err);
     }
@@ -91,6 +100,33 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
       const data = await res.json() as { name: string };
       onWorkspaceChanged(data.name);
       onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteWorkspace = async (workspacePath: string, workspaceName: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${workspaceName}" from disk?\n\nThis will permanently remove the cloned folder and its files.`)) {
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/workspaces/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: workspacePath })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete workspace');
+      }
+      if (active === workspacePath) {
+        onWorkspaceChanged('');
+      }
+      await fetchWorkspaces();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -181,13 +217,27 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
         {error && <div className="error-message">{error}</div>}
 
         <div className="modal-body">
-          {/* Active Workspace */}
+          {/* Active Workspace & Storage Usage */}
           <div className="section active-workspace">
             <h3>Active Workspace</h3>
             <div className="active-path">
-              <Folder size={16} />
+              <Folder size={14} />
               <span>{active || 'None'}</span>
             </div>
+            {storageUsage && (
+              <div className="storage-usage-bar">
+                <div className="storage-text">
+                  <span><HardDrive size={11} /> Storage Used</span>
+                  <span>{storageUsage.usedMB} MB / {storageUsage.limitMB} MB</span>
+                </div>
+                <div className="progress-track">
+                  <div 
+                    className={`progress-fill ${storageUsage.usedMB > storageUsage.limitMB * 0.9 ? 'danger' : storageUsage.usedMB > storageUsage.limitMB * 0.75 ? 'warning' : ''}`} 
+                    style={{ width: `${Math.min(100, (storageUsage.usedMB / storageUsage.limitMB) * 100)}%` }} 
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Recent Workspaces */}
@@ -198,15 +248,25 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
               </h3>
               <div className="recents-list">
                 {recents.map((w) => (
-                  <button
-                    key={w.path}
-                    onClick={() => handleSelect(w.path)}
-                    disabled={loading || w.path === active}
-                    className={`recent-item ${w.path === active ? 'active' : ''}`}
-                  >
-                    <span className="name">{w.name}</span>
-                    <span className="path">{w.path}</span>
-                  </button>
+                  <div key={w.path} className="recent-row">
+                    <button
+                      onClick={() => handleSelect(w.path)}
+                      disabled={loading || w.path === active}
+                      className={`recent-item ${w.path === active ? 'active' : ''}`}
+                    >
+                      <span className="name">{w.name}</span>
+                      <span className="path">{w.path}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="delete-workspace-btn"
+                      onClick={() => handleDeleteWorkspace(w.path, w.name)}
+                      title="Delete workspace from disk"
+                      disabled={loading}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -219,6 +279,15 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                 <GitBranch size={14} /> Browse GitHub Repositories
               </h3>
               <div className="header-actions">
+                <div className="repo-search-bar-compact">
+                  <Search size={12} className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Filter..."
+                    value={repoFilter}
+                    onChange={(e) => setRepoFilter(e.target.value)}
+                  />
+                </div>
                 <div className="sort-controls">
                   <label htmlFor="repo-sort-select">Sort:</label>
                   <select
@@ -242,16 +311,6 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
               </div>
             </div>
 
-            <div className="repo-search-bar">
-              <Search size={14} className="search-icon" />
-              <input
-                type="text"
-                placeholder="Filter repositories..."
-                value={repoFilter}
-                onChange={(e) => setRepoFilter(e.target.value)}
-              />
-            </div>
-
             {fetchingRepos ? (
               <div className="loading-state">Loading repositories...</div>
             ) : filteredAndSortedRepos.length > 0 ? (
@@ -269,25 +328,38 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                         </div>
                         {repo.description && <p className="repo-desc">{repo.description}</p>}
                       </div>
-                      {existingPath ? (
-                        <button
-                          type="button"
-                          className={`open-repo-btn ${isCurrentActive ? 'active' : ''}`}
-                          onClick={() => handleSelect(existingPath)}
-                          disabled={loading || isCurrentActive}
-                        >
-                          <FolderOpen size={14} /> {isCurrentActive ? 'Active' : 'Open'}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="clone-repo-btn"
-                          onClick={() => handleCloneUrl(repo.clone_url || repo.ssh_url)}
-                          disabled={loading}
-                        >
-                          <Download size={14} /> Clone & Open
-                        </button>
-                      )}
+                      <div className="repo-actions">
+                        {existingPath ? (
+                          <>
+                            <button
+                              type="button"
+                              className={`open-repo-btn ${isCurrentActive ? 'active' : ''}`}
+                              onClick={() => handleSelect(existingPath)}
+                              disabled={loading || isCurrentActive}
+                            >
+                              <FolderOpen size={14} /> {isCurrentActive ? 'Active' : 'Open'}
+                            </button>
+                            <button
+                              type="button"
+                              className="delete-repo-btn"
+                              onClick={() => handleDeleteWorkspace(existingPath, repo.name)}
+                              title="Delete cloned repository from disk"
+                              disabled={loading}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            className="clone-repo-btn"
+                            onClick={() => handleCloneUrl(repo.clone_url || repo.ssh_url)}
+                            disabled={loading}
+                          >
+                            <Download size={14} /> Clone & Open
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

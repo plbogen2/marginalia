@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, getActiveWorkspaceName, selectWorkspaceByName, IGNORED_DIRS, getUserStorageRoot } from './config.js';
+import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, getActiveWorkspaceName, selectWorkspaceByName, IGNORED_DIRS, getUserStorageRoot, getDirectorySize } from './config.js';
 import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote, getGitAheadCount, getCommitDiff, gitShowHead } from './git.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { addIgnoredWord, getIgnoredWords, getAllApplicableIgnoredWords } from './dictionary.js';
@@ -269,12 +269,24 @@ app.get('/api/git/branch', async (req, res) => {
   }
 });
 
-app.get('/api/workspaces', (req, res) => {
+app.get('/api/workspaces', async (req, res) => {
   try {
     const active = getTargetDir(req);
     const activeName = getActiveWorkspaceName(req);
     const recents = getRecentWorkspaces(req.user);
-    res.json({ active, activeName, recents });
+    
+    let storageUsage = null;
+    if (req.user) {
+      const userStorage = getUserStorageRoot(req.user);
+      const usedBytes = await getDirectorySize(userStorage);
+      const limitMB = parseInt(process.env.MAX_USER_STORAGE_MB || '500', 10);
+      storageUsage = {
+        usedMB: Math.round((usedBytes / (1024 * 1024)) * 10) / 10,
+        limitMB
+      };
+    }
+
+    res.json({ active, activeName, recents, storageUsage });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -345,7 +357,18 @@ app.post('/api/workspaces/clone', async (req, res) => {
       setTargetDir(resolvedPath, req.user);
       return res.json({ status: 'ok', result: 'Workspace already exists on disk and is now open.', path: resolvedPath, name: getActiveWorkspaceName(req) });
     } catch {
-      // Not cloned yet, proceed to clone
+      // Not cloned yet, proceed to check storage limits
+    }
+
+    if (req.user) {
+      const userStorage = getUserStorageRoot(req.user);
+      const usedBytes = await getDirectorySize(userStorage);
+      const limitMB = parseInt(process.env.MAX_USER_STORAGE_MB || '500', 10);
+      const limitBytes = limitMB * 1024 * 1024;
+      if (usedBytes >= limitBytes) {
+        const usedMB = (usedBytes / (1024 * 1024)).toFixed(1);
+        return res.status(403).json({ error: `Storage limit exceeded (${usedMB} MB / ${limitMB} MB used). Please delete unused cloned workspaces before cloning new repositories.` });
+      }
     }
 
     await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
@@ -353,6 +376,46 @@ app.post('/api/workspaces/clone', async (req, res) => {
     const result = await cloneRepo(url, resolvedPath, req.accessToken);
     setTargetDir(resolvedPath, req.user);
     res.json({ status: 'ok', result: `Cloned successfully.\n${result}`, path: resolvedPath, name: getActiveWorkspaceName(req) });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.post('/api/workspaces/delete', async (req, res) => {
+  const { path: targetPath } = req.body as { path: string };
+  if (!targetPath) {
+    return res.status(400).json({ error: 'Missing path' });
+  }
+
+  try {
+    const resolvedPath = path.resolve(targetPath);
+    if (!isWorkspacePathAllowed(resolvedPath, req.user)) {
+      return res.status(403).json({ error: 'Access denied: Cannot delete workspace outside your allowed root' });
+    }
+
+    const userStorage = req.user ? getUserStorageRoot(req.user) : os.homedir();
+    if (resolvedPath === path.resolve(userStorage) || resolvedPath === path.resolve(os.homedir())) {
+      return res.status(400).json({ error: 'Cannot delete storage root directory' });
+    }
+
+    await fs.rm(resolvedPath, { recursive: true, force: true });
+
+    const workspaceName = path.basename(resolvedPath);
+    if (req.user) {
+      db.prepare("DELETE FROM recent_workspaces WHERE user = ? AND path = ?;").run(req.user, resolvedPath);
+      const activeRow = db.prepare("SELECT value FROM settings WHERE key = ?;").get(`active_workspace_path:${req.user}`) as { value: string } | undefined;
+      if (activeRow?.value === workspaceName) {
+        db.prepare("DELETE FROM settings WHERE key = ?;").run(`active_workspace_path:${req.user}`);
+      }
+    } else {
+      db.prepare("DELETE FROM recent_workspaces WHERE user = 'local' AND path = ?;").run(resolvedPath);
+      const activeRow = db.prepare("SELECT value FROM settings WHERE key = 'active_workspace_path';").get() as { value: string } | undefined;
+      if (activeRow?.value === resolvedPath) {
+        db.prepare("DELETE FROM settings WHERE key = 'active_workspace_path';").run();
+      }
+    }
+
+    res.json({ status: 'ok', message: `Deleted workspace ${workspaceName}` });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

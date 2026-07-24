@@ -10,6 +10,8 @@ const DEFAULT_DIR = path.resolve(__dirname, '../../');
 
 export const IGNORED_DIRS = ['.git', 'node_modules', 'backend', 'frontend', 'dist'];
 
+import fs from 'fs';
+
 export function getStorageDir(): string {
   return process.env.STORAGE_DIR
     ? path.resolve(process.env.STORAGE_DIR)
@@ -18,6 +20,25 @@ export function getStorageDir(): string {
 
 export function getUserStorageRoot(username: string): string {
   return path.join(getStorageDir(), username);
+}
+
+export async function getDirectorySize(dirPath: string): Promise<number> {
+  let totalSize = 0;
+  try {
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        totalSize += await getDirectorySize(fullPath);
+      } else if (entry.isFile()) {
+        const stats = await fs.promises.stat(fullPath);
+        totalSize += stats.size;
+      }
+    }
+  } catch (err) {
+    // ignore inaccessible files
+  }
+  return totalSize;
 }
 
 export function getTargetDir(req?: any): string {
