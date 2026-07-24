@@ -3,32 +3,42 @@ set -e
 
 echo "=== Starting Marginalia OCI VM Setup ==="
 
-# 1. Update system packages
-echo "--> Updating system packages..."
-sudo apt-get update -y
-sudo apt-get upgrade -y
+# 1. Check and install core dependencies if missing
+if command -v git &> /dev/null && command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
+  echo "--> Core dependencies (git, docker, docker-compose) are already installed. Skipping package setup..."
+else
+  echo "--> Dependencies missing. Installing packages..."
+  echo "--> Updating system packages..."
+  sudo apt-get update -y
+  sudo apt-get upgrade -y
 
-# 2. Install Docker and dependencies
-echo "--> Installing dependencies..."
-sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release git
+  echo "--> Installing packages..."
+  sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release git
 
-if ! command -v docker &> /dev/null; then
-  curl -fsSL https://get.docker.com -o get-docker.sh
-  sudo sh get-docker.sh
-  rm get-docker.sh
+  if ! command -v docker &> /dev/null; then
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sudo sh get-docker.sh
+    rm get-docker.sh
+  fi
+
+  sudo usermod -aG docker $USER
+
+  if ! command -v docker-compose &> /dev/null; then
+    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+  fi
 fi
 
-sudo usermod -aG docker $USER
-
-if ! command -v docker-compose &> /dev/null; then
-  sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-  sudo chmod +x /usr/local/bin/docker-compose
+# 2. Configure local iptables firewall if port 80 rule doesn't exist
+if sudo iptables -C INPUT -p tcp --dport 80 -j ACCEPT &> /dev/null; then
+  echo "--> Firewall port 80 is already open in iptables. Skipping..."
+else
+  echo "--> Configuring iptables firewall to open port 80..."
+  sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
+  if command -v netfilter-persistent &> /dev/null; then
+    sudo netfilter-persistent save
+  fi
 fi
-
-# 3. Configure local iptables firewall (OCI VMs block ports locally by default)
-echo "--> Configuring iptables firewall to open port 80..."
-sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
-sudo netfilter-persistent save
 
 # 4. Clone or update the repository
 if [ ! -d "marginalia" ]; then
