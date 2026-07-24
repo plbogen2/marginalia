@@ -2477,7 +2477,7 @@ kbd {
     .recents-list {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
 
       .recent-row {
         display: flex;
@@ -2486,6 +2486,40 @@ kbd {
 
         .recent-item {
           flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          text-align: left;
+          padding: 8px 12px;
+          background-color: $bg-main;
+          border: 1px solid $border-color;
+          border-radius: $radius-md;
+          cursor: pointer;
+          transition: border-color $transition-normal, background-color $transition-normal;
+
+          &:hover:not(:disabled) {
+            border-color: $border-light;
+            background-color: $bg-hover;
+          }
+
+          &.active {
+            border-color: $accent-color;
+            background-color: rgba(9, 105, 218, 0.08);
+          }
+
+          .name {
+            font-size: $font-md;
+            font-weight: 600;
+            color: $text-light;
+            text-align: left;
+          }
+
+          .path {
+            font-size: $font-xs;
+            color: $text-muted;
+            text-align: left;
+            word-break: break-all;
+          }
         }
 
         .delete-workspace-btn {

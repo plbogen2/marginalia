@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FolderOpen, Download, History, Folder, GitBranch, Search, Lock, Globe, RefreshCw, Trash2, HardDrive } from 'lucide-react';
+import { X, FolderOpen, Download, Folder, GitBranch, Search, Lock, Globe, RefreshCw, Trash2, HardDrive } from 'lucide-react';
 import { DirectoryPicker } from './DirectoryPicker';
 
 interface Workspace {
@@ -240,11 +240,11 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
             )}
           </div>
 
-          {/* Recent Workspaces */}
+          {/* Cloned Workspaces */}
           {recents.length > 0 && (
             <div className="section recent-workspaces">
               <h3>
-                <History size={14} /> Recents
+                <FolderOpen size={14} /> Cloned Workspaces
               </h3>
               <div className="recents-list">
                 {recents.map((w) => (
