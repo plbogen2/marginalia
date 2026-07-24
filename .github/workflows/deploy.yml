@@ -33,6 +33,7 @@ jobs:
             cd marginalia
             echo "--> Pulling latest changes..."
             git pull origin main
+            cp scripts/setup_vm.sh $HOME/setup_vm.sh 2>/dev/null && chmod +x $HOME/setup_vm.sh || true
             
             echo "--> Updating environment configuration..."
             SESSION_SECRET=""

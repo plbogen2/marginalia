@@ -70,6 +70,7 @@ else
   echo "--> Updating Marginalia repository..."
   cd marginalia
   git pull origin main
+  cp scripts/setup_vm.sh $HOME/setup_vm.sh 2>/dev/null && chmod +x $HOME/setup_vm.sh || true
 fi
 
 # 5. Setup environment configurations
