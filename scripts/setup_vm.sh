@@ -3,6 +3,17 @@ set -e
 
 echo "=== Starting Marginalia OCI VM Setup ==="
 
+# 0. Create Swap File to prevent memory freezes on small instances
+if [ ! -f "/swapfile" ] && [ "$(id -u)" -eq 0 -o -n "$SUDO_USER" ]; then
+  echo "--> Creating a 2GB swap file to prevent OOM/freezing during builds..."
+  sudo fallocate -l 2G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile
+  sudo swapon /swapfile
+  echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+  echo "Swap file created and enabled."
+fi
+
 # 1. Check and install core dependencies if missing
 if command -v git &> /dev/null && command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
   echo "--> Core dependencies (git, docker, docker-compose) are already installed. Skipping package setup..."
