@@ -66,3 +66,34 @@ export function isWorkspacePathAllowed(targetPath: string, username?: string): b
 
   return false;
 }
+
+export const ALLOWED_DOC_EXTENSIONS = new Set([
+  '.md', '.markdown', '.mdown', '.mkd', '.txt', '.json', '.yaml', '.yml', '.toml'
+]);
+
+export const ALLOWED_IMAGE_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.bmp', '.avif'
+]);
+
+export const ALLOWED_SPECIAL_FILES = new Set([
+  '.gitignore', '.gitattributes', '.editorconfig', 'license', 'license.md', 'license.txt', 'readme', 'readme.md'
+]);
+
+export function isAllowedFileType(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/');
+  if (normalized.includes('/.git/') || normalized.includes('/.github/')) {
+    return true;
+  }
+
+  const baseName = path.basename(filePath).toLowerCase();
+  if (ALLOWED_SPECIAL_FILES.has(baseName)) {
+    return true;
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+  if (!ext) {
+    return false;
+  }
+
+  return ALLOWED_DOC_EXTENSIONS.has(ext) || ALLOWED_IMAGE_EXTENSIONS.has(ext);
+}

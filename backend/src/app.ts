@@ -6,7 +6,7 @@ import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, 
 import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote, getGitAheadCount, getCommitDiff, gitShowHead } from './git.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { addIgnoredWord, getIgnoredWords, getAllApplicableIgnoredWords } from './dictionary.js';
-import { isPathSafe, isWorkspacePathAllowed } from './utils/pathSafety.js';
+import { isPathSafe, isWorkspacePathAllowed, isAllowedFileType } from './utils/pathSafety.js';
 import { db } from './db.js';
 import { verifySessionToken, createSessionToken } from './utils/auth.js';
 import { lint as markdownLint } from 'markdownlint/sync';
@@ -166,6 +166,9 @@ app.get('/api/file', async (req, res) => {
     if (!isPathSafe(safePath, targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
     }
+    if (req.user && !isAllowedFileType(safePath)) {
+      return res.status(403).json({ error: 'Access denied: File type not supported for writing projects' });
+    }
 
     if (version === 'HEAD') {
       const content = await gitShowHead(filePath, req);
@@ -189,6 +192,9 @@ app.post('/api/file', async (req, res) => {
     const safePath = path.resolve(targetDir, filePath);
     if (!isPathSafe(safePath, targetDir)) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+    if (req.user && !isAllowedFileType(safePath)) {
+      return res.status(403).json({ error: 'Access denied: File type not supported for writing projects' });
     }
     await fs.mkdir(path.dirname(safePath), { recursive: true });
     await fs.writeFile(safePath, content, 'utf-8');
@@ -290,7 +296,7 @@ app.get('/api/workspaces', async (req, res) => {
     if (req.user) {
       const userStorage = getUserStorageRoot(req.user);
       const usedBytes = await getDirectorySize(userStorage);
-      const limitMB = parseInt(process.env.MAX_USER_STORAGE_MB || '500', 10);
+      const limitMB = parseInt(process.env.MAX_USER_STORAGE_MB || '100', 10);
       storageUsage = {
         usedMB: Math.round((usedBytes / (1024 * 1024)) * 10) / 10,
         limitMB
@@ -374,7 +380,7 @@ app.post('/api/workspaces/clone', async (req, res) => {
     if (req.user) {
       const userStorage = getUserStorageRoot(req.user);
       const usedBytes = await getDirectorySize(userStorage);
-      const limitMB = parseInt(process.env.MAX_USER_STORAGE_MB || '500', 10);
+      const limitMB = parseInt(process.env.MAX_USER_STORAGE_MB || '100', 10);
       const limitBytes = limitMB * 1024 * 1024;
       if (usedBytes >= limitBytes) {
         const usedMB = (usedBytes / (1024 * 1024)).toFixed(1);
