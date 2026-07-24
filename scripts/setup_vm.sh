@@ -14,6 +14,16 @@ if [ ! -f "/swapfile" ] && [ "$(id -u)" -eq 0 -o -n "$SUDO_USER" ]; then
   echo "Swap file created and enabled."
 fi
 
+# 0.5. Disable Oracle Cloud Agent on low-memory (1GB) instances to free up ~400MB RAM
+TOTAL_MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+if [ "$TOTAL_MEM_KB" -lt 1500000 ]; then
+  if systemctl is-active --quiet oracle-cloud-agent 2>/dev/null; then
+    echo "--> Low-memory instance detected (< 1.5GB RAM). Disabling oracle-cloud-agent to reclaim ~400MB of memory..."
+    sudo systemctl stop oracle-cloud-agent || true
+    sudo systemctl disable oracle-cloud-agent || true
+  fi
+fi
+
 # 1. Check and install core dependencies if missing
 if command -v git &> /dev/null && command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
   echo "--> Core dependencies (git, docker, docker-compose) are already installed. Skipping package setup..."
@@ -40,15 +50,15 @@ else
   fi
 fi
 
-# 2. Configure local iptables firewall if port 80 rule doesn't exist
-if sudo iptables -C INPUT -p tcp --dport 80 -j ACCEPT &> /dev/null; then
-  echo "--> Firewall port 80 is already open in iptables. Skipping..."
-else
-  echo "--> Configuring iptables firewall to open port 80..."
-  sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
-  if command -v netfilter-persistent &> /dev/null; then
-    sudo netfilter-persistent save
-  fi
+# 2. Configure local iptables firewall
+echo "--> Configuring iptables firewall to open port 80..."
+# Remove any existing port 80 ACCEPT rule to avoid duplicates or wrong positioning
+while sudo iptables -D INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null; do :; done
+# Insert it at position 1 (top of the chain) to override any reject rules
+sudo iptables -I INPUT 1 -p tcp --dport 80 -j ACCEPT
+
+if command -v netfilter-persistent &> /dev/null; then
+  sudo netfilter-persistent save
 fi
 
 # 4. Clone or update the repository
