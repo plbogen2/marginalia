@@ -16,7 +16,7 @@ jobs:
     - name: SSH and Deploy to VM
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.SSH_HOST }}
+        host: ${{ vars.SSH_HOST }}
         username: ubuntu
         key: ${{ secrets.SSH_KEY }}
         port: 22
