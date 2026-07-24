@@ -340,7 +340,7 @@ app.post('/api/workspaces/clone', async (req, res) => {
     }
     await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
     
-    const result = await cloneRepo(url, resolvedPath);
+    const result = await cloneRepo(url, resolvedPath, req.accessToken);
     setTargetDir(resolvedPath, req.user);
     res.json({ status: 'ok', result: `Cloned successfully.\n${result}`, path: resolvedPath, name: getActiveWorkspaceName(req) });
   } catch (err) {
@@ -353,7 +353,7 @@ app.get('/api/github/repos', async (req: any, res: any) => {
     const accessToken = req.accessToken;
     let repos: any[] = [];
     if (accessToken) {
-      const repoRes = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+      const repoRes = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated&type=all', {
         headers: {
           'Authorization': `token ${accessToken}`,
           'User-Agent': 'marginalia-app'
@@ -1129,7 +1129,7 @@ app.get('/api/auth/login', (req, res) => {
   const protocol = req.protocol || 'http';
   const defaultBase = `${protocol}://${host}`;
   const redirectUri = `${process.env.BASE_URL || defaultBase}/api/auth/github/callback`;
-  const authorizeUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user`;
+  const authorizeUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo,read:user`;
   res.redirect(authorizeUrl);
 });
 

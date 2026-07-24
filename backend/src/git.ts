@@ -87,8 +87,12 @@ export async function getGitBranch(req?: any): Promise<string> {
   return branch.current;
 }
 
-export async function cloneRepo(url: string, targetPath: string): Promise<string> {
-  const result = await simpleGit().clone(url, targetPath);
+export async function cloneRepo(url: string, targetPath: string, accessToken?: string): Promise<string> {
+  let cloneUrl = url;
+  if (accessToken && cloneUrl.startsWith('https://github.com/')) {
+    cloneUrl = cloneUrl.replace('https://github.com/', `https://x-access-token:${accessToken}@github.com/`);
+  }
+  const result = await simpleGit().clone(cloneUrl, targetPath);
   return `Clone successful: ${result}`;
 }
 
