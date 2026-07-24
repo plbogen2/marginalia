@@ -274,7 +274,7 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
 
           {/* GitHub Repositories Browser */}
           <div className="section github-repos">
-            <div className="section-header">
+            <div className="section-header github-repos-header">
               <h3>
                 <GitBranch size={14} /> Browse GitHub Repositories
               </h3>
@@ -283,7 +283,7 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
                   <Search size={12} className="search-icon" />
                   <input
                     type="text"
-                    placeholder="Filter..."
+                    placeholder="Filter repositories..."
                     value={repoFilter}
                     onChange={(e) => setRepoFilter(e.target.value)}
                   />

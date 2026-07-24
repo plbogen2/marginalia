@@ -104,9 +104,29 @@ export function setTargetDir(dir: string, username?: string): void {
 export function getRecentWorkspaces(username?: string): { path: string, name: string, last_opened: number }[] {
   try {
     if (username) {
-      return db.prepare("SELECT path, name, last_opened FROM workspaces WHERE user = ? ORDER BY last_opened DESC LIMIT 10;").all(username) as any;
+      const userStorage = getUserStorageRoot(username);
+      if (fs.existsSync(userStorage)) {
+        try {
+          const entries = fs.readdirSync(userStorage, { withFileTypes: true });
+          for (const entry of entries) {
+            if (entry.isDirectory()) {
+              const fullPath = path.join(userStorage, entry.name);
+              if (fs.existsSync(path.join(fullPath, '.git'))) {
+                db.prepare(`
+                  INSERT INTO workspaces (path, name, user, last_opened)
+                  VALUES (?, ?, ?, strftime('%s', 'now'))
+                  ON CONFLICT(path) DO NOTHING;
+                `).run(fullPath, entry.name, username);
+              }
+            }
+          }
+        } catch {
+          // ignore scan errors
+        }
+      }
+      return db.prepare("SELECT path, name, last_opened FROM workspaces WHERE user = ? ORDER BY last_opened DESC LIMIT 10;").all(username) as any[];
     } else {
-      return db.prepare("SELECT path, name, last_opened FROM workspaces WHERE user IS NULL ORDER BY last_opened DESC LIMIT 10;").all() as any;
+      return db.prepare("SELECT path, name, last_opened FROM workspaces WHERE user IS NULL ORDER BY last_opened DESC LIMIT 10;").all() as any[];
     }
   } catch (err) {
     console.error('Failed to get recent workspaces:', err);
