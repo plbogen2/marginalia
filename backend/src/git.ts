@@ -87,6 +87,9 @@ export async function getGitBranch(req?: any): Promise<string> {
   return branch.current;
 }
 
+import fs from 'fs/promises';
+import path from 'path';
+
 export async function cloneRepo(url: string, targetPath: string, accessToken?: string): Promise<string> {
   let cloneUrl = url.trim();
   if (accessToken) {
@@ -98,7 +101,41 @@ export async function cloneRepo(url: string, targetPath: string, accessToken?: s
       cloneUrl = cloneUrl.replace('git@github.com:', `https://x-access-token:${accessToken}@github.com/`);
     }
   }
-  const result = await simpleGit().clone(cloneUrl, targetPath);
+
+  const result = await simpleGit().clone(cloneUrl, targetPath, [
+    '--filter=blob:limit=10m',
+    '--sparse'
+  ]);
+
+  try {
+    const gitInfoDir = path.join(targetPath, '.git', 'info');
+    await fs.mkdir(gitInfoDir, { recursive: true });
+    const sparseRules = [
+      '/*',
+      '!*.exe',
+      '!*.dll',
+      '!*.so',
+      '!*.dylib',
+      '!*.bin',
+      '!*.sh',
+      '!*.bat',
+      '!*.cmd',
+      '!*.wasm',
+      '!*.elf',
+      '!*.zip',
+      '!*.tar',
+      '!*.gz',
+      '!*.7z'
+    ].join('\n');
+    await fs.writeFile(path.join(gitInfoDir, 'sparse-checkout'), sparseRules, 'utf-8');
+
+    const git = simpleGit(targetPath);
+    await git.raw(['config', 'core.sparseCheckout', 'true']);
+    await git.raw(['read-tree', '-mu', 'HEAD']);
+  } catch (err) {
+    console.warn('Failed to apply sparse checkout exclusion rules:', err);
+  }
+
   return `Clone successful: ${result}`;
 }
 
