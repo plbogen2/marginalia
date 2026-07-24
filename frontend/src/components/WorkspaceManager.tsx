@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FolderOpen, Download, History, Folder, Github, Search, Lock, Globe, RefreshCw } from 'lucide-react';
+import { X, FolderOpen, Download, History, Folder, GitBranch, Search, Lock, Globe, RefreshCw } from 'lucide-react';
 import { DirectoryPicker } from './DirectoryPicker';
 
 interface Workspace {
@@ -191,7 +191,7 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
           <div className="section github-repos">
             <div className="section-header">
               <h3>
-                <Github size={14} /> Browse GitHub Repositories
+                <GitBranch size={14} /> Browse GitHub Repositories
               </h3>
               <button 
                 type="button" 
