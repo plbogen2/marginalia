@@ -1,5 +1,6 @@
 # Stage 1: Build the frontend static assets
 FROM node:22-alpine AS frontend-builder
+ENV NODE_OPTIONS="--max-old-space-size=512"
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN [ -f package-lock.json ] && sed -i 's|https://us-npm.pkg.dev/artifact-foundry-prod/ah-3p-staging-npm/|https://registry.npmjs.org/|g' package-lock.json || true
@@ -9,6 +10,7 @@ RUN npm run build
 
 # Stage 2: Run the Express backend serving static assets
 FROM node:22-alpine
+ENV NODE_OPTIONS="--max-old-space-size=512"
 WORKDIR /app
 
 # Install git and openssh (needed for git commands and SSH key authentications)
