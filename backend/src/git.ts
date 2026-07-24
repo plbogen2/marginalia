@@ -88,9 +88,15 @@ export async function getGitBranch(req?: any): Promise<string> {
 }
 
 export async function cloneRepo(url: string, targetPath: string, accessToken?: string): Promise<string> {
-  let cloneUrl = url;
-  if (accessToken && cloneUrl.startsWith('https://github.com/')) {
-    cloneUrl = cloneUrl.replace('https://github.com/', `https://x-access-token:${accessToken}@github.com/`);
+  let cloneUrl = url.trim();
+  if (accessToken) {
+    if (cloneUrl.startsWith('https://github.com/')) {
+      cloneUrl = cloneUrl.replace('https://github.com/', `https://x-access-token:${accessToken}@github.com/`);
+    } else if (cloneUrl.startsWith('http://github.com/')) {
+      cloneUrl = cloneUrl.replace('http://github.com/', `https://x-access-token:${accessToken}@github.com/`);
+    } else if (cloneUrl.startsWith('git@github.com:')) {
+      cloneUrl = cloneUrl.replace('git@github.com:', `https://x-access-token:${accessToken}@github.com/`);
+    }
   }
   const result = await simpleGit().clone(cloneUrl, targetPath);
   return `Clone successful: ${result}`;

@@ -88,7 +88,18 @@ function authMiddleware(req: any, res: any, next: any) {
   }
 
   req.user = sessionData.username;
-  req.accessToken = sessionData.accessToken;
+  let accessToken = sessionData.accessToken;
+  if (!accessToken && req.user) {
+    try {
+      const row = db.prepare("SELECT value FROM settings WHERE key = ?;").get(`github_access_token:${req.user}`) as { value: string } | undefined;
+      if (row && row.value) {
+        accessToken = row.value;
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+  req.accessToken = accessToken;
   next();
 }
 
@@ -377,7 +388,11 @@ app.post('/api/workspaces/clone', async (req, res) => {
     setTargetDir(resolvedPath, req.user);
     res.json({ status: 'ok', result: `Cloned successfully.\n${result}`, path: resolvedPath, name: getActiveWorkspaceName(req) });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    const errMsg = (err as Error).message || '';
+    if (errMsg.includes('could not read Username') || errMsg.includes('Authentication failed')) {
+      return res.status(401).json({ error: 'Authentication required to clone private repository. Please sign out and sign back in via GitHub to grant repository access.' });
+    }
+    res.status(500).json({ error: errMsg });
   }
 });
 
@@ -1309,7 +1324,13 @@ app.get('/api/auth/github/callback', async (req, res) => {
       return res.status(403).send(`Access Denied: User ${githubUser} is not whitelisted`);
     }
 
-    await fs.mkdir(getUserStorageRoot(githubUser), { recursive: true });
+    if (accessToken) {
+      try {
+        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);").run(`github_access_token:${githubUser}`, accessToken);
+      } catch (err) {
+        console.warn('Failed to save github_access_token to DB:', err);
+      }
+    }
 
     const sessionToken = createSessionToken(githubUser, secret, accessToken);
     const isSecureReq = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
