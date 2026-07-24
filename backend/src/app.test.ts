@@ -234,6 +234,33 @@ test('Backend APIs', async (t) => {
     }
   });
 
+  await t.test('POST /api/workspaces/delete deletes workspace folder and DB record', async () => {
+    const deletePath = '/tmp/marginalia_delete_test';
+    await fs.rm(deletePath, { recursive: true, force: true });
+    await fs.mkdir(deletePath, { recursive: true });
+    await execAsync('git init', { cwd: deletePath });
+
+    const { setTargetDir } = await import('./config.js');
+    setTargetDir(deletePath);
+
+    const res = await fetch(`http://localhost:${port}/api/workspaces/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: deletePath })
+    });
+    assert.strictEqual(res.status, 200);
+    const body = await res.json() as { status: string, message: string };
+    assert.strictEqual(body.status, 'ok');
+
+    let exists = true;
+    try {
+      await fs.access(deletePath);
+    } catch {
+      exists = false;
+    }
+    assert.strictEqual(exists, false);
+  });
+
   await t.test('POST /api/workspaces/select-by-name switches active workspace', async () => {
     const testPath = '/tmp/marginalia_select_name_test';
     await fs.rm(testPath, { recursive: true, force: true });

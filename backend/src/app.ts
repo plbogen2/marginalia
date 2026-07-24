@@ -417,13 +417,13 @@ app.post('/api/workspaces/delete', async (req, res) => {
 
     const workspaceName = path.basename(resolvedPath);
     if (req.user) {
-      db.prepare("DELETE FROM recent_workspaces WHERE user = ? AND path = ?;").run(req.user, resolvedPath);
+      db.prepare("DELETE FROM workspaces WHERE path = ?;").run(resolvedPath);
       const activeRow = db.prepare("SELECT value FROM settings WHERE key = ?;").get(`active_workspace_path:${req.user}`) as { value: string } | undefined;
       if (activeRow?.value === workspaceName) {
         db.prepare("DELETE FROM settings WHERE key = ?;").run(`active_workspace_path:${req.user}`);
       }
     } else {
-      db.prepare("DELETE FROM recent_workspaces WHERE user = 'local' AND path = ?;").run(resolvedPath);
+      db.prepare("DELETE FROM workspaces WHERE path = ?;").run(resolvedPath);
       const activeRow = db.prepare("SELECT value FROM settings WHERE key = 'active_workspace_path';").get() as { value: string } | undefined;
       if (activeRow?.value === resolvedPath) {
         db.prepare("DELETE FROM settings WHERE key = 'active_workspace_path';").run();
