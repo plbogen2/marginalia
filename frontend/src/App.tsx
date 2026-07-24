@@ -111,14 +111,11 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      const res = await fetch('/api/auth/logout', { method: 'POST' });
-      if (res.ok) {
-        setAuthInfo({ loggedIn: false, user: null, isOAuthMode: true });
-        setActiveFile(null);
-        setEditorValue('');
-      }
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/';
     } catch (err) {
       console.error('Failed to log out:', err);
+      window.location.href = '/';
     }
   };
 

@@ -353,21 +353,31 @@ app.get('/api/github/repos', async (req: any, res: any) => {
     const accessToken = req.accessToken;
     let repos: any[] = [];
     if (accessToken) {
-      const repoRes = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated&type=all', {
+      const repoRes = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated&visibility=all&affiliation=owner,collaborator,organization_member', {
         headers: {
-          'Authorization': `token ${accessToken}`,
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.github+json',
           'User-Agent': 'marginalia-app'
         }
       });
       if (repoRes.ok) {
         repos = await repoRes.json();
+      } else {
+        const errText = await repoRes.text();
+        console.error('GitHub /user/repos failed:', repoRes.status, errText);
       }
     } else if (req.user) {
       const repoRes = await fetch(`https://api.github.com/users/${req.user}/repos?per_page=100&sort=updated`, {
-        headers: { 'User-Agent': 'marginalia-app' }
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'marginalia-app'
+        }
       });
       if (repoRes.ok) {
         repos = await repoRes.json();
+      } else {
+        const errText = await repoRes.text();
+        console.error('GitHub /users/:user/repos failed:', repoRes.status, errText);
       }
     }
     const formatted = (Array.isArray(repos) ? repos : []).map((r: any) => ({
