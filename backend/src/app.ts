@@ -1110,6 +1110,11 @@ app.get('/api/auth/github/callback', async (req, res) => {
         throw new Error('OAuth Client ID is not configured');
       }
     } else {
+      const host = req.get('host');
+      const protocol = req.protocol || 'http';
+      const defaultBase = `${protocol}://${host}`;
+      const redirectUri = `${process.env.BASE_URL || defaultBase}/api/auth/github/callback`;
+
       const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
         headers: {
@@ -1119,13 +1124,15 @@ app.get('/api/auth/github/callback', async (req, res) => {
         body: JSON.stringify({
           client_id: clientId,
           client_secret: clientSecret,
-          code
+          code,
+          redirect_uri: redirectUri
         })
       });
       
-      const tokenData = await tokenRes.json() as { access_token?: string, error?: string };
+      const tokenData = await tokenRes.json() as { access_token?: string, error?: string, error_description?: string };
       if (tokenData.error || !tokenData.access_token) {
-        throw new Error(tokenData.error || 'Failed to retrieve access token');
+        console.error('GitHub OAuth token exchange error:', tokenData);
+        throw new Error(tokenData.error_description || tokenData.error || 'Failed to retrieve access token');
       }
 
       const userRes = await fetch('https://api.github.com/user', {
