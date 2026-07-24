@@ -46,6 +46,7 @@ jobs:
             printf "PORT=3000\nSESSION_SECRET=%s\nGEMINI_API_KEY=%s\nGITHUB_CLIENT_ID=%s\nGITHUB_CLIENT_SECRET=%s\nALLOWED_USER=%s\nCLOUDFLARE_TUNNEL_TOKEN=%s\n" "$SESSION_SECRET" "$GEMINI_API_KEY" "$GH_CLIENT_ID" "$GH_CLIENT_SECRET" "$ALLOWED_USER" "$CLOUDFLARE_TUNNEL_TOKEN" > .env
 
             echo "--> Rebuilding and starting containers..."
+            sudo docker-compose down || true
             sudo docker-compose up -d --build
           else
             echo "--> Repository folder 'marginalia' not found. Please run scripts/setup_vm.sh on the host first!"

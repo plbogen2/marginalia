@@ -99,6 +99,7 @@ services:
 EOT
 
 # Run with sudo to ensure docker-compose permissions
+sudo docker-compose down || true
 sudo docker-compose up -d --build
 
 echo "=== Setup Complete! ==="
