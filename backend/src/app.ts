@@ -426,31 +426,55 @@ app.get('/api/github/repos', async (req: any, res: any) => {
     const accessToken = req.accessToken;
     let repos: any[] = [];
     if (accessToken) {
-      const repoRes = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated&visibility=all&affiliation=owner,collaborator,organization_member', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/vnd.github+json',
-          'User-Agent': 'marginalia-app'
+      let page = 1;
+      let hasMore = true;
+      while (hasMore && page <= 5) {
+        const repoRes = await fetch(`https://api.github.com/user/repos?per_page=100&page=${page}&sort=updated`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.github+json',
+            'User-Agent': 'marginalia-app'
+          }
+        });
+        if (repoRes.ok) {
+          const pageRepos = await repoRes.json();
+          if (Array.isArray(pageRepos) && pageRepos.length > 0) {
+            repos.push(...pageRepos);
+            if (pageRepos.length < 100) hasMore = false;
+          } else {
+            hasMore = false;
+          }
+        } else {
+          const errText = await repoRes.text();
+          console.error(`GitHub /user/repos page ${page} failed:`, repoRes.status, errText);
+          hasMore = false;
         }
-      });
-      if (repoRes.ok) {
-        repos = await repoRes.json();
-      } else {
-        const errText = await repoRes.text();
-        console.error('GitHub /user/repos failed:', repoRes.status, errText);
+        page++;
       }
     } else if (req.user) {
-      const repoRes = await fetch(`https://api.github.com/users/${req.user}/repos?per_page=100&sort=updated`, {
-        headers: {
-          'Accept': 'application/vnd.github+json',
-          'User-Agent': 'marginalia-app'
+      let page = 1;
+      let hasMore = true;
+      while (hasMore && page <= 5) {
+        const repoRes = await fetch(`https://api.github.com/users/${req.user}/repos?per_page=100&page=${page}&sort=updated`, {
+          headers: {
+            'Accept': 'application/vnd.github+json',
+            'User-Agent': 'marginalia-app'
+          }
+        });
+        if (repoRes.ok) {
+          const pageRepos = await repoRes.json();
+          if (Array.isArray(pageRepos) && pageRepos.length > 0) {
+            repos.push(...pageRepos);
+            if (pageRepos.length < 100) hasMore = false;
+          } else {
+            hasMore = false;
+          }
+        } else {
+          const errText = await repoRes.text();
+          console.error(`GitHub /users/:user/repos page ${page} failed:`, repoRes.status, errText);
+          hasMore = false;
         }
-      });
-      if (repoRes.ok) {
-        repos = await repoRes.json();
-      } else {
-        const errText = await repoRes.text();
-        console.error('GitHub /users/:user/repos failed:', repoRes.status, errText);
+        page++;
       }
     }
     const formatted = (Array.isArray(repos) ? repos : []).map((r: any) => ({
@@ -1213,7 +1237,7 @@ app.get('/api/auth/login', (req, res) => {
   const protocol = req.protocol || 'http';
   const defaultBase = `${protocol}://${host}`;
   const redirectUri = `${process.env.BASE_URL || defaultBase}/api/auth/github/callback`;
-  const authorizeUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo,read:user`;
+  const authorizeUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo,read:user&prompt=consent`;
   res.redirect(authorizeUrl);
 });
 
