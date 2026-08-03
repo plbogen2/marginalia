@@ -2,6 +2,10 @@
 
 Marginalia is a focused, web-based markdown editor designed for fiction writing with integrated Git/GitHub version control.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-64--181--248--211.nip.io-brightgreen?style=for-the-badge&logo=rocket)](http://64-181-248-211.nip.io)
+
+🚀 **Live Running Instance:** Try Marginalia hosted live at **[http://64-181-248-211.nip.io](http://64-181-248-211.nip.io)**
+
 ## Features
 *   **Focus-Oriented Writing:** Distraction-free mode to collapse the file sidebar and preview panels.
 *   **Live Markdown Preview:** Real-time side-by-side rendering of your document text.
