@@ -215,10 +215,12 @@ function App() {
       return;
     }
 
+    // Strip markdown formatting and quotation marks so TTS voices don't read "quote" out loud
     const cleanText = editorValue
       .replace(/#+\s+/g, '')
       .replace(/[*_`~>]/g, '')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/["'“”‘’]/g, '')
       .trim();
 
     if (!cleanText) return;
