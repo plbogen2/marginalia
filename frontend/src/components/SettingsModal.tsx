@@ -4,9 +4,10 @@ import { X, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
 interface SettingsModalProps {
   onClose: () => void;
   onSave: () => void;
+  onOpenAbout?: () => void;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, onOpenAbout }) => {
   const [geminiKey, setGeminiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
@@ -377,6 +378,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
             {error && <div className="error-message">{error}</div>}
 
             <div className="form-actions">
+              {onOpenAbout && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    onClose();
+                    onOpenAbout();
+                  }}
+                  style={{ marginRight: 'auto' }}
+                >
+                  About Marginalia
+                </button>
+              )}
               <button type="button" className="btn-secondary" onClick={onClose}>
                 Cancel
               </button>

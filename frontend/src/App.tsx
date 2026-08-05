@@ -197,6 +197,20 @@ function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [cursorOffset, setCursorOffset] = useState<number>(0);
   const utteranceRef = useRef<any>(null);
+  const isCancelledRef = useRef<boolean>(false);
+
+  const stopSpeech = () => {
+    isCancelledRef.current = true;
+    if (utteranceRef.current) {
+      utteranceRef.current.onend = null;
+      utteranceRef.current.onerror = null;
+      utteranceRef.current = null;
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+  };
 
   const toggleReadAloud = () => {
     if (!('speechSynthesis' in window)) {
@@ -205,9 +219,7 @@ function App() {
     }
 
     if (isSpeaking) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-      utteranceRef.current = null;
+      stopSpeech();
       return;
     }
 
@@ -215,6 +227,9 @@ function App() {
       alert('Nothing to read aloud in this file.');
       return;
     }
+
+    stopSpeech();
+    isCancelledRef.current = false;
 
     // Start reading from current cursor position if cursor is placed inside document
     let textToRead = editorValue;
@@ -235,14 +250,12 @@ function App() {
 
     if (!cleanText) return;
 
-    window.speechSynthesis.cancel();
-
     // Split text into sentence chunks to prevent Chrome max buffer truncation
     const sentences = cleanText.match(/[^.!?\n]+[.!?\n]+/g) || [cleanText];
     let currentIndex = 0;
 
     const speakNextSentence = () => {
-      if (currentIndex >= sentences.length) {
+      if (isCancelledRef.current || currentIndex >= sentences.length) {
         setIsSpeaking(false);
         utteranceRef.current = null;
         return;
@@ -290,11 +303,13 @@ function App() {
       }
 
       utterance.onend = () => {
+        if (isCancelledRef.current) return;
         currentIndex++;
         speakNextSentence();
       };
 
       utterance.onerror = (err) => {
+        if (isCancelledRef.current) return;
         console.error('TTS utterance error:', err);
         currentIndex++;
         if (currentIndex < sentences.length) {
@@ -318,10 +333,8 @@ function App() {
   };
 
   useEffect(() => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-    }
+    stopSpeech();
+    setCursorOffset(0);
   }, [activeFile]);
 
   useEffect(() => {
@@ -953,6 +966,7 @@ function App() {
           onSave={() => {
             fetchGitStatus();
           }}
+          onOpenAbout={() => setAboutOpen(true)}
         />
       )}
       {guideOpen && (

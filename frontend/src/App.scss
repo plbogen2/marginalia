@@ -214,6 +214,7 @@ $input-border: #6b6b6b;
     align-items: center;
     gap: $spacing-sm;
 
+    .about-btn,
     .settings-btn,
     .logout-btn {
       background: none !important;
