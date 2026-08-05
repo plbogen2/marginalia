@@ -149,8 +149,17 @@ async function getFiles(dir: string, baseDir = dir): Promise<string[]> {
   return Array.prototype.concat(...files).filter(Boolean) as string[];
 }
 
+const SERVER_BUILD_TIME = Date.now();
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.get('/api/version', (req, res) => {
+  res.json({
+    version: '1.2.0',
+    buildTime: SERVER_BUILD_TIME
+  });
 });
 
 app.get('/api/files', async (req, res) => {

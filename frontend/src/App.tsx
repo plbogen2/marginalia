@@ -111,6 +111,33 @@ function App() {
     fetchAuthStatus();
   }, []);
 
+  // Server Update Auto-Reload Detection
+  useEffect(() => {
+    let initialBuildTime: number | null = null;
+
+    const checkServerVersion = async () => {
+      try {
+        const res = await fetch('/api/version');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (typeof data.buildTime === 'number') {
+          if (initialBuildTime === null) {
+            initialBuildTime = data.buildTime;
+          } else if (data.buildTime !== initialBuildTime) {
+            console.log('New server deployment detected. Reloading application...');
+            window.location.reload();
+          }
+        }
+      } catch (err) {
+        // Ignore temporary network errors during server restart
+      }
+    };
+
+    checkServerVersion();
+    const interval = setInterval(checkServerVersion, 20000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
