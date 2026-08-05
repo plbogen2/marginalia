@@ -493,6 +493,34 @@ $input-border: #6b6b6b;
         }
       }
 
+      .dictation-btn, .read-aloud-btn {
+        background: none !important;
+        border: none !important;
+        color: $text-muted !important;
+        padding: 2px 4px !important;
+        font-size: $font-sm !important;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: $radius-sm;
+
+        &:hover {
+          color: $text-light !important;
+          background-color: $bg-active !important;
+        }
+
+        &.dictating {
+          color: #f85149 !important;
+          background-color: rgba(248, 81, 73, 0.15) !important;
+        }
+
+        &.speaking {
+          color: #2da44e !important;
+          background-color: rgba(45, 164, 78, 0.15) !important;
+        }
+      }
+
       .format-doc-btn {
         background: none !important;
         border: none !important;

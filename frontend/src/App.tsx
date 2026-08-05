@@ -11,7 +11,7 @@ import { MarkdownGuideModal } from './components/MarkdownGuideModal';
 import { GitDiffModal } from './components/GitDiffModal';
 import { AboutModal } from './components/AboutModal';
 import { AiPanel } from './components/AiPanel';
-import { ChevronRight, Eye, EyeOff, Sparkles, Loader2 } from 'lucide-react';
+import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { formatMarkdown } from './utils/markdownLinter';
 
 function App() {
@@ -137,6 +137,110 @@ function App() {
     const interval = setInterval(checkServerVersion, 20000);
     return () => clearInterval(interval);
   }, []);
+
+  // Voice Dictation (Speech-to-Text)
+  const [isDictating, setIsDictating] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const toggleDictation = () => {
+    if (isDictating) {
+      recognitionRef.current?.stop();
+      setIsDictating(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Speech Recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: any) => {
+      const lastResultIndex = event.results.length - 1;
+      let transcript = event.results[lastResultIndex][0].transcript;
+
+      // Format common voice punctuation commands
+      transcript = transcript
+        .replace(/\bperiod\b/gi, '.')
+        .replace(/\bcomma\b/gi, ',')
+        .replace(/\bquestion mark\b/gi, '?')
+        .replace(/\bexclamation mark\b/gi, '!')
+        .replace(/\bnew line\b/gi, '\n')
+        .replace(/\bnew paragraph\b/gi, '\n\n');
+
+      setEditorValue((prev) => {
+        const needsSpace = prev.length > 0 && !prev.endsWith(' ') && !prev.endsWith('\n');
+        return prev + (needsSpace ? ' ' : '') + transcript;
+      });
+    };
+
+    recognition.onerror = (err: any) => {
+      console.warn('Dictation error:', err);
+      setIsDictating(false);
+    };
+
+    recognition.onend = () => {
+      setIsDictating(false);
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+    setIsDictating(true);
+  };
+
+  // Text-to-Speech (Read Aloud)
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const toggleReadAloud = () => {
+    if (!('speechSynthesis' in window)) {
+      alert('Text-to-Speech is not supported in this browser.');
+      return;
+    }
+
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    if (!editorValue || editorValue.trim().length === 0) {
+      alert('Nothing to read aloud in this file.');
+      return;
+    }
+
+    const cleanText = editorValue
+      .replace(/#+\s+/g, '')
+      .replace(/[*_`~>]/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+    };
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
+  };
+
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  }, [activeFile]);
 
 
 
@@ -669,6 +773,22 @@ function App() {
                   <option value="paperback">Paperback</option>
                   <option value="hardback">Hardback</option>
                 </select>
+                <button
+                  type="button"
+                  className={`dictation-btn ${isDictating ? 'active dictating' : ''}`}
+                  onClick={toggleDictation}
+                  title={isDictating ? "Stop Voice Dictation" : "Start Voice Dictation"}
+                >
+                  {isDictating ? <MicOff size={14} /> : <Mic size={14} />}
+                </button>
+                <button
+                  type="button"
+                  className={`read-aloud-btn ${isSpeaking ? 'active speaking' : ''}`}
+                  onClick={toggleReadAloud}
+                  title={isSpeaking ? "Stop Read Aloud" : "Read Chapter Aloud (TTS)"}
+                >
+                  {isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                </button>
                 <button
                   type="button"
                   className="format-doc-btn"
