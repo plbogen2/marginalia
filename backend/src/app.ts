@@ -13,6 +13,7 @@ import { lint as markdownLint } from 'markdownlint/sync';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { mountUserVfs, unmountUserVfs } from './utils/vfs.js';
+import { saveUserVaultToDisk } from './utils/memfsVault.js';
 
 const app = express();
 
@@ -435,6 +436,12 @@ app.post('/api/workspaces/delete', async (req, res) => {
       const activeRow = db.prepare("SELECT value FROM settings WHERE key = ?;").get(`active_workspace_path:${req.user}`) as { value: string } | undefined;
       if (activeRow?.value === workspaceName) {
         db.prepare("DELETE FROM settings WHERE key = ?;").run(`active_workspace_path:${req.user}`);
+      }
+      try {
+        const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
+        await saveUserVaultToDisk(req.user, secret);
+      } catch (vaultErr) {
+        console.warn('Failed to sync vault on workspace delete:', vaultErr);
       }
     } else {
       db.prepare("DELETE FROM workspaces WHERE path = ?;").run(resolvedPath);
