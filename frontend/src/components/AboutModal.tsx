@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Info, ExternalLink, ShieldCheck, Sparkles, GitBranch, Heart, Lock, FileText, CheckCircle2 } from 'lucide-react';
+import { X, Info, ExternalLink, ShieldCheck, Sparkles, GitBranch, Heart, Lock, CheckCircle2, Mic, Smartphone } from 'lucide-react';
 
 interface AboutModalProps {
   onClose: () => void;
@@ -22,16 +22,16 @@ export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
           <div className="about-hero">
             <div className="title-row">
               <h1 className="about-title">Marginalia</h1>
-              <span className="version-tag">v1.2.0</span>
+              <span className="version-tag">v1.3.0</span>
             </div>
             <p className="about-description">
-              A distraction-free, web-based Markdown workstation for authors and fiction writers, featuring integrated Git version control, zero-plaintext encrypted VFS storage, and AI editing assistance.
+              A distraction-free, web-based Markdown workstation for authors and fiction writers, featuring integrated Git version control, zero-plaintext encrypted VFS storage, AI dictation & audio proofreading, and AI editing assistance.
             </p>
             <div className="feature-badges">
+              <span className="badge"><Mic size={12} /> Voice & Audio TTS</span>
               <span className="badge"><Lock size={12} /> Encrypted VFS Vault</span>
               <span className="badge"><GitBranch size={12} /> Git Native</span>
-              <span className="badge"><FileText size={12} /> Markdown Linter</span>
-              <span className="badge"><Sparkles size={12} /> AI Editor Personas</span>
+              <span className="badge"><Smartphone size={12} /> Standalone PWA</span>
             </div>
           </div>
 
@@ -41,8 +41,24 @@ export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
               <div className="release-card latest">
                 <div className="release-header">
                   <div className="version-info">
-                    <span className="release-version">v1.2.0</span>
+                    <span className="release-version">v1.3.0</span>
                     <span className="current-badge">Latest Release</span>
+                  </div>
+                  <span className="release-date">August 2026</span>
+                </div>
+                <ul>
+                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Hands-Free AI Voice Dictation:</strong> Real-time speech-to-text dictation with automatic voice punctuation commands.</li>
+                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Audio Proofreading (TTS):</strong> Text-to-Speech chapter reading with sentence chunking and cursor-position start.</li>
+                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Neural Voice Prioritization:</strong> Auto-detection and optgroup sorting of high-definition neural voices in Settings.</li>
+                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Standalone Chrome App (PWA):</strong> Full standalone installability, manifest, service worker caching, and 512x512 app icons.</li>
+                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>HTTPS & Mobile Responsiveness:</strong> Caddy automated Let's Encrypt TLS reverse proxy and responsive mobile CSS breakpoints.</li>
+                </ul>
+              </div>
+
+              <div className="release-card">
+                <div className="release-header">
+                  <div className="version-info">
+                    <span className="release-version">v1.2.0</span>
                   </div>
                   <span className="release-date">July 2026</span>
                 </div>

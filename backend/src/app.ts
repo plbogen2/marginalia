@@ -157,7 +157,7 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/version', (req, res) => {
   res.json({
-    version: '1.2.0',
+    version: '1.3.0',
     buildTime: SERVER_BUILD_TIME
   });
 });
