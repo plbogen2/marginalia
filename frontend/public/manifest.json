@@ -2,20 +2,22 @@
   "short_name": "Marginalia",
   "name": "Marginalia - Markdown Workstation",
   "description": "A distraction-free markdown book editor and writing environment with integrated Git version control.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
-      "src": "/favicon.jpg",
-      "type": "image/jpeg",
-      "sizes": "192x192 512x512"
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
     },
     {
-      "src": "/logo.jpg",
-      "type": "image/jpeg",
+      "src": "/icon-512.png",
+      "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
     }
   ],
-  "start_url": "/",
   "background_color": "#1e1e1e",
   "theme_color": "#1e1e1e",
   "display": "standalone",
