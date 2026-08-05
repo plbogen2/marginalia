@@ -565,6 +565,12 @@ function App() {
           <a href="/api/auth/login" className="github-login-btn">
             <span>Log in with GitHub</span>
           </a>
+          <div className="privacy-notice-box">
+            <span className="privacy-icon">🔒</span>
+            <p>
+              <strong>Hosted Demo Privacy Notice:</strong> Repositories checked out on this public demo instance are stored on the host server disk. For 100% data privacy with unreleased book manuscripts, run Marginalia locally on your own machine (<code>./run.sh</code>).
+            </p>
+          </div>
         </div>
       </div>
     );
