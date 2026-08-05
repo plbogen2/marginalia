@@ -13,7 +13,7 @@ import { lint as markdownLint } from 'markdownlint/sync';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { mountUserVfs, unmountUserVfs } from './utils/vfs.js';
-import { saveUserVaultToDisk } from './utils/memfsVault.js';
+import { saveUserVaultToDisk, ingestDirectoryToVaultAndWipe } from './utils/memfsVault.js';
 
 const app = express();
 
@@ -400,6 +400,14 @@ app.post('/api/workspaces/clone', async (req, res) => {
     await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
     
     const result = await cloneRepo(url, resolvedPath, req.accessToken);
+    if (req.user) {
+      try {
+        const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
+        await ingestDirectoryToVaultAndWipe(req.user, secret, resolvedPath);
+      } catch (vaultErr) {
+        console.warn('Failed to ingest cloned workspace into vault:', vaultErr);
+      }
+    }
     setTargetDir(resolvedPath, req.user);
     res.json({ status: 'ok', result: `Cloned successfully.\n${result}`, path: resolvedPath, name: getActiveWorkspaceName(req) });
   } catch (err) {

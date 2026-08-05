@@ -112,3 +112,42 @@ export function setInMemoryFile(username: string, filePath: string, content: str
 export function removeInMemoryUser(username: string): void {
   inMemoryVaultStore.delete(username);
 }
+
+export async function ingestDirectoryToVaultAndWipe(username: string, secretKey: string, dirPath: string): Promise<void> {
+  let userMap = inMemoryVaultStore.get(username);
+  if (!userMap) {
+    userMap = new Map<string, string>();
+    inMemoryVaultStore.set(username, userMap);
+  }
+
+  async function walkDir(currentDir: string, baseDir: string) {
+    let entries: any[] = [];
+    try {
+      entries = await fs.readdir(currentDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      const relPath = path.relative(baseDir, fullPath);
+      if (entry.isDirectory()) {
+        await walkDir(fullPath, baseDir);
+      } else {
+        try {
+          const content = await fs.readFile(fullPath, 'utf-8');
+          userMap!.set(relPath, content);
+        } catch {
+          // ignore non-text files
+        }
+      }
+    }
+  }
+
+  try {
+    await walkDir(dirPath, dirPath);
+    await saveUserVaultToDisk(username, secretKey);
+    await fs.rm(dirPath, { recursive: true, force: true });
+  } catch (err) {
+    console.warn(`Failed to ingest and wipe directory ${dirPath}:`, err);
+  }
+}
