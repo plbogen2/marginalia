@@ -222,31 +222,35 @@ function App() {
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
 
-    // Select natural / neural high-quality voice
-    if ('speechSynthesis' in window) {
+    // Safely assign selected voice if available
+    try {
       const voices = window.speechSynthesis.getVoices();
-      const savedURI = localStorage.getItem('marginalia_tts_voice_uri');
-      let selectedVoice: SpeechSynthesisVoice | undefined;
+      if (voices && voices.length > 0) {
+        const savedURI = localStorage.getItem('marginalia_tts_voice_uri');
+        let selectedVoice: SpeechSynthesisVoice | undefined;
 
-      if (savedURI) {
-        selectedVoice = voices.find((v) => v.voiceURI === savedURI);
-      }
+        if (savedURI) {
+          selectedVoice = voices.find((v) => v.voiceURI === savedURI);
+        }
 
-      if (!selectedVoice) {
-        selectedVoice = voices.find((v) => 
-          v.lang.startsWith('en') && (
-            v.name.includes('Natural') || 
-            v.name.includes('Online (Natural)') ||
-            v.name.includes('Enhanced') || 
-            v.name.includes('Premium') ||
-            v.name.includes('Google')
-          )
-        ) || voices.find((v) => v.lang.startsWith('en')) || voices[0];
-      }
+        if (!selectedVoice) {
+          selectedVoice = voices.find((v) => 
+            v.lang.startsWith('en') && (
+              v.name.includes('Natural') || 
+              v.name.includes('Online (Natural)') ||
+              v.name.includes('Enhanced') || 
+              v.name.includes('Premium') ||
+              v.name.includes('Google')
+            )
+          ) || voices.find((v) => v.lang.startsWith('en'));
+        }
 
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        }
       }
+    } catch (e) {
+      console.warn('Failed to assign custom TTS voice, using system default:', e);
     }
 
     utterance.onend = () => {
@@ -268,6 +272,16 @@ function App() {
       setIsSpeaking(false);
     }
   }, [activeFile]);
+
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      const handleVoicesChanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+      window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+    }
+  }, []);
 
 
 

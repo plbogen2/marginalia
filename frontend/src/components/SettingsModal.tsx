@@ -33,6 +33,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
   const [selectedTtsVoice, setSelectedTtsVoice] = useState<string>(() => {
     return localStorage.getItem('marginalia_tts_voice_uri') || '';
   });
+  const [initialTtsVoice, setInitialTtsVoice] = useState<string>(() => {
+    return localStorage.getItem('marginalia_tts_voice_uri') || '';
+  });
 
   useEffect(() => {
     if (!('speechSynthesis' in window)) return;
@@ -46,7 +49,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
 
   const handleVoiceChange = (uri: string) => {
     setSelectedTtsVoice(uri);
-    localStorage.setItem('marginalia_tts_voice_uri', uri);
   };
 
   const fetchConfigStatus = async () => {
@@ -127,6 +129,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
         const data = await res.json();
         throw new Error(data.error || 'Failed to save settings');
       }
+      localStorage.setItem('marginalia_tts_voice_uri', selectedTtsVoice);
+      setInitialTtsVoice(selectedTtsVoice);
+
       setGeminiKey('');
       setGithubClientSecret('');
       await fetchConfigStatus();
@@ -147,6 +152,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
   const isDirty = 
     geminiKey.trim() !== '' || 
     geminiModel !== initialGeminiModel ||
+    selectedTtsVoice !== initialTtsVoice ||
     simulateHosted !== initialSimulateHosted ||
     githubClientId.trim() !== initialGithubClientId ||
     githubClientSecret.trim() !== '' ||
