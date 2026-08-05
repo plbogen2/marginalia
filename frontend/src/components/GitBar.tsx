@@ -18,8 +18,6 @@ interface GitBarProps {
   authInfo: { loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null;
   onLogout: () => void;
   onShowDiff: () => void;
-  installPrompt?: any;
-  onInstallApp?: () => void;
 }
 
 export const GitBar: React.FC<GitBarProps> = ({
@@ -38,9 +36,7 @@ export const GitBar: React.FC<GitBarProps> = ({
   onOpenAbout,
   authInfo,
   onLogout,
-  onShowDiff,
-  installPrompt,
-  onInstallApp
+  onShowDiff
 }) => {
   const [message, setMessage] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -154,12 +150,6 @@ export const GitBar: React.FC<GitBarProps> = ({
       </form>
 
       <div className="git-options">
-        {installPrompt && (
-          <button onClick={onInstallApp} title="Install Marginalia Chrome App" className="install-app-btn">
-            <Download size={14} />
-            <span>Install App</span>
-          </button>
-        )}
         <button onClick={onOpenAbout} title="About Marginalia" className="about-btn">
           <Info size={14} />
         </button>

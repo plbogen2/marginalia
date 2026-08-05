@@ -138,25 +138,7 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
 
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
-
-  const handleInstallApp = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const choiceResult = await installPrompt.userChoice;
-    if (choiceResult?.outcome === 'accepted') {
-      setInstallPrompt(null);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -644,8 +626,6 @@ function App() {
         authInfo={authInfo}
         onLogout={handleLogout}
         onShowDiff={() => setDiffOpen(true)}
-        installPrompt={installPrompt}
-        onInstallApp={handleInstallApp}
       />
       <div className="main-layout">
         {!sidebarOpen && (
