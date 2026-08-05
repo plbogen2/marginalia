@@ -418,12 +418,17 @@ app.post('/api/workspaces/delete', async (req, res) => {
   }
 
   try {
-    const resolvedPath = path.resolve(targetPath);
+    const userStorage = req.user ? getUserStorageRoot(req.user) : os.homedir();
+    let resolvedPath = path.isAbsolute(targetPath) ? path.resolve(targetPath) : path.resolve(userStorage, targetPath);
+
+    if (req.user && !resolvedPath.startsWith(path.resolve(userStorage))) {
+      resolvedPath = path.resolve(userStorage, path.basename(targetPath));
+    }
+
     if (!isWorkspacePathAllowed(resolvedPath, req.user)) {
       return res.status(403).json({ error: 'Access denied: Cannot delete workspace outside your allowed root' });
     }
 
-    const userStorage = req.user ? getUserStorageRoot(req.user) : os.homedir();
     if (resolvedPath === path.resolve(userStorage) || resolvedPath === path.resolve(os.homedir())) {
       return res.status(400).json({ error: 'Cannot delete storage root directory' });
     }
