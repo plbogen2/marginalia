@@ -123,7 +123,7 @@ function App() {
 
   const selectFile = (filePath: string | null) => {
     setActiveFile(filePath);
-    let newUrl = window.location.origin + '/';
+    let newUrl = '/';
     if (activeWorkspaceName) {
       newUrl += encodeURIComponent(activeWorkspaceName) + '/';
     }
@@ -699,7 +699,8 @@ function App() {
             setActiveFile(null);
             setEditorValue('');
             setOriginalContent('');
-            window.history.pushState(null, '', `/${encodeURIComponent(newName)}/`);
+            const targetUrl = newName ? `/${encodeURIComponent(newName)}/` : '/';
+            window.history.pushState(null, '', targetUrl);
             handleRefresh();
           }}
         />

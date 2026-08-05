@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Info, ExternalLink, ShieldCheck, Sparkles, GitBranch, Heart } from 'lucide-react';
+import { X, Info, ExternalLink, ShieldCheck, Sparkles, GitBranch, Heart, Lock, FileText, CheckCircle2 } from 'lucide-react';
 
 interface AboutModalProps {
   onClose: () => void;
@@ -20,32 +20,45 @@ export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
 
         <div className="modal-body about-body">
           <div className="about-hero">
-            <h1 className="about-title">Marginalia</h1>
-            <span className="version-tag">v1.2.0</span>
+            <div className="title-row">
+              <h1 className="about-title">Marginalia</h1>
+              <span className="version-tag">v1.2.0</span>
+            </div>
             <p className="about-description">
-              A focused, web-based Markdown editor designed for fiction writing with integrated Git version control and AI editing assistance.
+              A distraction-free, web-based Markdown workstation for authors and fiction writers, featuring integrated Git version control, zero-plaintext encrypted VFS storage, and AI editing assistance.
             </p>
+            <div className="feature-badges">
+              <span className="badge"><Lock size={12} /> Encrypted VFS Vault</span>
+              <span className="badge"><GitBranch size={12} /> Git Native</span>
+              <span className="badge"><FileText size={12} /> Markdown Linter</span>
+              <span className="badge"><Sparkles size={12} /> AI Editor Personas</span>
+            </div>
           </div>
 
           <div className="about-section">
-            <h3><Sparkles size={14} /> Release Notes & Highlights</h3>
+            <h3><Sparkles size={15} /> Release Notes & Changelog</h3>
             <div className="release-notes-list">
-              <div className="release-card">
+              <div className="release-card latest">
                 <div className="release-header">
-                  <span className="release-version">v1.2.0 (Latest)</span>
+                  <div className="version-info">
+                    <span className="release-version">v1.2.0</span>
+                    <span className="current-badge">Latest Release</span>
+                  </div>
                   <span className="release-date">July 2026</span>
                 </div>
                 <ul>
-                  <li><strong>In-Memory AES-256-GCM Vault:</strong> Zero-plaintext server storage using in-memory virtual filesystems.</li>
-                  <li><strong>Per-User Encrypted Sandbox:</strong> Auto-mount VFS on login and auto-unmount on logout/idle.</li>
-                  <li><strong>Git Sparse-Checkout & Blob Filter:</strong> Excludes binary executables (<code>.exe</code>, <code>.sh</code>, <code>.dll</code>, <code>.bin</code>) and limits blob downloads to 10MB.</li>
-                  <li><strong>Per-User Storage Quota:</strong> Enforces 100MB per-user quota with live storage progress bars.</li>
+                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>In-Memory AES-256-GCM Vault:</strong> Zero-plaintext server storage using in-memory virtual filesystems.</li>
+                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Per-User Encrypted Sandbox:</strong> Auto-mount VFS on login and auto-unmount on logout/idle timeout.</li>
+                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Git Sparse-Checkout & Blob Filter:</strong> Excludes binary executables (<code>.exe</code>, <code>.sh</code>, <code>.dll</code>, <code>.bin</code>) and limits blob downloads to 10MB.</li>
+                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Per-User Storage Quota:</strong> Enforces 100MB per-user quota with live storage progress indicators.</li>
                 </ul>
               </div>
 
               <div className="release-card">
                 <div className="release-header">
-                  <span className="release-version">v1.1.0</span>
+                  <div className="version-info">
+                    <span className="release-version">v1.1.0</span>
+                  </div>
                   <span className="release-date">July 2026</span>
                 </div>
                 <ul>
@@ -57,7 +70,9 @@ export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
 
               <div className="release-card">
                 <div className="release-header">
-                  <span className="release-version">v1.0.0</span>
+                  <div className="version-info">
+                    <span className="release-version">v1.0.0</span>
+                  </div>
                   <span className="release-date">July 2026</span>
                 </div>
                 <ul>
@@ -70,7 +85,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
           </div>
 
           <div className="about-section copyright-section">
-            <h3><ShieldCheck size={14} /> Copyright & Open Source License</h3>
+            <h3><ShieldCheck size={15} /> Copyright & Open Source License</h3>
             <p>
               Marginalia is open-source software released under the <strong>MIT License</strong>.
             </p>
