@@ -195,6 +195,7 @@ function App() {
 
   // Text-to-Speech (Read Aloud)
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const utteranceRef = useRef<any>(null);
 
   const toggleReadAloud = () => {
     if (!('speechSynthesis' in window)) {
@@ -205,6 +206,7 @@ function App() {
     if (isSpeaking) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
+      utteranceRef.current = null;
       return;
     }
 
@@ -216,54 +218,91 @@ function App() {
     const cleanText = editorValue
       .replace(/#+\s+/g, '')
       .replace(/[*_`~>]/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .trim();
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-
-    // Safely assign selected voice if available
-    try {
-      const voices = window.speechSynthesis.getVoices();
-      if (voices && voices.length > 0) {
-        const savedURI = localStorage.getItem('marginalia_tts_voice_uri');
-        let selectedVoice: SpeechSynthesisVoice | undefined;
-
-        if (savedURI) {
-          selectedVoice = voices.find((v) => v.voiceURI === savedURI);
-        }
-
-        if (!selectedVoice) {
-          selectedVoice = voices.find((v) => 
-            v.lang.startsWith('en') && (
-              v.name.includes('Natural') || 
-              v.name.includes('Online (Natural)') ||
-              v.name.includes('Enhanced') || 
-              v.name.includes('Premium') ||
-              v.name.includes('Google')
-            )
-          ) || voices.find((v) => v.lang.startsWith('en'));
-        }
-
-        if (selectedVoice) {
-          utterance.voice = selectedVoice;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to assign custom TTS voice, using system default:', e);
-    }
-
-    utterance.onend = () => {
-      setIsSpeaking(false);
-    };
-
-    utterance.onerror = () => {
-      setIsSpeaking(false);
-    };
+    if (!cleanText) return;
 
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
+
+    // Split text into sentence chunks to prevent Chrome max buffer truncation
+    const sentences = cleanText.match(/[^.!?\n]+[.!?\n]+/g) || [cleanText];
+    let currentIndex = 0;
+
+    const speakNextSentence = () => {
+      if (currentIndex >= sentences.length) {
+        setIsSpeaking(false);
+        utteranceRef.current = null;
+        return;
+      }
+
+      const sentenceText = sentences[currentIndex].trim();
+      if (!sentenceText) {
+        currentIndex++;
+        speakNextSentence();
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(sentenceText);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+
+      try {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices && voices.length > 0) {
+          const savedURI = localStorage.getItem('marginalia_tts_voice_uri');
+          let selectedVoice: SpeechSynthesisVoice | undefined;
+
+          if (savedURI) {
+            selectedVoice = voices.find((v) => v.voiceURI === savedURI);
+          }
+
+          if (!selectedVoice) {
+            selectedVoice = voices.find((v) => 
+              v.lang.startsWith('en') && (
+                v.name.includes('Natural') || 
+                v.name.includes('Online (Natural)') ||
+                v.name.includes('Enhanced') || 
+                v.name.includes('Premium') ||
+                v.name.includes('Google')
+              )
+            ) || voices.find((v) => v.lang.startsWith('en'));
+          }
+
+          if (selectedVoice) {
+            utterance.voice = selectedVoice;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to assign voice:', e);
+      }
+
+      utterance.onend = () => {
+        currentIndex++;
+        speakNextSentence();
+      };
+
+      utterance.onerror = (err) => {
+        console.error('TTS utterance error:', err);
+        currentIndex++;
+        if (currentIndex < sentences.length) {
+          speakNextSentence();
+        } else {
+          setIsSpeaking(false);
+          utteranceRef.current = null;
+        }
+      };
+
+      // Store in ref to prevent Chrome V8 Garbage Collection from silencing speech
+      utteranceRef.current = utterance;
+      if ('resume' in window.speechSynthesis) {
+        window.speechSynthesis.resume();
+      }
+      window.speechSynthesis.speak(utterance);
+    };
+
     setIsSpeaking(true);
+    speakNextSentence();
   };
 
   useEffect(() => {
