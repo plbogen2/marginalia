@@ -195,6 +195,7 @@ function App() {
 
   // Text-to-Speech (Read Aloud)
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [cursorOffset, setCursorOffset] = useState<number>(0);
   const utteranceRef = useRef<any>(null);
 
   const toggleReadAloud = () => {
@@ -215,8 +216,17 @@ function App() {
       return;
     }
 
+    // Start reading from current cursor position if cursor is placed inside document
+    let textToRead = editorValue;
+    if (cursorOffset > 0 && cursorOffset < editorValue.length) {
+      const sliced = editorValue.slice(cursorOffset).trim();
+      if (sliced.length > 0) {
+        textToRead = sliced;
+      }
+    }
+
     // Strip markdown formatting and quotation marks so TTS voices don't read "quote" out loud
-    const cleanText = editorValue
+    const cleanText = textToRead
       .replace(/#+\s+/g, '')
       .replace(/[*_`~>]/g, '')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
@@ -906,6 +916,7 @@ function App() {
               onChange={setEditorValue}
               activeFile={activeFile}
               onCheckStatusChange={setCheckingGrammar}
+              onCursorChange={setCursorOffset}
             />
             {previewOpen && activeFile && (
               <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />

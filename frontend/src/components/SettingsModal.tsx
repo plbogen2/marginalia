@@ -212,26 +212,87 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
               </p>
             </div>
 
-            {ttsVoices.length > 0 && (
-              <div className="form-group">
-                <label htmlFor="ttsVoice">Read Aloud Voice (TTS)</label>
-                <select
-                  id="ttsVoice"
-                  value={selectedTtsVoice}
-                  onChange={(e) => handleVoiceChange(e.target.value)}
-                >
-                  <option value="">Auto-select Highest Quality Natural / Neural Voice</option>
-                  {ttsVoices.map((voice) => (
-                    <option key={voice.voiceURI} value={voice.voiceURI}>
-                      {voice.name} ({voice.lang}) {voice.name.includes('Natural') || voice.name.includes('Google') || voice.name.includes('Enhanced') || voice.name.includes('Premium') ? '✨ Natural' : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="help-text">
-                  Select your preferred voice for manuscript audio proofreading.
-                </p>
-              </div>
-            )}
+            {ttsVoices.length > 0 && (() => {
+              const isNaturalVoice = (v: SpeechSynthesisVoice) => {
+                const name = v.name.toLowerCase();
+                return (
+                  name.includes('natural') ||
+                  name.includes('google') ||
+                  name.includes('enhanced') ||
+                  name.includes('premium') ||
+                  name.includes('neural') ||
+                  name.includes('online')
+                );
+              };
+
+              const naturalEnglish = ttsVoices
+                .filter((v) => v.lang.toLowerCase().startsWith('en') && isNaturalVoice(v))
+                .sort((a, b) => a.name.localeCompare(b.name));
+
+              const standardEnglish = ttsVoices
+                .filter((v) => v.lang.toLowerCase().startsWith('en') && !isNaturalVoice(v))
+                .sort((a, b) => a.name.localeCompare(b.name));
+
+              const naturalOther = ttsVoices
+                .filter((v) => !v.lang.toLowerCase().startsWith('en') && isNaturalVoice(v))
+                .sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
+
+              const standardOther = ttsVoices
+                .filter((v) => !v.lang.toLowerCase().startsWith('en') && !isNaturalVoice(v))
+                .sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
+
+              return (
+                <div className="form-group">
+                  <label htmlFor="ttsVoice">Read Aloud Voice (TTS)</label>
+                  <select
+                    id="ttsVoice"
+                    value={selectedTtsVoice}
+                    onChange={(e) => handleVoiceChange(e.target.value)}
+                  >
+                    <option value="">Auto-select Highest Quality Natural / Neural Voice</option>
+                    {naturalEnglish.length > 0 && (
+                      <optgroup label="✨ English — Natural & Neural Voices">
+                        {naturalEnglish.map((voice) => (
+                          <option key={voice.voiceURI} value={voice.voiceURI}>
+                            {voice.name} ({voice.lang}) ✨
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {standardEnglish.length > 0 && (
+                      <optgroup label="English — Standard Voices">
+                        {standardEnglish.map((voice) => (
+                          <option key={voice.voiceURI} value={voice.voiceURI}>
+                            {voice.name} ({voice.lang})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {naturalOther.length > 0 && (
+                      <optgroup label="✨ International — Natural & Neural Voices">
+                        {naturalOther.map((voice) => (
+                          <option key={voice.voiceURI} value={voice.voiceURI}>
+                            {voice.name} ({voice.lang}) ✨
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {standardOther.length > 0 && (
+                      <optgroup label="International — Standard Voices">
+                        {standardOther.map((voice) => (
+                          <option key={voice.voiceURI} value={voice.voiceURI}>
+                            {voice.name} ({voice.lang})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  <p className="help-text">
+                    Select your preferred voice for manuscript audio proofreading.
+                  </p>
+                </div>
+              );
+            })()}
 
             <div className="form-group checkbox-group">
               <label className="checkbox-label">

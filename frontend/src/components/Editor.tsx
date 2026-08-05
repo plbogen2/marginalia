@@ -11,16 +11,15 @@ interface EditorProps {
   onChange: (val: string) => void;
   activeFile: string | null;
   onCheckStatusChange?: (checking: boolean) => void;
+  onCursorChange?: (offset: number) => void;
 }
-
-
 
 const markdownStyleLinter = linter(async (view) => {
   const text = view.state.doc.toString();
   return await lintMarkdown(text);
 });
 
-export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile, onCheckStatusChange }) => {
+export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile, onCheckStatusChange, onCursorChange }) => {
   const grammarLinter = useMemo(() => {
     return linter(async (view) => {
       onCheckStatusChange?.(true);
@@ -383,6 +382,9 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile, onC
             grammarLinter,
             markdownStyleLinter,
             EditorView.updateListener.of((update) => {
+              if (update.selectionSet || update.docChanged) {
+                onCursorChange?.(update.state.selection.main.head);
+              }
               const hasDiagEffect = update.transactions.some(tr => tr.effects.some(e => e.is(setDiagnosticsEffect)));
               const linesChanged = update.state.doc.lines !== update.startState.doc.lines;
 
