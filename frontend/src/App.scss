@@ -3090,3 +3090,48 @@ kbd {
     }
   }
 }
+
+/* Mobile Responsiveness Improvements */
+@media (max-width: 768px) {
+  .git-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+
+    .git-branch-info {
+      font-size: 12px;
+    }
+
+    .commit-form {
+      width: 100%;
+      flex-wrap: wrap;
+
+      input {
+        width: 100%;
+      }
+    }
+
+    .git-options {
+      margin-left: auto;
+    }
+  }
+
+  .main-layout {
+    flex-direction: column;
+
+    .sidebar {
+      width: 100% !important;
+      max-height: 240px;
+    }
+
+    .panels-container {
+      flex-direction: column;
+    }
+  }
+
+  .modal-overlay .modal-container {
+    width: 95% !important;
+    padding: 16px;
+    max-height: 90vh;
+  }
+}
