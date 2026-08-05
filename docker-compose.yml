@@ -6,8 +6,6 @@ services:
     container_name: marginalia
     expose:
       - "3000"
-    ports:
-      - "3000:3000"
     devices:
       - "/dev/fuse:/dev/fuse"
     cap_add:
@@ -20,7 +18,7 @@ services:
       # Mount host SSH credentials so git client can push/pull to secure remote origins
       - ~/.ssh:/root/.ssh:ro
     environment:
-      - PORT=${PORT:-3000}
+      - PORT=3000
       - SESSION_SECRET=${SESSION_SECRET}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
