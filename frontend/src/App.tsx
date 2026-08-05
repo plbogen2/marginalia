@@ -222,6 +222,33 @@ function App() {
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
 
+    // Select natural / neural high-quality voice
+    if ('speechSynthesis' in window) {
+      const voices = window.speechSynthesis.getVoices();
+      const savedURI = localStorage.getItem('marginalia_tts_voice_uri');
+      let selectedVoice: SpeechSynthesisVoice | undefined;
+
+      if (savedURI) {
+        selectedVoice = voices.find((v) => v.voiceURI === savedURI);
+      }
+
+      if (!selectedVoice) {
+        selectedVoice = voices.find((v) => 
+          v.lang.startsWith('en') && (
+            v.name.includes('Natural') || 
+            v.name.includes('Online (Natural)') ||
+            v.name.includes('Enhanced') || 
+            v.name.includes('Premium') ||
+            v.name.includes('Google')
+          )
+        ) || voices.find((v) => v.lang.startsWith('en')) || voices[0];
+      }
+
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
+    }
+
     utterance.onend = () => {
       setIsSpeaking(false);
     };

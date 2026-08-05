@@ -29,6 +29,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [ttsVoices, setTtsVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedTtsVoice, setSelectedTtsVoice] = useState<string>(() => {
+    return localStorage.getItem('marginalia_tts_voice_uri') || '';
+  });
+
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      setTtsVoices(voices);
+    };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }, []);
+
+  const handleVoiceChange = (uri: string) => {
+    setSelectedTtsVoice(uri);
+    localStorage.setItem('marginalia_tts_voice_uri', uri);
+  };
+
   const fetchConfigStatus = async () => {
     try {
       const res = await fetch('/api/config');
@@ -185,6 +205,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave })
                 Select the Google Gemini model to use for generating suggestions.
               </p>
             </div>
+
+            {ttsVoices.length > 0 && (
+              <div className="form-group">
+                <label htmlFor="ttsVoice">Read Aloud Voice (TTS)</label>
+                <select
+                  id="ttsVoice"
+                  value={selectedTtsVoice}
+                  onChange={(e) => handleVoiceChange(e.target.value)}
+                >
+                  <option value="">Auto-select Highest Quality Natural / Neural Voice</option>
+                  {ttsVoices.map((voice) => (
+                    <option key={voice.voiceURI} value={voice.voiceURI}>
+                      {voice.name} ({voice.lang}) {voice.name.includes('Natural') || voice.name.includes('Google') || voice.name.includes('Enhanced') || voice.name.includes('Premium') ? '✨ Natural' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="help-text">
+                  Select your preferred voice for manuscript audio proofreading.
+                </p>
+              </div>
+            )}
 
             <div className="form-group checkbox-group">
               <label className="checkbox-label">
