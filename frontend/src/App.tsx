@@ -9,6 +9,7 @@ import { resolveRelativePath } from './utils/pathResolver';
 import { SettingsModal } from './components/SettingsModal';
 import { MarkdownGuideModal } from './components/MarkdownGuideModal';
 import { GitDiffModal } from './components/GitDiffModal';
+import { AboutModal } from './components/AboutModal';
 import { AiPanel } from './components/AiPanel';
 import { ChevronRight, Eye, EyeOff, Sparkles, Loader2 } from 'lucide-react';
 import { formatMarkdown } from './utils/markdownLinter';
@@ -57,6 +58,7 @@ function App() {
   const [gitAhead, setGitAhead] = useState(0);
   const [hasGemini, setHasGemini] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(() => {
@@ -591,6 +593,7 @@ function App() {
         ahead={gitAhead}
         hasGemini={hasGemini}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenAbout={() => setAboutOpen(true)}
         authInfo={authInfo}
         onLogout={handleLogout}
         onShowDiff={() => setDiffOpen(true)}
@@ -712,6 +715,11 @@ function App() {
       {guideOpen && (
         <MarkdownGuideModal
           onClose={() => setGuideOpen(false)}
+        />
+      )}
+      {aboutOpen && (
+        <AboutModal
+          onClose={() => setAboutOpen(false)}
         />
       )}
       {diffOpen && (
