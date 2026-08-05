@@ -13,8 +13,8 @@ FROM node:22-alpine
 ENV NODE_OPTIONS="--max-old-space-size=512"
 WORKDIR /app
 
-# Install git and openssh (needed for git commands and SSH key authentications)
-RUN apk add --no-cache git openssh-client
+# Install git, openssh, gocryptfs, and fuse (needed for git commands and encrypted VFS mounting)
+RUN apk add --no-cache git openssh-client gocryptfs fuse
 
 # Install backend dependencies
 COPY backend/package*.json ./backend/

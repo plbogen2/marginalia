@@ -12,6 +12,7 @@ import { verifySessionToken, createSessionToken } from './utils/auth.js';
 import { lint as markdownLint } from 'markdownlint/sync';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { mountUserVfs, unmountUserVfs } from './utils/vfs.js';
 
 const app = express();
 
@@ -88,6 +89,13 @@ function authMiddleware(req: any, res: any, next: any) {
   }
 
   req.user = sessionData.username;
+  if (req.user) {
+    const vfsSecret = crypto.createHash('sha256').update(`${req.user}:${secret}`).digest('hex');
+    mountUserVfs(req.user, vfsSecret).catch((err) => {
+      console.warn(`Failed to auto-mount VFS for ${req.user}:`, err);
+    });
+  }
+
   let accessToken = sessionData.accessToken;
   if (!accessToken && req.user) {
     try {
@@ -1338,6 +1346,13 @@ app.get('/api/auth/github/callback', async (req, res) => {
       }
     }
 
+    try {
+      const vfsSecret = crypto.createHash('sha256').update(`${githubUser}:${secret}`).digest('hex');
+      await mountUserVfs(githubUser, vfsSecret);
+    } catch (vfsErr) {
+      console.warn(`Failed to mount VFS for ${githubUser} during OAuth login:`, vfsErr);
+    }
+
     const sessionToken = createSessionToken(githubUser, secret, accessToken);
     const isSecureReq = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
     res.setHeader('Set-Cookie', `session_token=${sessionToken}; HttpOnly; Path=/; Max-Age=${30 * 24 * 60 * 60}; ${isSecureReq ? 'Secure;' : ''} SameSite=Lax`);
@@ -1376,7 +1391,10 @@ app.get('/api/auth/status', (req, res) => {
   res.json({ loggedIn: true, user: sessionData.username, isOAuthMode: true });
 });
 
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req: any, res: any) => {
+  if (req.user) {
+    await unmountUserVfs(req.user);
+  }
   res.setHeader('Set-Cookie', 'session_token=; HttpOnly; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
   res.json({ status: 'ok' });
 });

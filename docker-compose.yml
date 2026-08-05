@@ -6,6 +6,12 @@ services:
     container_name: marginalia
     ports:
       - "3000:3000"
+    devices:
+      - "/dev/fuse:/dev/fuse"
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
     volumes:
       # Mount a local directory to persist SQLite data and workspace markdown files
       - marginalia_data:/root/.marginalia
