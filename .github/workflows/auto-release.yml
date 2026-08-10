@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -23,7 +26,7 @@ jobs:
       - name: Determine Next Version
         id: next_version
         run: |
-          CURRENT_VERSION=$(node -e "console.log(require('./backend/package.json').version)")
+          CURRENT_VERSION=$(jq -r .version backend/package.json)
           echo "Current version: $CURRENT_VERSION"
           
           COMMIT_RANGE="${{ github.event.before }}..${{ github.event.after }}"
@@ -65,7 +68,7 @@ jobs:
           NEW_VERSION="${{ steps.next_version.outputs.new_version }}"
           
           # Update package.json
-          node -e "const fs = require('fs'); const pkg = require('./backend/package.json'); pkg.version = '$NEW_VERSION'; fs.writeFileSync('./backend/package.json', JSON.stringify(pkg, null, 2) + '\n');"
+          jq --arg v "$NEW_VERSION" '.version = $v' backend/package.json > temp.json && mv temp.json backend/package.json
           
           # Update CHANGELOG.md
           DATE=$(date +'%B %Y')
