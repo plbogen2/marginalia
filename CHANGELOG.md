@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4.2 (August 2026)
+- Fix GitHub Action: add write permissions and use jq
+
 ## v1.4.1 (August 2026)
 - **Conversational Inline 'Write With Me' Mode**: Collaborative co-writing partner mode integrated directly in the editor as a CodeMirror panel, supporting context files and inline comments.
 
