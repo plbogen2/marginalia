@@ -791,11 +791,15 @@ function App() {
       if (!res.ok) {
         throw new Error(data.error || 'Push failed');
       }
-      alert(`Pushed: ${data.result}`);
+      alert("Successfully pushed changes to GitHub.");
       await fetchGitStatus();
     } catch (err) {
       console.error('Failed to push:', err);
-      alert(`Push failed: ${(err as Error).message}`);
+      let msg = (err as Error).message;
+      if (msg.includes('rejected') || msg.includes('fetch first')) {
+        msg = 'The remote contains changes that you do not have locally. Please pull first.';
+      }
+      alert(`Push failed: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -809,7 +813,7 @@ function App() {
       if (!res.ok) {
         throw new Error(data.error || 'Pull failed');
       }
-      alert(`Pulled: ${data.result}`);
+      alert("Successfully pulled changes from GitHub.");
       await fetchFiles();
       await fetchGitStatus();
       if (activeFile) {
@@ -820,7 +824,11 @@ function App() {
       }
     } catch (err) {
       console.error('Failed to pull:', err);
-      alert(`Pull failed: ${(err as Error).message}`);
+      let msg = (err as Error).message;
+      if (msg.includes('unstaged changes') || msg.includes('locally modified files')) {
+        msg = 'You have unstaged changes that would be overwritten by pull. Please commit or stash them first.';
+      }
+      alert(`Pull failed: ${msg}`);
     } finally {
       setLoading(false);
     }
