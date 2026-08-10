@@ -26,6 +26,9 @@ RUN npm ci
 COPY backend/ ./
 RUN npm run build
 
+# Copy CHANGELOG.md
+COPY CHANGELOG.md /app/CHANGELOG.md
+
 # Copy compiled frontend assets to backend public directory
 COPY --from=frontend-builder /app/frontend/dist /app/backend/public
 
