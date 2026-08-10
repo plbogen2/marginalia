@@ -155,11 +155,18 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.get('/api/version', (req, res) => {
-  res.json({
-    version: '1.4.1',
-    buildTime: SERVER_BUILD_TIME
-  });
+app.get('/api/version', async (req, res) => {
+  try {
+    const pkgPath = path.resolve(__dirname, '../package.json');
+    const pkgContent = await fs.readFile(pkgPath, 'utf-8');
+    const pkg = JSON.parse(pkgContent);
+    res.json({
+      version: pkg.version,
+      buildTime: SERVER_BUILD_TIME
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to read package.json' });
+  }
 });
 
 app.get('/api/changelog', async (req, res) => {

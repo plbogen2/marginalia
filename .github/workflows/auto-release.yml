@@ -1,0 +1,92 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Git Config
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+
+      - name: Determine Next Version
+        id: next_version
+        run: |
+          CURRENT_VERSION=$(node -e "console.log(require('./backend/package.json').version)")
+          echo "Current version: $CURRENT_VERSION"
+          
+          COMMIT_RANGE="${{ github.event.before }}..${{ github.event.after }}"
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ] || [ -z "${{ github.event.before }}" ]; then
+            COMMIT_RANGE="HEAD~1..HEAD"
+          fi
+          
+          echo "Checking commits in range: $COMMIT_RANGE"
+          COMMITS=$(git log --oneline $COMMIT_RANGE)
+          echo "Commits:"
+          echo "$COMMITS"
+          
+          BUMP_TYPE="patch"
+          if echo "$COMMITS" | grep -q -E "^[a-f0-9]+ feat:"; then
+            BUMP_TYPE="minor"
+          fi
+          echo "Bump type: $BUMP_TYPE"
+          
+          IFS='.' read -r -a parts <<< "$CURRENT_VERSION"
+          major="${parts[0]}"
+          minor="${parts[1]}"
+          patch="${parts[2]}"
+          
+          if [ "$BUMP_TYPE" = "minor" ]; then
+            minor=$((minor + 1))
+            patch=0
+          else
+            patch=$((patch + 1))
+          fi
+          
+          NEW_VERSION="$major.$minor.$patch"
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          
+          git log --format="- %s" $COMMIT_RANGE > changelog_entries.tmp
+
+      - name: Update Files
+        run: |
+          NEW_VERSION="${{ steps.next_version.outputs.new_version }}"
+          
+          # Update package.json
+          node -e "const fs = require('fs'); const pkg = require('./backend/package.json'); pkg.version = '$NEW_VERSION'; fs.writeFileSync('./backend/package.json', JSON.stringify(pkg, null, 2) + '\n');"
+          
+          # Update CHANGELOG.md
+          DATE=$(date +'%B %Y')
+          
+          echo -e "## v$NEW_VERSION ($DATE)" > temp_release.md
+          cat changelog_entries.tmp >> temp_release.md
+          echo -e "" >> temp_release.md
+          
+          if [ -f CHANGELOG.md ]; then
+            head -n 2 CHANGELOG.md > temp_changelog.md
+            cat temp_release.md >> temp_changelog.md
+            tail -n +3 CHANGELOG.md >> temp_changelog.md
+            mv temp_changelog.md CHANGELOG.md
+          else
+            echo -e "# Changelog\n" > CHANGELOG.md
+            cat temp_release.md >> CHANGELOG.md
+          fi
+          rm temp_release.md changelog_entries.tmp
+
+      - name: Commit & Push Changes
+        run: |
+          git add backend/package.json CHANGELOG.md
+          git commit -m "chore: release v${{ steps.next_version.outputs.new_version }} [skip ci]"
+          git push origin main

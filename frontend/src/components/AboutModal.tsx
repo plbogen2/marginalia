@@ -15,6 +15,7 @@ interface ReleaseNote {
 export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
   const [releaseNotes, setReleaseNotes] = useState<ReleaseNote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [version, setVersion] = useState<string>('');
 
   useEffect(() => {
     const fetchChangelog = async () => {
@@ -52,7 +53,22 @@ export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
       }
     };
 
+    const fetchVersion = async () => {
+      try {
+        const res = await fetch('/api/version');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.version) {
+            setVersion(`v${data.version}`);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch version:', err);
+      }
+    };
+
     fetchChangelog();
+    fetchVersion();
   }, []);
 
   return (
@@ -71,7 +87,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
           <div className="about-hero">
             <div className="title-row">
               <h1 className="about-title">Marginalia</h1>
-              <span className="version-tag">v1.4.1</span>
+              <span className="version-tag">{version || '...'}</span>
             </div>
             <p className="about-description">
               A distraction-free, web-based Markdown workstation for authors and fiction writers, featuring integrated Git version control, zero-plaintext encrypted VFS storage, AI dictation & audio proofreading, and AI editing assistance.
