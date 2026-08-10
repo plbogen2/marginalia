@@ -16,7 +16,7 @@ Marginalia is a focused, web-based markdown editor designed for fiction writing 
     *   **Sandboxed Hosted Mode:** Enforces user storage isolation when running in hosted mode, restricting arbitrary server filesystem browsing.
 *   **Git & GitHub Version Control:** Commit, push, and pull directly from the header toolbar with remote sync statuses.
 *   **Git Auto-Identity Configurator:** Automatically configures local Git `user.name` and `user.email` properties on commit if they are unset, pulling from active GitHub accounts in Hosted Mode and local OS profiles in Local Mode.
-*   **Interactive AI Editor Panel:** Developmental, Line, Copy, or Proofreader personas using Gemini. Supports multi-turn follow-up chats.
+*   **Interactive AI Editor Panel:** Developmental, Line, Copy, Proofreader, or Write With Me (conversational inline guide) personas using Gemini. Supports multi-turn follow-up chats.
 *   **Context Selector Tree:** Select individual chapters or check entire directory folders (which recursively parses nested markdown files) to use as AI prompt context.
 *   **Apply Suggestion Diff Cards:** Inline comparison cards for proposed text changes with red/green highlights and click-to-apply patches.
 *   **SQLite-Backed AI Cache:** Chat history and applied checkbox states are persisted per-chapter/persona across page refreshes.

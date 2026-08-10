@@ -157,9 +157,19 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/version', (req, res) => {
   res.json({
-    version: '1.3.0',
+    version: '1.4.1',
     buildTime: SERVER_BUILD_TIME
   });
+});
+
+app.get('/api/changelog', async (req, res) => {
+  try {
+    const changelogPath = path.resolve(__dirname, '../../CHANGELOG.md');
+    const content = await fs.readFile(changelogPath, 'utf-8');
+    res.json({ content });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 app.get('/api/files', async (req, res) => {

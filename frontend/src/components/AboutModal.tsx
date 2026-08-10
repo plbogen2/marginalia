@@ -1,11 +1,60 @@
-import React from 'react';
-import { X, Info, ExternalLink, ShieldCheck, Sparkles, GitBranch, Heart, Lock, CheckCircle2, Mic, Smartphone } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Info, ExternalLink, ShieldCheck, Sparkles, GitBranch, Heart, Lock, Mic, Smartphone } from 'lucide-react';
+import { marked } from 'marked';
 
 interface AboutModalProps {
   onClose: () => void;
 }
 
+interface ReleaseNote {
+  version: string;
+  date: string;
+  bodyHtml: string;
+}
+
 export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
+  const [releaseNotes, setReleaseNotes] = useState<ReleaseNote[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchChangelog = async () => {
+      try {
+        const res = await fetch('/api/changelog');
+        if (!res.ok) throw new Error('Failed to fetch changelog');
+        const data = await res.json();
+        if (data.content) {
+          const sections = data.content.split('## ').slice(1);
+          const parsedNotes: ReleaseNote[] = sections.map((section: string) => {
+            const lines = section.split('\n');
+            const headerLine = lines[0].trim();
+            const match = headerLine.match(/^(v[0-9.]+)\s+\(([^)]+)\)/);
+            let version = headerLine;
+            let date = '';
+            if (match) {
+              version = match[1];
+              date = match[2];
+            }
+            const body = lines.slice(1).join('\n');
+            const parsedBody = marked.parse(body) as string;
+            // Inject check-icon SVG into li elements to match existing design
+            const bodyHtml = parsedBody.replace(
+              /<li>/g, 
+              '<li><svg class="check-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>'
+            );
+            return { version, date, bodyHtml };
+          });
+          setReleaseNotes(parsedNotes);
+        }
+      } catch (err) {
+        console.error('Failed to load changelog:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChangelog();
+  }, []);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content about-modal" onClick={(e) => e.stopPropagation()}>
@@ -22,7 +71,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
           <div className="about-hero">
             <div className="title-row">
               <h1 className="about-title">Marginalia</h1>
-              <span className="version-tag">v1.3.0</span>
+              <span className="version-tag">v1.4.1</span>
             </div>
             <p className="about-description">
               A distraction-free, web-based Markdown workstation for authors and fiction writers, featuring integrated Git version control, zero-plaintext encrypted VFS storage, AI dictation & audio proofreading, and AI editing assistance.
@@ -38,65 +87,22 @@ export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
           <div className="about-section">
             <h3><Sparkles size={15} /> Release Notes & Changelog</h3>
             <div className="release-notes-list">
-              <div className="release-card latest">
-                <div className="release-header">
-                  <div className="version-info">
-                    <span className="release-version">v1.3.0</span>
-                    <span className="current-badge">Latest Release</span>
+              {loading ? (
+                <div className="changelog-loading">Loading release notes...</div>
+              ) : (
+                releaseNotes.map((note, index) => (
+                  <div key={note.version} className={`release-card ${index === 0 ? 'latest' : ''}`}>
+                    <div className="release-header">
+                      <div className="version-info">
+                        <span className="release-version">{note.version}</span>
+                        {index === 0 && <span className="current-badge">Latest Release</span>}
+                      </div>
+                      <span className="release-date">{note.date}</span>
+                    </div>
+                    <div dangerouslySetInnerHTML={{ __html: note.bodyHtml }} />
                   </div>
-                  <span className="release-date">August 2026</span>
-                </div>
-                <ul>
-                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Hands-Free AI Voice Dictation:</strong> Real-time speech-to-text dictation with automatic voice punctuation commands.</li>
-                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Audio Proofreading (TTS):</strong> Text-to-Speech chapter reading with sentence chunking and cursor-position start.</li>
-                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Neural Voice Prioritization:</strong> Auto-detection and optgroup sorting of high-definition neural voices in Settings.</li>
-                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Standalone Chrome App (PWA):</strong> Full standalone installability, manifest, service worker caching, and 512x512 app icons.</li>
-                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>HTTPS & Mobile Responsiveness:</strong> Caddy automated Let's Encrypt TLS reverse proxy and responsive mobile CSS breakpoints.</li>
-                </ul>
-              </div>
-
-              <div className="release-card">
-                <div className="release-header">
-                  <div className="version-info">
-                    <span className="release-version">v1.2.0</span>
-                  </div>
-                  <span className="release-date">July 2026</span>
-                </div>
-                <ul>
-                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>In-Memory AES-256-GCM Vault:</strong> Zero-plaintext server storage using in-memory virtual filesystems.</li>
-                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Per-User Encrypted Sandbox:</strong> Auto-mount VFS on login and auto-unmount on logout/idle timeout.</li>
-                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Git Sparse-Checkout & Blob Filter:</strong> Excludes binary executables (<code>.exe</code>, <code>.sh</code>, <code>.dll</code>, <code>.bin</code>) and limits blob downloads to 10MB.</li>
-                  <li><CheckCircle2 size={13} className="check-icon" /> <strong>Per-User Storage Quota:</strong> Enforces 100MB per-user quota with live storage progress indicators.</li>
-                </ul>
-              </div>
-
-              <div className="release-card">
-                <div className="release-header">
-                  <div className="version-info">
-                    <span className="release-version">v1.1.0</span>
-                  </div>
-                  <span className="release-date">July 2026</span>
-                </div>
-                <ul>
-                  <li><strong>GitHub OAuth Repos Browser:</strong> Browse, filter, and clone public/private repos directly into user VFS storage.</li>
-                  <li><strong>Markdown Linter Integration:</strong> Integrated backend <code>markdownlint</code> with formatting and hover squiggles.</li>
-                  <li><strong>Paragraph-Level Caching:</strong> MD5-hashed caching for LanguageTool spelling and grammar checks.</li>
-                </ul>
-              </div>
-
-              <div className="release-card">
-                <div className="release-header">
-                  <div className="version-info">
-                    <span className="release-version">v1.0.0</span>
-                  </div>
-                  <span className="release-date">July 2026</span>
-                </div>
-                <ul>
-                  <li><strong>Focus-Oriented Editor:</strong> Dual-pane Markdown editor with real-time preview and collapsible sidebars.</li>
-                  <li><strong>Side-by-Side Diffs:</strong> Visual commit diffs and automated AI commit message suggestions.</li>
-                  <li><strong>AI Editing Personas:</strong> Developmental, Line, Copy, Proofreader, and Security Auditor personas.</li>
-                </ul>
-              </div>
+                ))
+              )}
             </div>
           </div>
 
