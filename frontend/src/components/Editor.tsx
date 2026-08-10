@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
+import { showPanel, type Panel } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { linter, type Diagnostic, forEachDiagnostic, setDiagnostics, setDiagnosticsEffect } from '@codemirror/lint';
 import { checkGrammar } from '../utils/languagetool';
@@ -12,6 +13,11 @@ interface EditorProps {
   activeFile: string | null;
   onCheckStatusChange?: (checking: boolean) => void;
   onCursorChange?: (offset: number) => void;
+  writeWithMeActive?: boolean;
+  inlineSuggestion?: string | null;
+  inlineSuggestionLoading?: boolean;
+  onTriggerSuggestion?: () => void;
+  onDismissSuggestion?: () => void;
 }
 
 const markdownStyleLinter = linter(async (view) => {
@@ -19,7 +25,55 @@ const markdownStyleLinter = linter(async (view) => {
   return await lintMarkdown(text);
 });
 
-export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile, onCheckStatusChange, onCursorChange }) => {
+const createWriteWithMePanel = (
+  onTrigger: (() => void) | undefined,
+  loading: boolean,
+  suggestion: string | null,
+  onDismiss: (() => void) | undefined
+) => {
+  return (_view: EditorView): Panel => {
+    const dom = document.createElement("div");
+    dom.className = "cm-write-with-me-panel";
+    
+    if (loading) {
+      dom.textContent = "Getting suggestion...";
+    } else if (suggestion) {
+      const text = document.createElement("span");
+      text.className = "suggestion-text";
+      text.textContent = "Co-Writer: " + suggestion;
+      dom.appendChild(text);
+      
+      if (onDismiss) {
+        const dismissBtn = document.createElement("button");
+        dismissBtn.textContent = "Dismiss";
+        dismissBtn.onclick = onDismiss;
+        dom.appendChild(dismissBtn);
+      }
+    } else {
+      if (onTrigger) {
+        const triggerBtn = document.createElement("button");
+        triggerBtn.textContent = "Write With Me";
+        triggerBtn.onclick = onTrigger;
+        dom.appendChild(triggerBtn);
+      }
+    }
+    
+    return { dom, top: true };
+  };
+};
+
+export const Editor: React.FC<EditorProps> = ({ 
+  value, 
+  onChange, 
+  activeFile, 
+  onCheckStatusChange, 
+  onCursorChange,
+  writeWithMeActive = false,
+  inlineSuggestion = null,
+  inlineSuggestionLoading = false,
+  onTriggerSuggestion,
+  onDismissSuggestion
+}) => {
   const grammarLinter = useMemo(() => {
     return linter(async (view) => {
       onCheckStatusChange?.(true);
@@ -195,6 +249,13 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile, onC
       delay: 1500
     });
   }, [activeFile, onCheckStatusChange]);
+  const writeWithMeExtension = useMemo(() => {
+    if (writeWithMeActive) {
+      return showPanel.of(createWriteWithMePanel(onTriggerSuggestion, inlineSuggestionLoading, inlineSuggestion, onDismissSuggestion));
+    }
+    return [];
+  }, [writeWithMeActive, onTriggerSuggestion, inlineSuggestionLoading, inlineSuggestion, onDismissSuggestion]);
+
   const editorRef = useRef<any>(null);
   const [diagnostics, setDiagnosticsList] = useState<{ line: number; severity: string }[]>([]);
   const [totalLines, setTotalLines] = useState<number>(1);
@@ -381,6 +442,7 @@ export const Editor: React.FC<EditorProps> = ({ value, onChange, activeFile, onC
             EditorView.lineWrapping,
             grammarLinter,
             markdownStyleLinter,
+            writeWithMeExtension,
             EditorView.updateListener.of((update) => {
               if (update.selectionSet || update.docChanged) {
                 onCursorChange?.(update.state.selection.main.head);

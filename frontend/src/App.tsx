@@ -10,7 +10,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { MarkdownGuideModal } from './components/MarkdownGuideModal';
 import { GitDiffModal } from './components/GitDiffModal';
 import { AboutModal } from './components/AboutModal';
-import { AiPanel } from './components/AiPanel';
+import { AiPanel, type Persona } from './components/AiPanel';
 import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { formatMarkdown } from './utils/markdownLinter';
 
@@ -65,6 +65,10 @@ function App() {
     const saved = localStorage.getItem('marginalia_ai_panel_open');
     return saved === 'true';
   });
+  const [selectedPersona, setSelectedPersona] = useState<Persona>('developmental');
+  const [inlineSuggestion, setInlineSuggestion] = useState<string | null>(null);
+  const [inlineSuggestionLoading, setInlineSuggestionLoading] = useState(false);
+  const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
 
   useEffect(() => {
     localStorage.setItem('marginalia_ai_panel_open', String(aiPanelOpen));
@@ -411,6 +415,42 @@ function App() {
       });
     }
     return true;
+  };
+
+  const triggerInlineSuggestion = async () => {
+    if (!activeFile || inlineSuggestionLoading) return;
+    setInlineSuggestionLoading(true);
+    setInlineSuggestion(null);
+    try {
+      const payload: { path: string; persona: string; contextFiles?: string[] } = {
+        path: activeFile,
+        persona: 'write-with-me'
+      };
+      if (selectedContextFiles.length > 0) {
+        payload.contextFiles = selectedContextFiles;
+      }
+      
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to get suggestion');
+      
+      const feedback = data.feedback || '';
+      const cleanFeedback = feedback.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
+      setInlineSuggestion(cleanFeedback);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to get suggestion: ' + (err as Error).message);
+    } finally {
+      setInlineSuggestionLoading(false);
+    }
+  };
+
+  const dismissInlineSuggestion = () => {
+    setInlineSuggestion(null);
   };
 
   const handleFormatDocument = () => {
@@ -930,6 +970,11 @@ function App() {
               activeFile={activeFile}
               onCheckStatusChange={setCheckingGrammar}
               onCursorChange={setCursorOffset}
+              writeWithMeActive={selectedPersona === 'write-with-me'}
+              inlineSuggestion={inlineSuggestion}
+              inlineSuggestionLoading={inlineSuggestionLoading}
+              onTriggerSuggestion={triggerInlineSuggestion}
+              onDismissSuggestion={dismissInlineSuggestion}
             />
             {previewOpen && activeFile && (
               <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />
@@ -940,6 +985,10 @@ function App() {
                 editorValue={editorValue}
                 files={files}
                 onApplyChange={handleApplyChange}
+                selectedPersona={selectedPersona}
+                onPersonaChange={setSelectedPersona}
+                selectedContextFiles={selectedContextFiles}
+                onSelectedContextFilesChange={setSelectedContextFiles}
               />
             )}
           </div>

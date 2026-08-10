@@ -17,14 +17,18 @@ interface ChatMessage {
   }[];
 }
 
+export type Persona = 'developmental' | 'line' | 'copy' | 'proofreader' | 'write-with-me';
+
 interface AiPanelProps {
   activeFile: string | null;
   editorValue: string;
   files: string[];
   onApplyChange: (original: string, replacement: string) => boolean;
+  selectedPersona: Persona;
+  onPersonaChange: (persona: Persona) => void;
+  selectedContextFiles: string[];
+  onSelectedContextFilesChange: (files: string[]) => void;
 }
-
-type Persona = 'developmental' | 'line' | 'copy' | 'proofreader';
 
 interface PersonaInfo {
   id: Persona;
@@ -57,6 +61,12 @@ const PERSONAS: PersonaInfo[] = [
     title: 'Proofreader',
     focus: 'Typos, final passes, spaces',
     description: 'Locates missing commas, formatting typos, duplicate words, or minor layout bugs.'
+  },
+  {
+    id: 'write-with-me',
+    title: 'Write With Me',
+    focus: 'Sentence-by-sentence guidance',
+    description: 'Guides you through writing your draft by suggesting what to focus on next, sentence by sentence, using outlines and context if provided.'
   }
 ];
 
@@ -155,14 +165,21 @@ const ContextTreeNode: React.FC<ContextTreeNodeProps> = ({
   );
 };
 
-export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files, onApplyChange }) => {
-  const [selectedPersona, setSelectedPersona] = useState<Persona>('developmental');
+export const AiPanel: React.FC<AiPanelProps> = ({ 
+  activeFile, 
+  editorValue, 
+  files, 
+  onApplyChange,
+  selectedPersona,
+  onPersonaChange,
+  selectedContextFiles,
+  onSelectedContextFilesChange
+}) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
   const [showContextSelector, setShowContextSelector] = useState(false);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
 
@@ -179,13 +196,11 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
   };
 
   const handleToggleFile = (path: string) => {
-    setSelectedContextFiles(prev => {
-      if (prev.includes(path)) {
-        return prev.filter(x => x !== path);
-      } else {
-        return [...prev, path];
-      }
-    });
+    if (selectedContextFiles.includes(path)) {
+      onSelectedContextFilesChange(selectedContextFiles.filter(x => x !== path));
+    } else {
+      onSelectedContextFilesChange([...selectedContextFiles, path]);
+    }
   };
   
   const saveToCache = async (msgs: ChatMessage[]) => {
@@ -232,7 +247,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
   useEffect(() => {
     setMessages([]);
     setError(null);
-    setSelectedContextFiles([]);
+    onSelectedContextFilesChange([]);
     setExpandedDirs(new Set());
     if (activeFile) {
       loadFromCache();
@@ -241,7 +256,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
 
   // Load cache when changing editor personas
   useEffect(() => {
-    setSelectedContextFiles([]);
+    onSelectedContextFilesChange([]);
     setExpandedDirs(new Set());
     if (activeFile) {
       loadFromCache();
@@ -297,7 +312,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
         path: activeFile,
         persona: selectedPersona
       };
-      if (selectedPersona === 'developmental' && selectedContextFiles.length > 0) {
+      if ((selectedPersona === 'developmental' || selectedPersona === 'write-with-me') && selectedContextFiles.length > 0) {
         payload.contextFiles = selectedContextFiles;
       }
 
@@ -424,7 +439,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
                   <button
                     key={persona.id}
                     type="button"
-                    onClick={() => setSelectedPersona(persona.id)}
+                    onClick={() => onPersonaChange(persona.id)}
                     className={`persona-btn ${selectedPersona === persona.id ? 'active' : ''}`}
                   >
                     {persona.title}
@@ -437,7 +452,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({ activeFile, editorValue, files
               </div>
             </div>
 
-            {selectedPersona === 'developmental' && files.length > 1 && (() => {
+            {(selectedPersona === 'developmental' || selectedPersona === 'write-with-me') && files.length > 1 && (() => {
               const isHidden = (p: string) => p.split('/').some(part => part.startsWith('.'));
               const visibleFiles = files.filter(f => !isHidden(f));
               const tree = buildFileTree(visibleFiles);

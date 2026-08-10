@@ -904,6 +904,9 @@ app.post('/api/ai/analyze', async (req, res) => {
       case 'proofreader':
         systemInstruction = 'You are a professional Proofreader. Analyze the chapter draft. Perform a final pass on the text, checking for remaining typos, formatting bugs, missing punctuation, double spaces, and minor slip-ups. List the errors found and how to fix them.';
         break;
+      case 'write-with-me':
+        systemInstruction = 'You are a collaborative co-writing partner. Analyze the chapter draft so far. Engage in a dialogue with the writer. Do NOT write the text for them. Instead, analyze what has been written (including any inline comments they wrote to you) and suggest what the next sentence or detail should focus on, or ask a guiding question. Keep your response conversational, friendly, and brief (1-2 sentences). If additional context files (outlines, beatsheets, worldbuilding) are provided, use them to keep the story aligned.';
+        break;
       default:
         return res.status(400).json({ error: `Invalid editor persona: ${persona}` });
     }
@@ -930,7 +933,7 @@ Ensure the text in the original block matches the chapter draft EXACTLY, word-fo
 CRITICAL CONSTRAINT: You must only propose text replacements (using search/replace blocks) for the primary chapter draft you are reviewing. NEVER suggest edits targeting the background context files. You do not have permission to suggest modifications to context files.`;
 
     const fileContent = await fs.readFile(safePath, 'utf-8');
-    const cleanContent = fileContent.replace(/<!--[\s\S]*?-->/g, '');
+    const cleanContent = persona === 'write-with-me' ? fileContent : fileContent.replace(/<!--[\s\S]*?-->/g, '');
     if (!cleanContent.trim()) {
       return res.json({ feedback: 'This file is empty. Write some text before calling the AI Editor!' });
     }
@@ -949,7 +952,7 @@ CRITICAL CONSTRAINT: You must only propose text replacements (using search/repla
             const allFiles = await getMarkdownFilesRecursively(cSafePath, targetDir);
             for (const subFile of allFiles) {
               const subContent = await fs.readFile(subFile, 'utf-8');
-              const cleanSub = subContent.replace(/<!--[\s\S]*?-->/g, '');
+              const cleanSub = persona === 'write-with-me' ? subContent : subContent.replace(/<!--[\s\S]*?-->/g, '');
               if (cleanSub.trim().length > 0) {
                 const relativePath = path.relative(targetDir, subFile);
                 contextString += `\n--- Context File: ${relativePath} ---\n${cleanSub}\n`;
@@ -957,7 +960,7 @@ CRITICAL CONSTRAINT: You must only propose text replacements (using search/repla
             }
           } else {
             const cContent = await fs.readFile(cSafePath, 'utf-8');
-            const cleanCContent = cContent.replace(/<!--[\s\S]*?-->/g, '');
+            const cleanCContent = persona === 'write-with-me' ? cContent : cContent.replace(/<!--[\s\S]*?-->/g, '');
             if (cleanCContent.trim().length > 0) {
               contextString += `\n--- Context File: ${cFile} ---\n${cleanCContent}\n`;
             }
