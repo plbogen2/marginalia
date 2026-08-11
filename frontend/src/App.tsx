@@ -479,8 +479,15 @@ function App() {
   const fetchFiles = async () => {
     try {
       const res = await fetch('/api/files');
-      if (!res.ok) throw new Error('Failed to fetch files');
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
       if (Array.isArray(data)) {
         setFiles(data);
       } else {
@@ -495,8 +502,15 @@ function App() {
   const fetchGitStatus = async () => {
     try {
       const res = await fetch('/api/git/status');
-      if (!res.ok) throw new Error('Failed to fetch git status');
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
       setGitStatus(data.status || '');
       setHasRemote(!!data.hasRemote);
       setGitAhead(data.ahead || 0);
@@ -513,8 +527,15 @@ function App() {
   const fetchGitBranch = async () => {
     try {
       const res = await fetch('/api/git/branch');
-      if (!res.ok) throw new Error('Failed to fetch git branch');
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
       setGitBranch(data.branch || '');
     } catch (err) {
       console.error('Failed to fetch git branch:', err);
