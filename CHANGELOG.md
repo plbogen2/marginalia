@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.6.0 (August 2026)
+- feat: support selected text as context in write-with-me co-writer
+
 ## v1.5.1 (August 2026)
 - fix: auto-trigger suggestion on empty cache and fix write-with-me button styling/icons
 
