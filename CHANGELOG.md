@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4.5 (August 2026)
+- Propagate VFS mount error to OAuth login failure in app.ts
+
 ## v1.4.4 (August 2026)
 - Throw error on VFS mount failure to avoid silent failures
 
