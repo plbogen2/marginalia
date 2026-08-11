@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4.4 (August 2026)
+- Throw error on VFS mount failure to avoid silent failures
+
 ## v1.4.3 (August 2026)
 - Report detailed errors in frontend fetch helpers
 
