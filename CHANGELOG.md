@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.5.0 (August 2026)
+- feat: add write-with-me co-writer dialogue mode and header trigger
+
 ## v1.4.10 (August 2026)
 - fix: update service worker to use Network-First for HTML to prevent stale cache
 
