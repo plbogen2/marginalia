@@ -1395,12 +1395,8 @@ app.get('/api/auth/github/callback', async (req, res) => {
       }
     }
 
-    try {
-      const vfsSecret = crypto.createHash('sha256').update(`${githubUser}:${secret}`).digest('hex');
-      await mountUserVfs(githubUser, vfsSecret);
-    } catch (vfsErr) {
-      console.warn(`Failed to mount VFS for ${githubUser} during OAuth login:`, vfsErr);
-    }
+    const vfsSecret = crypto.createHash('sha256').update(`${githubUser}:${secret}`).digest('hex');
+    await mountUserVfs(githubUser, vfsSecret);
 
     const sessionToken = createSessionToken(githubUser, secret, accessToken);
     const isSecureReq = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
