@@ -11,7 +11,8 @@ import { MarkdownGuideModal } from './components/MarkdownGuideModal';
 import { GitDiffModal } from './components/GitDiffModal';
 import { AboutModal } from './components/AboutModal';
 import { AiPanel, type Persona } from './components/AiPanel';
-import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import { type ChatMessage, parseMessage } from './utils/aiParser';
+import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX, PenTool } from 'lucide-react';
 import { formatMarkdown } from './utils/markdownLinter';
 
 function App() {
@@ -66,13 +67,51 @@ function App() {
     return saved === 'true';
   });
   const [selectedPersona, setSelectedPersona] = useState<Persona>('developmental');
-  const [inlineSuggestion, setInlineSuggestion] = useState<string | null>(null);
-  const [inlineSuggestionLoading, setInlineSuggestionLoading] = useState(false);
+  const [writeWithMeLoading, setWriteWithMeLoading] = useState(false);
+  const [writeWithMeActive, setWriteWithMeActive] = useState(false);
+  const [writeWithMeMessages, setWriteWithMeMessages] = useState<ChatMessage[]>([]);
   const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
 
   useEffect(() => {
     localStorage.setItem('marginalia_ai_panel_open', String(aiPanelOpen));
   }, [aiPanelOpen]);
+  const saveWriteWithMeCache = async (msgs: ChatMessage[]) => {
+    if (!activeFile) return;
+    try {
+      await fetch('/api/ai/cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: activeFile,
+          persona: 'write-with-me',
+          messages: msgs
+        })
+      });
+    } catch (err) {
+      console.error('Failed to save Write With Me cache:', err);
+    }
+  };
+
+  const loadWriteWithMeCache = async (file: string) => {
+    try {
+      const res = await fetch(`/api/ai/cache?path=${encodeURIComponent(file)}&persona=write-with-me`);
+      if (res.ok) {
+        const data = await res.json();
+        setWriteWithMeMessages(data.messages || []);
+      }
+    } catch (err) {
+      console.error('Failed to load Write With Me cache:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (writeWithMeActive && activeFile) {
+      loadWriteWithMeCache(activeFile);
+    } else {
+      setWriteWithMeMessages([]);
+    }
+  }, [writeWithMeActive, activeFile]);
+
 
   const [authInfo, setAuthInfo] = useState<{ loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null>(null);
 
@@ -417,19 +456,51 @@ function App() {
     return true;
   };
 
-  const triggerInlineSuggestion = async () => {
-    if (!activeFile || inlineSuggestionLoading) return;
-    setInlineSuggestionLoading(true);
-    setInlineSuggestion(null);
+  const triggerInlineSuggestion = async (userMessage?: string) => {
+    if (!activeFile || writeWithMeLoading) return;
+    setWriteWithMeLoading(true);
     try {
-      const payload: { path: string; persona: string; contextFiles?: string[] } = {
+      let nextHistory = [...writeWithMeMessages];
+
+      if (userMessage) {
+        const userMsg: ChatMessage = {
+          id: `msg-user-${Date.now()}`,
+          role: 'user',
+          content: userMessage,
+          rawContent: userMessage,
+          suggestions: []
+        };
+        nextHistory = [...writeWithMeMessages, userMsg];
+        setWriteWithMeMessages(nextHistory);
+        await saveWriteWithMeCache(nextHistory);
+      }
+
+      const payload: {
+        path: string;
+        persona: string;
+        contextFiles?: string[];
+        message?: string;
+        history?: { role: 'user' | 'model'; content: string }[];
+      } = {
         path: activeFile,
         persona: 'write-with-me'
       };
+
       if (selectedContextFiles.length > 0) {
         payload.contextFiles = selectedContextFiles;
       }
-      
+
+      if (nextHistory.length > 0) {
+        payload.history = nextHistory.map(m => ({
+          role: m.role,
+          content: m.rawContent
+        }));
+        if (userMessage) {
+          payload.message = userMessage;
+          payload.history = payload.history.slice(0, -1);
+        }
+      }
+
       const res = await fetch('/api/ai/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -437,20 +508,23 @@ function App() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to get suggestion');
+
+      const modelId = `msg-model-${Date.now()}`;
+      const parsed = parseMessage(data.feedback || '', modelId);
       
-      const feedback = data.feedback || '';
-      const cleanFeedback = feedback.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
-      setInlineSuggestion(cleanFeedback);
+      const finalHistory = [...nextHistory, parsed];
+      setWriteWithMeMessages(finalHistory);
+      await saveWriteWithMeCache(finalHistory);
     } catch (err) {
       console.error(err);
       alert('Failed to get suggestion: ' + (err as Error).message);
     } finally {
-      setInlineSuggestionLoading(false);
+      setWriteWithMeLoading(false);
     }
   };
 
-  const dismissInlineSuggestion = () => {
-    setInlineSuggestion(null);
+  const deactivateWriteWithMe = () => {
+    setWriteWithMeActive(false);
   };
 
   const handleFormatDocument = () => {
@@ -980,14 +1054,24 @@ function App() {
                   {previewOpen ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
                 {hasGemini && (
-                  <button
-                    type="button"
-                    className={`ai-toggle-btn ${aiPanelOpen ? 'active' : ''}`}
-                    onClick={() => setAiPanelOpen(!aiPanelOpen)}
-                    title={aiPanelOpen ? "Hide AI Editor Panel" : "Show AI Editor Panel"}
-                  >
-                    <Sparkles size={14} />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className={`write-with-me-btn ${writeWithMeActive ? 'active' : ''}`}
+                      onClick={() => setWriteWithMeActive(!writeWithMeActive)}
+                      title={writeWithMeActive ? "Exit Co-Writer Mode" : "Start Co-Writer Mode"}
+                    >
+                      <PenTool size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className={`ai-toggle-btn ${aiPanelOpen ? 'active' : ''}`}
+                      onClick={() => setAiPanelOpen(!aiPanelOpen)}
+                      title={aiPanelOpen ? "Hide AI Editor Panel" : "Show AI Editor Panel"}
+                    >
+                      <Sparkles size={14} />
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -999,11 +1083,11 @@ function App() {
               activeFile={activeFile}
               onCheckStatusChange={setCheckingGrammar}
               onCursorChange={setCursorOffset}
-              writeWithMeActive={selectedPersona === 'write-with-me'}
-              inlineSuggestion={inlineSuggestion}
-              inlineSuggestionLoading={inlineSuggestionLoading}
+              writeWithMeActive={writeWithMeActive}
+              writeWithMeMessages={writeWithMeMessages}
+              writeWithMeLoading={writeWithMeLoading}
               onTriggerSuggestion={triggerInlineSuggestion}
-              onDismissSuggestion={dismissInlineSuggestion}
+              onDismissSuggestion={deactivateWriteWithMe}
             />
             {previewOpen && activeFile && (
               <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />

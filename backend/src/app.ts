@@ -975,20 +975,23 @@ CRITICAL CONSTRAINT: You must only propose text replacements (using search/repla
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ 
-      model: cleanModelName,
-      systemInstruction: systemInstruction
-    });
-
     if (history && history.length > 0) {
+      const model = genAI.getGenerativeModel({ 
+        model: cleanModelName,
+        systemInstruction: systemInstruction + `\n\n--- CURRENT CHAPTER DRAFT ---\n${cleanContent}\n${contextString}`
+      });
       const formattedHistory = history.map(h => ({
         role: h.role === 'user' ? 'user' : 'model',
         parts: [{ text: h.content }]
       }));
       const chat = model.startChat({ history: formattedHistory });
-      const result = await chat.sendMessage(message || '');
+      const result = await chat.sendMessage(message || 'Suggest next');
       res.json({ feedback: result.response.text() });
     } else {
+      const model = genAI.getGenerativeModel({ 
+        model: cleanModelName,
+        systemInstruction: systemInstruction
+      });
       const prompt = `Please analyze this chapter draft:\n\n${cleanContent}${contextString}`;
       const result = await model.generateContent(prompt);
       res.json({ feedback: result.response.text() });

@@ -3,21 +3,9 @@ import { Send, ChevronDown, ChevronRight, Check, AlertCircle, Folder, FolderOpen
 import { marked } from 'marked';
 import { buildFileTree, type FileNode } from '../utils/treeBuilder';
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'model';
-  content: string; // display markdown content
-  rawContent: string; // original raw string
-  thinking?: string;
-  suggestions: {
-    id: string;
-    original: string;
-    replacement: string;
-    applied: boolean;
-  }[];
-}
+import { type ChatMessage, parseMessage } from '../utils/aiParser';
 
-export type Persona = 'developmental' | 'line' | 'copy' | 'proofreader' | 'write-with-me';
+export type Persona = 'developmental' | 'line' | 'copy' | 'proofreader';
 
 interface AiPanelProps {
   activeFile: string | null;
@@ -62,12 +50,6 @@ const PERSONAS: PersonaInfo[] = [
     focus: 'Typos, final passes, spaces',
     description: 'Locates missing commas, formatting typos, duplicate words, or minor layout bugs.'
   },
-  {
-    id: 'write-with-me',
-    title: 'Write With Me',
-    focus: 'Sentence-by-sentence guidance',
-    description: 'Guides you through writing your draft by suggesting what to focus on next, sentence by sentence, using outlines and context if provided.'
-  }
 ];
 
 interface ContextTreeNodeProps {
@@ -263,43 +245,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({
     }
   }, [selectedPersona, activeFile]);
 
-  const parseMessage = (rawText: string, msgId: string): ChatMessage => {
-    let displayContent = rawText;
-    let thinking: string | undefined;
 
-    // 1. Extract thinking tag content
-    const thinkingMatch = displayContent.match(/<thinking>([\s\S]*?)<\/thinking>/i);
-    if (thinkingMatch) {
-      thinking = thinkingMatch[1].trim();
-      displayContent = displayContent.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
-    }
-
-    // 2. Extract search/replace diff blocks
-    const suggestions: ChatMessage['suggestions'] = [];
-    const blockRegex = /<<<<\n([\s\S]*?)\n====\n([\s\S]*?)\n>>>>/g;
-    let match;
-    let index = 0;
-    while ((match = blockRegex.exec(displayContent)) !== null) {
-      suggestions.push({
-        id: `${msgId}-suggest-${index++}`,
-        original: match[1],
-        replacement: match[2],
-        applied: false
-      });
-    }
-
-    // Strip suggestions from display markdown
-    displayContent = displayContent.replace(/<<<<\n[\s\S]*?\n====\n[\s\S]*?\n>>>>/g, '').trim();
-
-    return {
-      id: msgId,
-      role: 'model',
-      content: displayContent,
-      rawContent: rawText,
-      thinking,
-      suggestions
-    };
-  };
 
   const handleAnalyze = async () => {
     if (!activeFile) return;
@@ -312,7 +258,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({
         path: activeFile,
         persona: selectedPersona
       };
-      if ((selectedPersona === 'developmental' || selectedPersona === 'write-with-me') && selectedContextFiles.length > 0) {
+      if (selectedPersona === 'developmental' && selectedContextFiles.length > 0) {
         payload.contextFiles = selectedContextFiles;
       }
 
@@ -452,7 +398,7 @@ export const AiPanel: React.FC<AiPanelProps> = ({
               </div>
             </div>
 
-            {(selectedPersona === 'developmental' || selectedPersona === 'write-with-me') && files.length > 1 && (() => {
+            {selectedPersona === 'developmental' && files.length > 1 && (() => {
               const isHidden = (p: string) => p.split('/').some(part => part.startsWith('.'));
               const visibleFiles = files.filter(f => !isHidden(f));
               const tree = buildFileTree(visibleFiles);

@@ -3170,35 +3170,155 @@ kbd {
   border-bottom: 1px solid $border-color;
   padding: $spacing-sm $spacing-md;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: $spacing-md;
+  flex-direction: column;
+  align-items: stretch;
+  gap: $spacing-sm;
   font-family: $font-sans;
-  font-size: $font-lg;
   color: $text-color;
+  max-height: 250px;
 
-  .suggestion-text {
-    flex: 1;
-    font-style: italic;
-    color: $gold-color;
+  .write-with-me-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: $spacing-sm;
   }
 
-  button {
-    background-color: $accent-color;
-    color: $text-light;
-    border: none;
-    padding: $spacing-xs $spacing-sm;
-    border-radius: $radius-sm;
-    cursor: pointer;
-    font-size: $font-sm;
-    transition: background-color $transition-instant;
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba($border-color, 0.5);
+    padding-bottom: $spacing-xs;
 
-    &:hover {
-      background-color: $accent-hover;
+    .panel-title {
+      font-size: $font-sm;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: $text-muted;
     }
 
-    &:active {
-      background-color: $accent-active;
+    .close-btn {
+      background: none;
+      border: none;
+      color: $text-muted;
+      cursor: pointer;
+      font-size: $font-md;
+      padding: 0;
+      line-height: 1;
+
+      &:hover {
+        color: $text-color;
+      }
+    }
+  }
+
+  .messages-list {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 150px;
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-xs;
+    padding: $spacing-xs 0;
+
+    .empty-message {
+      color: $text-muted;
+      font-style: italic;
+      font-size: $font-sm;
+      text-align: center;
+      padding: $spacing-md;
+    }
+
+    .message-row {
+      display: flex;
+      margin: 2px 0;
+
+      &.user {
+        justify-content: flex-end;
+        .message-bubble {
+          background-color: rgba($accent-color, 0.15);
+          border-color: rgba($accent-color, 0.3);
+          color: $text-color;
+        }
+      }
+
+      &.model {
+        justify-content: flex-start;
+        .message-bubble {
+          background-color: rgba($gold-color, 0.08);
+          border-color: rgba($gold-color, 0.2);
+          color: $text-color;
+        }
+        
+        &.loading {
+          .message-bubble {
+            color: $text-muted;
+            font-style: italic;
+          }
+        }
+      }
+
+      .message-bubble {
+        max-width: 85%;
+        padding: $spacing-xs $spacing-sm;
+        border-radius: $radius-md;
+        border: 1px solid transparent;
+        font-size: $font-md;
+        line-height: 1.4;
+
+        .sender {
+          font-weight: bold;
+          font-size: $font-xs;
+          display: block;
+          margin-bottom: 2px;
+          color: $text-muted;
+        }
+      }
+    }
+  }
+
+  .input-row {
+    display: flex;
+    gap: $spacing-sm;
+    align-items: center;
+
+    input {
+      flex: 1;
+      background-color: $bg-main;
+      border: 1px solid $border-color;
+      color: $text-color;
+      padding: $spacing-xs $spacing-sm;
+      border-radius: $radius-sm;
+      font-size: $font-md;
+
+      &:focus {
+        outline: none;
+        border-color: $accent-color;
+      }
+    }
+
+    button {
+      background-color: $accent-color;
+      color: $text-light;
+      border: none;
+      padding: $spacing-xs $spacing-md;
+      border-radius: $radius-sm;
+      cursor: pointer;
+      font-size: $font-sm;
+      font-weight: bold;
+      transition: background-color $transition-instant;
+
+      &:hover {
+        background-color: $accent-hover;
+      }
+
+      &:disabled {
+        background-color: $border-color;
+        color: $text-muted;
+        cursor: not-allowed;
+      }
     }
   }
 }

@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
-import { showPanel, type Panel } from '@codemirror/view';
+import { showPanel } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { linter, type Diagnostic, forEachDiagnostic, setDiagnostics, setDiagnosticsEffect } from '@codemirror/lint';
 import { checkGrammar } from '../utils/languagetool';
 import { lintMarkdown } from '../utils/markdownLinter';
 import { Copy, Scissors, Clipboard, EyeOff } from 'lucide-react';
+
+import { type ChatMessage } from '../utils/aiParser';
 
 interface EditorProps {
   value: string;
@@ -14,9 +17,9 @@ interface EditorProps {
   onCheckStatusChange?: (checking: boolean) => void;
   onCursorChange?: (offset: number) => void;
   writeWithMeActive?: boolean;
-  inlineSuggestion?: string | null;
-  inlineSuggestionLoading?: boolean;
-  onTriggerSuggestion?: () => void;
+  writeWithMeMessages?: ChatMessage[];
+  writeWithMeLoading?: boolean;
+  onTriggerSuggestion?: (userMessage?: string) => void;
   onDismissSuggestion?: () => void;
 }
 
@@ -25,41 +28,74 @@ const markdownStyleLinter = linter(async (view) => {
   return await lintMarkdown(text);
 });
 
-const createWriteWithMePanel = (
-  onTrigger: (() => void) | undefined,
-  loading: boolean,
-  suggestion: string | null,
-  onDismiss: (() => void) | undefined
-) => {
-  return (_view: EditorView): Panel => {
-    const dom = document.createElement("div");
-    dom.className = "cm-write-with-me-panel";
-    
-    if (loading) {
-      dom.textContent = "Getting suggestion...";
-    } else if (suggestion) {
-      const text = document.createElement("span");
-      text.className = "suggestion-text";
-      text.textContent = "Co-Writer: " + suggestion;
-      dom.appendChild(text);
-      
-      if (onDismiss) {
-        const dismissBtn = document.createElement("button");
-        dismissBtn.textContent = "Dismiss";
-        dismissBtn.onclick = onDismiss;
-        dom.appendChild(dismissBtn);
-      }
-    } else {
-      if (onTrigger) {
-        const triggerBtn = document.createElement("button");
-        triggerBtn.textContent = "Write With Me";
-        triggerBtn.onclick = onTrigger;
-        dom.appendChild(triggerBtn);
-      }
-    }
-    
-    return { dom, top: true };
+const WriteWithMePanelInner: React.FC<{
+  messages: ChatMessage[];
+  loading: boolean;
+  onSendMessage?: (msg: string) => void;
+  onClose?: () => void;
+}> = ({ messages, loading, onSendMessage, onClose }) => {
+  const [input, setInput] = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || loading) return;
+    onSendMessage?.(input.trim());
+    setInput('');
   };
+
+  const displayMessages = messages.filter(m => m.role === 'user' || m.role === 'model');
+
+  return (
+    <div className="write-with-me-inner">
+      <div className="panel-header">
+        <span className="panel-title">Co-Writer Mode</span>
+        <button type="button" className="close-btn" onClick={onClose} title="Exit Co-Writer Mode">
+          ✕
+        </button>
+      </div>
+      
+      <div className="messages-list">
+        {displayMessages.length === 0 ? (
+          <div className="empty-message">Type a message or start writing to get feedback.</div>
+        ) : (
+          displayMessages.map((msg) => (
+            <div key={msg.id} className={`message-row ${msg.role}`}>
+              <div className="message-bubble">
+                <span className="sender">{msg.role === 'model' ? 'Co-Writer' : 'You'}: </span>
+                <span className="content">{msg.content}</span>
+              </div>
+            </div>
+          ))
+        )}
+        {loading && (
+          <div className="message-row model loading">
+            <div className="message-bubble">
+              <span>Co-Writer is thinking...</span>
+            </div>
+          </div>
+        )}
+        <div ref={chatEndRef} />
+      </div>
+
+      <form onSubmit={handleSubmit} className="input-row">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Respond to the co-writer..."
+          disabled={loading}
+        />
+        <button type="submit" disabled={loading || !input.trim()}>
+          Send
+        </button>
+      </form>
+    </div>
+  );
 };
 
 export const Editor: React.FC<EditorProps> = ({ 
@@ -69,11 +105,12 @@ export const Editor: React.FC<EditorProps> = ({
   onCheckStatusChange, 
   onCursorChange,
   writeWithMeActive = false,
-  inlineSuggestion = null,
-  inlineSuggestionLoading = false,
+  writeWithMeMessages = [],
+  writeWithMeLoading = false,
   onTriggerSuggestion,
   onDismissSuggestion
 }) => {
+  const [panelContainer] = useState(() => document.createElement("div"));
   const grammarLinter = useMemo(() => {
     return linter(async (view) => {
       onCheckStatusChange?.(true);
@@ -251,10 +288,13 @@ export const Editor: React.FC<EditorProps> = ({
   }, [activeFile, onCheckStatusChange]);
   const writeWithMeExtension = useMemo(() => {
     if (writeWithMeActive) {
-      return showPanel.of(createWriteWithMePanel(onTriggerSuggestion, inlineSuggestionLoading, inlineSuggestion, onDismissSuggestion));
+      return showPanel.of((_view) => {
+        panelContainer.className = "cm-write-with-me-panel";
+        return { dom: panelContainer, top: true };
+      });
     }
     return [];
-  }, [writeWithMeActive, onTriggerSuggestion, inlineSuggestionLoading, inlineSuggestion, onDismissSuggestion]);
+  }, [writeWithMeActive, panelContainer]);
 
   const editorRef = useRef<any>(null);
   const [diagnostics, setDiagnosticsList] = useState<{ line: number; severity: string }[]>([]);
@@ -428,6 +468,15 @@ export const Editor: React.FC<EditorProps> = ({
 
   return (
     <div className="editor-container">
+      {writeWithMeActive && createPortal(
+        <WriteWithMePanelInner
+          messages={writeWithMeMessages}
+          loading={writeWithMeLoading}
+          onSendMessage={onTriggerSuggestion}
+          onClose={onDismissSuggestion}
+        />,
+        panelContainer
+      )}
       <div className="editor-cm-wrapper" onContextMenu={handleContextMenu}>
         <CodeMirror
           onCreateEditor={(view) => {
@@ -446,6 +495,22 @@ export const Editor: React.FC<EditorProps> = ({
             EditorView.updateListener.of((update) => {
               if (update.selectionSet || update.docChanged) {
                 onCursorChange?.(update.state.selection.main.head);
+              }
+              if (update.docChanged && writeWithMeActive) {
+                update.changes.iterChanges((_fromA, _toA, fromB, _toB, text) => {
+                  const inserted = text.toString();
+                  const endsWithSentence = /[.!?]\s+$/.test(inserted);
+                  let typedSpaceAfterPunctuation = false;
+                  if (inserted === ' ' || inserted === '\n' || inserted === '\r\n') {
+                    if (fromB > 0) {
+                      const prevChar = update.state.doc.sliceString(fromB - 1, fromB);
+                      typedSpaceAfterPunctuation = ['.', '?', '!'].includes(prevChar);
+                    }
+                  }
+                  if (endsWithSentence || typedSpaceAfterPunctuation) {
+                    onTriggerSuggestion?.();
+                  }
+                });
               }
               const hasDiagEffect = update.transactions.some(tr => tr.effects.some(e => e.is(setDiagnosticsEffect)));
               const linesChanged = update.state.doc.lines !== update.startState.doc.lines;
