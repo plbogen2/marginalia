@@ -3,6 +3,7 @@ import util from 'util';
 import path from 'path';
 import fs from 'fs/promises';
 import { getStorageDir } from '../config.js';
+import os from 'os';
 
 const execAsync = util.promisify(exec);
 
@@ -54,19 +55,24 @@ export async function mountUserVfs(username: string, secretKey: string): Promise
     return;
   }
 
-  // Initialize gocryptfs config if not existing
+  const passfilePath = path.join(os.tmpdir(), `vfs-${username}.pass`);
   try {
-    await fs.access(path.join(encDir, 'gocryptfs.conf'));
-  } catch {
-    await execAsync(`echo "${secretKey}" | gocryptfs -init "${encDir}"`);
-  }
+    await fs.writeFile(passfilePath, secretKey, { mode: 0o600 });
 
-  // Mount encrypted directory to user storage path
-  try {
-    await execAsync(`echo "${secretKey}" | gocryptfs -extpass cat "${encDir}" "${mountDir}"`);
+    // Initialize gocryptfs config if not existing
+    try {
+      await fs.access(path.join(encDir, 'gocryptfs.conf'));
+    } catch {
+      await execAsync(`gocryptfs -init -extpass "cat ${passfilePath}" "${encDir}"`);
+    }
+
+    // Mount encrypted directory to user storage path
+    await execAsync(`gocryptfs -extpass "cat ${passfilePath}" "${encDir}" "${mountDir}"`);
   } catch (err) {
     console.error(`Failed to mount VFS for user ${username}:`, err);
     throw new Error(`Failed to mount VFS: ${(err as Error).message}`);
+  } finally {
+    await fs.rm(passfilePath, { force: true });
   }
 }
 
