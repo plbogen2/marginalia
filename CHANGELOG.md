@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4.6 (August 2026)
+- Chain deploy workflow to run after Auto Release completes
+
 ## v1.4.5 (August 2026)
 - Propagate VFS mount error to OAuth login failure in app.ts
 
