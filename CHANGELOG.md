@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4.3 (August 2026)
+- Report detailed errors in frontend fetch helpers
+
 ## v1.4.2 (August 2026)
 - Fix GitHub Action: add write permissions and use jq
 
