@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4.10 (August 2026)
+- fix: update service worker to use Network-First for HTML to prevent stale cache
+
 ## v1.4.9 (August 2026)
 - fix: disable memfsVault auto-wipe on clone to preserve VFS files
 
