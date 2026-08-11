@@ -7,6 +7,10 @@ on:
       - completed
   workflow_dispatch:
 
+concurrency:
+  group: deploy-to-oracle-vm
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
