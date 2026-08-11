@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4.7 (August 2026)
+- Use temporary password file for gocryptfs to fix extpass empty password error
+
 ## v1.4.6 (August 2026)
 - Chain deploy workflow to run after Auto Release completes
 
