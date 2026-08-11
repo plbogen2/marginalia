@@ -7,6 +7,18 @@ import os from 'os';
 
 const execAsync = util.promisify(exec);
 
+export const deps = {
+  exec: execAsync,
+  isGocryptfsAvailable: async () => {
+    try {
+      await deps.exec('which gocryptfs');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+};
+
 export function getEncryptedStorageDir(username: string): string {
   const baseStorage = getStorageDir();
   const rootDir = path.dirname(baseStorage);
@@ -18,18 +30,13 @@ export function getUserMountDir(username: string): string {
 }
 
 export async function isGocryptfsAvailable(): Promise<boolean> {
-  try {
-    await execAsync('which gocryptfs');
-    return true;
-  } catch {
-    return false;
-  }
+  return deps.isGocryptfsAvailable();
 }
 
 export async function isVfsMounted(username: string): Promise<boolean> {
   const mountDir = getUserMountDir(username);
   try {
-    const { stdout } = await execAsync(`mountpoint -q "${mountDir}" && echo "yes" || echo "no"`);
+    const { stdout } = await deps.exec(`mountpoint -q "${mountDir}" && echo "yes" || echo "no"`);
     return stdout.trim() === 'yes';
   } catch {
     return false;
@@ -63,11 +70,11 @@ export async function mountUserVfs(username: string, secretKey: string): Promise
     try {
       await fs.access(path.join(encDir, 'gocryptfs.conf'));
     } catch {
-      await execAsync(`gocryptfs -init -extpass "cat ${passfilePath}" "${encDir}"`);
+      await deps.exec(`gocryptfs -init -extpass "cat ${passfilePath}" "${encDir}"`);
     }
 
     // Mount encrypted directory to user storage path
-    await execAsync(`gocryptfs -extpass "cat ${passfilePath}" "${encDir}" "${mountDir}"`);
+    await deps.exec(`gocryptfs -extpass "cat ${passfilePath}" "${encDir}" "${mountDir}"`);
   } catch (err) {
     console.error(`Failed to mount VFS for user ${username}:`, err);
     throw new Error(`Failed to mount VFS: ${(err as Error).message}`);
@@ -90,10 +97,10 @@ export async function unmountUserVfs(username: string): Promise<void> {
   }
 
   try {
-    await execAsync(`fusermount -u "${mountDir}"`);
+    await deps.exec(`fusermount -u "${mountDir}"`);
   } catch (err) {
     try {
-      await execAsync(`umount -l "${mountDir}"`);
+      await deps.exec(`umount -l "${mountDir}"`);
     } catch (e) {
       console.error(`Failed to unmount VFS for user ${username}:`, e);
     }
