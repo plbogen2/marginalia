@@ -40,11 +40,23 @@ jobs:
           echo "Commits:"
           echo "$COMMITS"
           
-          BUMP_TYPE="patch"
+          BUMP_TYPE="none"
           if echo "$COMMITS" | grep -q -E "^[a-f0-9]+ feat:"; then
             BUMP_TYPE="minor"
+          elif echo "$COMMITS" | grep -q -E "^[a-f0-9]+ fix:"; then
+            BUMP_TYPE="patch"
           fi
+          
           echo "Bump type: $BUMP_TYPE"
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          
+          if [ "$BUMP_TYPE" = "none" ]; then
+            echo "No release-triggering commits found (only chores/tests/docs). Skipping release."
+            echo "skip_release=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "skip_release=false" >> $GITHUB_OUTPUT
           
           IFS='.' read -r -a parts <<< "$CURRENT_VERSION"
           major="${parts[0]}"
@@ -65,6 +77,7 @@ jobs:
           git log --format="- %s" $COMMIT_RANGE > changelog_entries.tmp
 
       - name: Update Files
+        if: ${{ steps.next_version.outputs.skip_release != 'true' }}
         run: |
           NEW_VERSION="${{ steps.next_version.outputs.new_version }}"
           
@@ -90,6 +103,7 @@ jobs:
           rm temp_release.md changelog_entries.tmp
 
       - name: Commit & Push Changes
+        if: ${{ steps.next_version.outputs.skip_release != 'true' }}
         run: |
           git add backend/package.json CHANGELOG.md
           git commit -m "chore: release v${{ steps.next_version.outputs.new_version }} [skip ci]"
