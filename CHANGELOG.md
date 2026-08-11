@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4.8 (August 2026)
+- Add unit tests for mountUserVfs
+
 ## v1.4.7 (August 2026)
 - Use temporary password file for gocryptfs to fix extpass empty password error
 
