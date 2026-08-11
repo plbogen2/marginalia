@@ -71,6 +71,8 @@ function App() {
   const [writeWithMeActive, setWriteWithMeActive] = useState(false);
   const [writeWithMeMessages, setWriteWithMeMessages] = useState<ChatMessage[]>([]);
   const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
+  const [selectedText, setSelectedText] = useState<string | null>(null);
+
 
   useEffect(() => {
     localStorage.setItem('marginalia_ai_panel_open', String(aiPanelOpen));
@@ -117,6 +119,7 @@ function App() {
         contextFiles?: string[];
         message?: string;
         history?: { role: 'user' | 'model'; content: string }[];
+        selectedText?: string;
       } = {
         path: activeFile,
         persona: 'write-with-me'
@@ -124,6 +127,10 @@ function App() {
 
       if (selectedContextFiles.length > 0) {
         payload.contextFiles = selectedContextFiles;
+      }
+
+      if (selectedText) {
+        payload.selectedText = selectedText;
       }
 
       if (nextHistory.length > 0) {
@@ -157,7 +164,7 @@ function App() {
     } finally {
       setWriteWithMeLoading(false);
     }
-  }, [activeFile, writeWithMeLoading, writeWithMeMessages, selectedContextFiles, saveWriteWithMeCache]);
+  }, [activeFile, writeWithMeLoading, writeWithMeMessages, selectedContextFiles, saveWriteWithMeCache, selectedText]);
 
   const loadWriteWithMeCache = useCallback(async (file: string) => {
     try {
@@ -1089,6 +1096,7 @@ function App() {
               activeFile={activeFile}
               onCheckStatusChange={setCheckingGrammar}
               onCursorChange={setCursorOffset}
+              onSelectionChange={setSelectedText}
               writeWithMeActive={writeWithMeActive}
               writeWithMeMessages={writeWithMeMessages}
               writeWithMeLoading={writeWithMeLoading}

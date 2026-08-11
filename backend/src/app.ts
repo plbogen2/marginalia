@@ -837,12 +837,13 @@ async function getMarkdownFilesRecursively(dir: string, targetDir: string): Prom
 }
 
 app.post('/api/ai/analyze', async (req, res) => {
-  const { path: filePath, persona, message, history, contextFiles } = req.body as { 
+  const { path: filePath, persona, message, history, contextFiles, selectedText } = req.body as { 
     path: string; 
     persona: string;
     message?: string;
     history?: { role: 'user' | 'model', content: string }[];
     contextFiles?: string[];
+    selectedText?: string;
   };
   if (!filePath || !persona) {
     return res.status(400).json({ error: 'Missing path or persona parameter' });
@@ -934,6 +935,10 @@ Format your response exactly like this:
 Ensure the text in the original block matches the chapter draft EXACTLY, word-for-word, including punctuation and newlines. If you are not recommending text changes, do not write these blocks.
 
 CRITICAL CONSTRAINT: You must only propose text replacements (using search/replace blocks) for the primary chapter draft you are reviewing. NEVER suggest edits targeting the background context files. You do not have permission to suggest modifications to context files.`;
+
+    if (selectedText) {
+      systemInstruction += `\n\nCRITICAL CONTEXT: The writer has highlighted/selected the following text in the chapter draft: "${selectedText}". Focus your feedback, suggestions, or replies on this selected text.`;
+    }
 
     const fileContent = await fs.readFile(safePath, 'utf-8');
     const cleanContent = persona === 'write-with-me' ? fileContent : fileContent.replace(/<!--[\s\S]*?-->/g, '');

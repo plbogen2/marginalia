@@ -16,6 +16,7 @@ interface EditorProps {
   activeFile: string | null;
   onCheckStatusChange?: (checking: boolean) => void;
   onCursorChange?: (offset: number) => void;
+  onSelectionChange?: (selectedText: string | null) => void;
   writeWithMeActive?: boolean;
   writeWithMeMessages?: ChatMessage[];
   writeWithMeLoading?: boolean;
@@ -104,6 +105,7 @@ export const Editor: React.FC<EditorProps> = ({
   activeFile, 
   onCheckStatusChange, 
   onCursorChange,
+  onSelectionChange,
   writeWithMeActive = false,
   writeWithMeMessages = [],
   writeWithMeLoading = false,
@@ -495,6 +497,13 @@ export const Editor: React.FC<EditorProps> = ({
             EditorView.updateListener.of((update) => {
               if (update.selectionSet || update.docChanged) {
                 onCursorChange?.(update.state.selection.main.head);
+                const selection = update.state.selection.main;
+                if (!selection.empty) {
+                  const selectedText = update.state.doc.sliceString(selection.from, selection.to);
+                  onSelectionChange?.(selectedText);
+                } else {
+                  onSelectionChange?.(null);
+                }
               }
               if (update.docChanged && writeWithMeActive) {
                 update.changes.iterChanges((_fromA, _toA, fromB, _toB, text) => {
