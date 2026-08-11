@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.5.1 (August 2026)
+- fix: auto-trigger suggestion on empty cache and fix write-with-me button styling/icons
+
 ## v1.5.0 (August 2026)
 - feat: add write-with-me co-writer dialogue mode and header trigger
 
