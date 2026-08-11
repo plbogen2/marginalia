@@ -66,6 +66,7 @@ export async function mountUserVfs(username: string, secretKey: string): Promise
     await execAsync(`echo "${secretKey}" | gocryptfs -extpass cat "${encDir}" "${mountDir}"`);
   } catch (err) {
     console.error(`Failed to mount VFS for user ${username}:`, err);
+    throw new Error(`Failed to mount VFS: ${(err as Error).message}`);
   }
 }
 
