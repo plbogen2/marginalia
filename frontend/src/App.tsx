@@ -12,7 +12,7 @@ import { GitDiffModal } from './components/GitDiffModal';
 import { AboutModal } from './components/AboutModal';
 import { AiPanel, type Persona } from './components/AiPanel';
 import { type ChatMessage, parseMessage } from './utils/aiParser';
-import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX, PenTool } from 'lucide-react';
+import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX, Pen, PenOff } from 'lucide-react';
 import { formatMarkdown } from './utils/markdownLinter';
 
 function App() {
@@ -75,7 +75,7 @@ function App() {
   useEffect(() => {
     localStorage.setItem('marginalia_ai_panel_open', String(aiPanelOpen));
   }, [aiPanelOpen]);
-  const saveWriteWithMeCache = async (msgs: ChatMessage[]) => {
+  const saveWriteWithMeCache = useCallback(async (msgs: ChatMessage[]) => {
     if (!activeFile) return;
     try {
       await fetch('/api/ai/cache', {
@@ -90,19 +90,90 @@ function App() {
     } catch (err) {
       console.error('Failed to save Write With Me cache:', err);
     }
-  };
+  }, [activeFile]);
 
-  const loadWriteWithMeCache = async (file: string) => {
+  const triggerInlineSuggestion = useCallback(async (userMessage?: string, historyOverride?: ChatMessage[]) => {
+    if (!activeFile || writeWithMeLoading) return;
+    setWriteWithMeLoading(true);
+    try {
+      let nextHistory = historyOverride || [...writeWithMeMessages];
+
+      if (userMessage) {
+        const userMsg: ChatMessage = {
+          id: `msg-user-${Date.now()}`,
+          role: 'user',
+          content: userMessage,
+          rawContent: userMessage,
+          suggestions: []
+        };
+        nextHistory = [...nextHistory, userMsg];
+        setWriteWithMeMessages(nextHistory);
+        await saveWriteWithMeCache(nextHistory);
+      }
+
+      const payload: {
+        path: string;
+        persona: string;
+        contextFiles?: string[];
+        message?: string;
+        history?: { role: 'user' | 'model'; content: string }[];
+      } = {
+        path: activeFile,
+        persona: 'write-with-me'
+      };
+
+      if (selectedContextFiles.length > 0) {
+        payload.contextFiles = selectedContextFiles;
+      }
+
+      if (nextHistory.length > 0) {
+        payload.history = nextHistory.map(m => ({
+          role: m.role,
+          content: m.rawContent
+        }));
+        if (userMessage) {
+          payload.message = userMessage;
+          payload.history = payload.history.slice(0, -1);
+        }
+      }
+
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to get suggestion');
+
+      const modelId = `msg-model-${Date.now()}`;
+      const parsed = parseMessage(data.feedback || '', modelId);
+      
+      const finalHistory = [...nextHistory, parsed];
+      setWriteWithMeMessages(finalHistory);
+      await saveWriteWithMeCache(finalHistory);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to get suggestion: ' + (err as Error).message);
+    } finally {
+      setWriteWithMeLoading(false);
+    }
+  }, [activeFile, writeWithMeLoading, writeWithMeMessages, selectedContextFiles, saveWriteWithMeCache]);
+
+  const loadWriteWithMeCache = useCallback(async (file: string) => {
     try {
       const res = await fetch(`/api/ai/cache?path=${encodeURIComponent(file)}&persona=write-with-me`);
       if (res.ok) {
         const data = await res.json();
-        setWriteWithMeMessages(data.messages || []);
+        const msgs = data.messages || [];
+        setWriteWithMeMessages(msgs);
+        if (msgs.length === 0) {
+          triggerInlineSuggestion(undefined, msgs);
+        }
       }
     } catch (err) {
       console.error('Failed to load Write With Me cache:', err);
     }
-  };
+  }, [triggerInlineSuggestion]);
 
   useEffect(() => {
     if (writeWithMeActive && activeFile) {
@@ -110,7 +181,7 @@ function App() {
     } else {
       setWriteWithMeMessages([]);
     }
-  }, [writeWithMeActive, activeFile]);
+  }, [writeWithMeActive, activeFile, loadWriteWithMeCache]);
 
 
   const [authInfo, setAuthInfo] = useState<{ loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null>(null);
@@ -456,72 +527,7 @@ function App() {
     return true;
   };
 
-  const triggerInlineSuggestion = async (userMessage?: string) => {
-    if (!activeFile || writeWithMeLoading) return;
-    setWriteWithMeLoading(true);
-    try {
-      let nextHistory = [...writeWithMeMessages];
 
-      if (userMessage) {
-        const userMsg: ChatMessage = {
-          id: `msg-user-${Date.now()}`,
-          role: 'user',
-          content: userMessage,
-          rawContent: userMessage,
-          suggestions: []
-        };
-        nextHistory = [...writeWithMeMessages, userMsg];
-        setWriteWithMeMessages(nextHistory);
-        await saveWriteWithMeCache(nextHistory);
-      }
-
-      const payload: {
-        path: string;
-        persona: string;
-        contextFiles?: string[];
-        message?: string;
-        history?: { role: 'user' | 'model'; content: string }[];
-      } = {
-        path: activeFile,
-        persona: 'write-with-me'
-      };
-
-      if (selectedContextFiles.length > 0) {
-        payload.contextFiles = selectedContextFiles;
-      }
-
-      if (nextHistory.length > 0) {
-        payload.history = nextHistory.map(m => ({
-          role: m.role,
-          content: m.rawContent
-        }));
-        if (userMessage) {
-          payload.message = userMessage;
-          payload.history = payload.history.slice(0, -1);
-        }
-      }
-
-      const res = await fetch('/api/ai/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to get suggestion');
-
-      const modelId = `msg-model-${Date.now()}`;
-      const parsed = parseMessage(data.feedback || '', modelId);
-      
-      const finalHistory = [...nextHistory, parsed];
-      setWriteWithMeMessages(finalHistory);
-      await saveWriteWithMeCache(finalHistory);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to get suggestion: ' + (err as Error).message);
-    } finally {
-      setWriteWithMeLoading(false);
-    }
-  };
 
   const deactivateWriteWithMe = () => {
     setWriteWithMeActive(false);
@@ -1061,7 +1067,7 @@ function App() {
                       onClick={() => setWriteWithMeActive(!writeWithMeActive)}
                       title={writeWithMeActive ? "Exit Co-Writer Mode" : "Start Co-Writer Mode"}
                     >
-                      <PenTool size={14} />
+                      {writeWithMeActive ? <PenOff size={14} /> : <Pen size={14} />}
                     </button>
                     <button
                       type="button"
