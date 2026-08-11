@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4.9 (August 2026)
+- fix: disable memfsVault auto-wipe on clone to preserve VFS files
+
 ## v1.4.8 (August 2026)
 - Add unit tests for mountUserVfs
 
