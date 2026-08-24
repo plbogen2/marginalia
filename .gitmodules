@@ -1,0 +1,3 @@
+[submodule "parlando"]
+	path = parlando
+	url = git@github.com:plbogen2/parlando.git
