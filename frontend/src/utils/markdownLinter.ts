@@ -46,10 +46,10 @@ export const lintMarkdown = async (text: string): Promise<Diagnostic[]> => {
 
 export const formatMarkdown = (text: string): string => {
   return text.split('\n').map(line => {
-    // Trim trailing whitespace (but preserve double space line break marker)
-    if (line.endsWith(' ') && !line.endsWith('  ')) {
-      return line.trimEnd();
+    // Preserve markdown double space line break marker (exactly two trailing spaces)
+    if (line.endsWith('  ') && !line.endsWith('   ')) {
+      return line;
     }
-    return line;
+    return line.trimEnd();
   }).join('\n');
 };

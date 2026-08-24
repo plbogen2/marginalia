@@ -81,7 +81,12 @@ export const ALLOWED_SPECIAL_FILES = new Set([
 
 export function isAllowedFileType(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, '/');
-  if (normalized.includes('/.git/') || normalized.includes('/.github/')) {
+  if (
+    normalized.startsWith('.git/') ||
+    normalized.startsWith('.github/') ||
+    normalized.includes('/.git/') ||
+    normalized.includes('/.github/')
+  ) {
     return true;
   }
 
