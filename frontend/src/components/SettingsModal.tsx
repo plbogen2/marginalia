@@ -6,9 +6,10 @@ interface SettingsModalProps {
   onSave: () => void;
   onOpenAbout?: () => void;
   onOpenAdmin?: () => void;
+  isAdmin?: boolean;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, onOpenAbout, onOpenAdmin }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, onOpenAbout, onOpenAdmin, isAdmin }) => {
   const [geminiKey, setGeminiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
@@ -427,7 +428,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
                   About
                 </button>
               )}
-              {onOpenAdmin && (
+              {isAdmin && onOpenAdmin && (
                 <button
                   type="button"
                   className="btn-secondary"

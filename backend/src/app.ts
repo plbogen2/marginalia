@@ -48,6 +48,20 @@ function getAllowedUser(): string {
   }
 }
 
+function isUserAdmin(username: string | null | undefined): boolean {
+  if (!username) return false;
+  if (!isHostedModeActive()) return true;
+  const allowed = getAllowedUser();
+  const adminUsers = (process.env.ADMIN_USERS || 'plbogen,plbogen2')
+    .split(',')
+    .map(u => u.trim().toLowerCase())
+    .filter(Boolean);
+  if (allowed) {
+    adminUsers.push(allowed.toLowerCase());
+  }
+  return adminUsers.includes(username.toLowerCase());
+}
+
 function isHostedModeActive(): boolean {
   if (getGitHubClientId()) return true;
   try {
@@ -1406,7 +1420,7 @@ app.get('/api/auth/github/callback', async (req, res) => {
 
 app.get('/api/auth/status', (req, res) => {
   if (!isHostedModeActive()) {
-    return res.json({ loggedIn: true, user: 'local', isOAuthMode: false });
+    return res.json({ loggedIn: true, user: 'local', isOAuthMode: false, isAdmin: true });
   }
 
   const cookieHeader = req.headers.cookie || '';
@@ -1418,16 +1432,17 @@ app.get('/api/auth/status', (req, res) => {
   );
   const sessionToken = cookies['session_token'];
   if (!sessionToken) {
-    return res.json({ loggedIn: false, user: null, isOAuthMode: true });
+    return res.json({ loggedIn: false, user: null, isOAuthMode: true, isAdmin: false });
   }
 
   const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
   const sessionData = verifySessionToken(sessionToken, secret);
   if (!sessionData) {
-    return res.json({ loggedIn: false, user: null, isOAuthMode: true });
+    return res.json({ loggedIn: false, user: null, isOAuthMode: true, isAdmin: false });
   }
 
-  res.json({ loggedIn: true, user: sessionData.username, isOAuthMode: true });
+  const isAdmin = isUserAdmin(sessionData.username);
+  res.json({ loggedIn: true, user: sessionData.username, isOAuthMode: true, isAdmin });
 });
 
 app.post('/api/auth/logout', async (req: any, res: any) => {
@@ -1498,9 +1513,8 @@ app.post('/api/tts/synthesize', async (req: any, res: any) => {
 
 // --- ADMIN TELEMETRY & FEATURE USAGE MONITOR ---
 app.get('/api/admin/metrics', async (req: any, res: any) => {
-  const adminUser = getAllowedUser();
-  if (isHostedModeActive() && req.user && adminUser && req.user.toLowerCase() !== adminUser.toLowerCase()) {
-    return res.status(403).json({ error: 'Forbidden: Admin metrics are restricted to administrator' });
+  if (!isUserAdmin(req.user)) {
+    return res.status(403).json({ error: 'Forbidden: Admin metrics are strictly restricted to administrator logins (e.g. plbogen)' });
   }
 
   try {

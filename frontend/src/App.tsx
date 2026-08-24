@@ -193,7 +193,7 @@ function App() {
   }, [writeWithMeActive, activeFile, loadWriteWithMeCache]);
 
 
-  const [authInfo, setAuthInfo] = useState<{ loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null>(null);
+  const [authInfo, setAuthInfo] = useState<{ loggedIn: boolean, user: string | null, isOAuthMode: boolean, isAdmin?: boolean } | null>(null);
 
   const [pageFormat, setPageFormat] = useState<'paperback' | 'hardback'>(() => {
     const saved = localStorage.getItem('marginalia_page_format');
@@ -1204,6 +1204,7 @@ function App() {
           }}
           onOpenAbout={() => setAboutOpen(true)}
           onOpenAdmin={() => setAdminOpen(true)}
+          isAdmin={authInfo?.isAdmin}
         />
       )}
       {adminOpen && (
