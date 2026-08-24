@@ -318,10 +318,66 @@ function App() {
 
   // Text-to-Speech (Read Aloud)
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isTtsLoading, setIsTtsLoading] = useState(false);
   const [cursorOffset, setCursorOffset] = useState<number>(0);
   const utteranceRef = useRef<any>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const isCancelledRef = useRef<boolean>(false);
+
+  const fetchParlandoChunk = async (
+    textChunk: string,
+    voice: string,
+    pacing: string,
+    speed: number
+  ): Promise<string | null> => {
+    if (isCancelledRef.current || !textChunk.trim()) return null;
+    try {
+      const res = await fetch('/api/tts/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: textChunk, voice, pacing, speed }),
+      });
+      if (!res.ok) throw new Error('Speech synthesis request failed');
+      const data = await res.json();
+      if (isCancelledRef.current) return null;
+      return data.audio_base64 || null;
+    } catch (err) {
+      console.warn('Parlando chunk fetch failed:', err);
+      return null;
+    }
+  };
+
+  const splitIntoParagraphChunks = (text: string, maxLen: number = 300): string[] => {
+    const clean = text
+      .replace(/#+\s+/g, '')
+      .replace(/[*_`~>]/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/["'“”‘’]/g, '');
+
+    const paragraphs = clean.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    const chunks: string[] = [];
+
+    for (const para of paragraphs) {
+      if (para.length <= maxLen) {
+        chunks.push(para);
+      } else {
+        const sentences = para.match(/[^.!?]+[.!?]+|\S+/g) || [para];
+        let current = '';
+        for (const s of sentences) {
+          if ((current + ' ' + s).trim().length > maxLen && current.length > 0) {
+            chunks.push(current.trim());
+            current = s;
+          } else {
+            current = current ? `${current} ${s}` : s;
+          }
+        }
+        if (current.trim().length > 0) {
+          chunks.push(current.trim());
+        }
+      }
+    }
+    return chunks.length > 0 ? chunks : [clean];
+  };
 
   const stopSpeech = () => {
     isCancelledRef.current = true;
@@ -335,13 +391,16 @@ function App() {
     }
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
+      audioPlayerRef.current.onended = null;
+      audioPlayerRef.current.onerror = null;
       audioPlayerRef.current = null;
     }
     setIsSpeaking(false);
+    setIsTtsLoading(false);
   };
 
   const toggleReadAloud = async () => {
-    if (isSpeaking) {
+    if (isSpeaking || isTtsLoading) {
       stopSpeech();
       return;
     }
@@ -366,53 +425,68 @@ function App() {
     const ttsEngine = (localStorage.getItem('marginalia_tts_engine') as 'parlando' | 'browser') || 'parlando';
 
     if (ttsEngine === 'parlando') {
-      setIsSpeaking(true);
+      setIsTtsLoading(true);
       try {
         const voice = localStorage.getItem('marginalia_parlando_voice') || 'en-US-ChristopherNeural';
         const pacing = localStorage.getItem('marginalia_parlando_pacing') || 'normal';
         const speed = parseFloat(localStorage.getItem('marginalia_parlando_speed') || '1.0');
 
-        const res = await fetch('/api/tts/synthesize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: textToRead,
-            voice,
-            pacing,
-            speed
-          })
-        });
-
-        if (!res.ok) {
-          throw new Error('Parlando speech synthesis request failed');
+        const chunks = splitIntoParagraphChunks(textToRead, 300);
+        if (chunks.length === 0) {
+          setIsTtsLoading(false);
+          return;
         }
 
-        const data = await res.json();
-        if (isCancelledRef.current) return;
+        let currentChunkIdx = 0;
 
-        if (data.audio_base64) {
-          const audio = new Audio(data.audio_base64);
+        const playChunk = async (audioData: string) => {
+          if (isCancelledRef.current) return;
+          const audio = new Audio(audioData);
           audio.playbackRate = speed;
           audioPlayerRef.current = audio;
-          audio.onended = () => {
-            setIsSpeaking(false);
-            audioPlayerRef.current = null;
+
+          // Pre-fetch next chunk concurrently in background while current chunk plays
+          const nextIdx = currentChunkIdx + 1;
+          let nextPromise: Promise<string | null> | null = null;
+          if (nextIdx < chunks.length && !isCancelledRef.current) {
+            nextPromise = fetchParlandoChunk(chunks[nextIdx], voice, pacing, speed);
+          }
+
+          audio.onended = async () => {
+            if (isCancelledRef.current) return;
+            currentChunkIdx++;
+            if (currentChunkIdx < chunks.length) {
+              const nextAudio = nextPromise ? await nextPromise : await fetchParlandoChunk(chunks[currentChunkIdx], voice, pacing, speed);
+              if (nextAudio && !isCancelledRef.current) {
+                await playChunk(nextAudio);
+              } else {
+                stopSpeech();
+              }
+            } else {
+              stopSpeech();
+            }
           };
+
           audio.onerror = (e) => {
             console.error('Parlando audio playback error:', e);
-            setIsSpeaking(false);
-            audioPlayerRef.current = null;
+            stopSpeech();
           };
+
+          setIsTtsLoading(false);
+          setIsSpeaking(true);
           await audio.play();
+        };
+
+        // Fetch first chunk for sub-second playback start
+        const firstAudio = await fetchParlandoChunk(chunks[0], voice, pacing, speed);
+        if (firstAudio && !isCancelledRef.current) {
+          await playChunk(firstAudio);
         } else {
-          setIsSpeaking(false);
+          stopSpeech();
         }
       } catch (err) {
         console.warn('Parlando neural speech failed, falling back to local speech:', err);
-        setIsSpeaking(false);
-        if ('speechSynthesis' in window) {
-          // Speak with browser fallback
-        }
+        stopSpeech();
       }
       return;
     }
@@ -1048,6 +1122,7 @@ function App() {
         hasGemini={hasGemini}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenAbout={() => setAboutOpen(true)}
+        onOpenAdmin={() => setAdminOpen(true)}
         authInfo={authInfo}
         onLogout={handleLogout}
         onShowDiff={() => setDiffOpen(true)}
@@ -1104,11 +1179,23 @@ function App() {
                 </button>
                 <button
                   type="button"
-                  className={`read-aloud-btn ${isSpeaking ? 'active speaking' : ''}`}
+                  className={`read-aloud-btn ${isSpeaking ? 'active speaking' : ''} ${isTtsLoading ? 'loading' : ''}`}
                   onClick={toggleReadAloud}
-                  title={isSpeaking ? "Stop Read Aloud" : "Read Chapter Aloud (TTS)"}
+                  title={
+                    isTtsLoading
+                      ? "Synthesizing neural speech with Parlando... Click to cancel"
+                      : isSpeaking
+                      ? "Stop Read Aloud"
+                      : "Read Chapter Aloud (TTS)"
+                  }
                 >
-                  {isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  {isTtsLoading ? (
+                    <Loader2 size={14} className="spin-icon" />
+                  ) : isSpeaking ? (
+                    <VolumeX size={14} />
+                  ) : (
+                    <Volume2 size={14} />
+                  )}
                 </button>
                 <button
                   type="button"

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Upload, GitCommit, RefreshCw, GitBranch, Folder, Sparkles, ArrowLeft, ArrowRight, Settings, LogOut, Info } from 'lucide-react';
+import { Download, Upload, GitCommit, RefreshCw, GitBranch, Folder, Sparkles, ArrowLeft, ArrowRight, Settings, LogOut, Info, Activity } from 'lucide-react';
 
 interface GitBarProps {
   status: string;
@@ -15,7 +15,8 @@ interface GitBarProps {
   hasGemini: boolean;
   onOpenSettings: () => void;
   onOpenAbout: () => void;
-  authInfo: { loggedIn: boolean, user: string | null, isOAuthMode: boolean } | null;
+  onOpenAdmin?: () => void;
+  authInfo: { loggedIn: boolean, user: string | null, isOAuthMode: boolean, isAdmin?: boolean } | null;
   onLogout: () => void;
   onShowDiff: () => void;
 }
@@ -34,6 +35,7 @@ export const GitBar: React.FC<GitBarProps> = ({
   hasGemini,
   onOpenSettings,
   onOpenAbout,
+  onOpenAdmin,
   authInfo,
   onLogout,
   onShowDiff
@@ -153,6 +155,11 @@ export const GitBar: React.FC<GitBarProps> = ({
         <button onClick={onOpenAbout} title="About Marginalia" className="about-btn">
           <Info size={14} />
         </button>
+        {authInfo?.isAdmin && onOpenAdmin && (
+          <button onClick={onOpenAdmin} title="Admin Telemetry Monitor" className="admin-btn" style={{ color: '#06b6d4' }}>
+            <Activity size={14} />
+          </button>
+        )}
         <button onClick={onOpenSettings} title="Settings" className="settings-btn">
           <Settings size={14} />
         </button>

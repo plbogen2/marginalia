@@ -520,6 +520,15 @@ $input-border: #6b6b6b;
           color: #2da44e !important;
           background-color: rgba(45, 164, 78, 0.15) !important;
         }
+
+        &.loading {
+          color: #d29922 !important;
+          background-color: rgba(210, 153, 34, 0.15) !important;
+
+          .spin-icon {
+            animation: spin 1s linear infinite;
+          }
+        }
       }
 
       .format-doc-btn {
