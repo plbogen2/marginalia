@@ -24,6 +24,8 @@ Marginalia is a focused, web-based markdown editor designed for fiction writing 
 *   **Spelling & Grammar Check Cache:** Employs MD5-hashed paragraph caching for LanguageTool spelling and grammar checks in SQLite, speeding up checks and avoiding API throttling.
 *   **Spelling Context Menus:** Right-click context menus with custom dictionaries, spell suggestions, and "Replace All" actions.
 *   **Prose-First Gemini Model Selector:** Dynamically queries model selection list, filtering out legacy models, image/video generators (Imagen, Veo), and utility models while retaining active releases and experimental previews.
+*   **🎭 Parlando Neural Speech & Audiobooks:** Integrated multi-voice prose speech synthesis engine with character dialogue attribution, punctuation prosody, zero-crossing DSP, and gapless continuous playback.
+    *   🔊 [**Play Sample MP3 (1.48 min)**](https://github.com/plbogen2/parlando/raw/main/samples/chiba_city_blues.mp3) • 🌐 [**Open Web Player**](https://htmlpreview.github.io/?https://github.com/plbogen2/parlando/blob/main/samples/chiba_city_blues_player.html)
 
 ## Setup & Running
 1.  Ensure you have **Node.js (v22+)** installed.
