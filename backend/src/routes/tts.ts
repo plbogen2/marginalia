@@ -54,7 +54,7 @@ ttsRouter.get('/api/tts/voices', async (req: AuthenticatedRequest, res: Response
 });
 
 ttsRouter.post('/api/tts/synthesize', async (req: AuthenticatedRequest, res: Response) => {
-  const { text, voice, pacing, speed, backend } = req.body;
+  const { text, voice, pacing, speed, backend, characters, cast, dialogue_voice, model } = req.body;
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'Missing text content' });
   }
@@ -94,6 +94,10 @@ ttsRouter.post('/api/tts/synthesize', async (req: AuthenticatedRequest, res: Res
         backend: selectedBackend,
         gemini_api_key: apiKey || undefined,
         api_key: apiKey || undefined,
+        characters: characters || undefined,
+        cast: cast || undefined,
+        dialogue_voice: dialogue_voice || undefined,
+        model: model || undefined,
       }),
     });
 

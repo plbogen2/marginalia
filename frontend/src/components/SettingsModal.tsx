@@ -37,7 +37,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
     return (localStorage.getItem('marginalia_tts_engine') as 'parlando' | 'browser') || 'parlando';
   });
   const [parlandoVoice, setParlandoVoice] = useState<string>(() => {
-    return localStorage.getItem('marginalia_parlando_voice') || 'en-US-ChristopherNeural';
+    return localStorage.getItem('marginalia_parlando_voice') || 'Fenrir';
+  });
+  const [parlandoDialogueMode, setParlandoDialogueMode] = useState<'auto' | 'single'>(() => {
+    return (localStorage.getItem('marginalia_parlando_dialogue_mode') as 'auto' | 'single') || 'auto';
+  });
+  const [parlandoDialogueVoice, setParlandoDialogueVoice] = useState<string>(() => {
+    return localStorage.getItem('marginalia_parlando_dialogue_voice') || '';
   });
   const [parlandoPacing, setParlandoPacing] = useState<string>(() => {
     return localStorage.getItem('marginalia_parlando_pacing') || 'normal';
@@ -102,6 +108,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
     // Save TTS Preferences
     localStorage.setItem('marginalia_tts_engine', ttsEngine);
     localStorage.setItem('marginalia_parlando_voice', parlandoVoice);
+    localStorage.setItem('marginalia_parlando_dialogue_mode', parlandoDialogueMode);
+    localStorage.setItem('marginalia_parlando_dialogue_voice', parlandoDialogueVoice);
     localStorage.setItem('marginalia_parlando_pacing', parlandoPacing);
     localStorage.setItem('marginalia_parlando_speed', parlandoSpeed);
     localStorage.setItem('marginalia_tts_voice_uri', selectedTtsVoice);
@@ -167,7 +175,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
     allowedUser !== initialAllowedUser ||
     geminiModel !== initialGeminiModel ||
     ttsEngine !== (localStorage.getItem('marginalia_tts_engine') || 'parlando') ||
-    parlandoVoice !== (localStorage.getItem('marginalia_parlando_voice') || 'en-US-ChristopherNeural') ||
+    parlandoVoice !== (localStorage.getItem('marginalia_parlando_voice') || 'Fenrir') ||
+    parlandoDialogueMode !== (localStorage.getItem('marginalia_parlando_dialogue_mode') || 'auto') ||
+    parlandoDialogueVoice !== (localStorage.getItem('marginalia_parlando_dialogue_voice') || '') ||
     parlandoPacing !== (localStorage.getItem('marginalia_parlando_pacing') || 'normal') ||
     parlandoSpeed !== (localStorage.getItem('marginalia_parlando_speed') || '1.0') ||
     selectedTtsVoice !== (localStorage.getItem('marginalia_tts_voice_uri') || '');
@@ -262,7 +272,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
                 <div style={{ background: 'var(--bg-secondary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
                     <div>
-                      <label htmlFor="parlandoVoice" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Neural Voice</label>
+                      <label htmlFor="parlandoVoice" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Primary Narrator Voice</label>
                       <select
                         id="parlandoVoice"
                         value={parlandoVoice}
@@ -288,6 +298,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
                     </div>
 
                     <div>
+                      <label htmlFor="parlandoDialogueMode" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Dialogue Multi-Voice Casting</label>
+                      <select
+                        id="parlandoDialogueMode"
+                        value={parlandoDialogueMode}
+                        onChange={(e) => setParlandoDialogueMode(e.target.value as 'auto' | 'single')}
+                        style={{ marginTop: '4px' }}
+                      >
+                        <option value="auto">✨ Auto-Cast Multi-Voice (Characters get distinct voices)</option>
+                        <option value="single">🎙️ Single Voice (Fixed dialogue voice)</option>
+                      </select>
+                    </div>
+
+                    {parlandoDialogueMode === 'single' && (
+                      <div>
+                        <label htmlFor="parlandoDialogueVoice" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Fixed Dialogue Voice</label>
+                        <select
+                          id="parlandoDialogueVoice"
+                          value={parlandoDialogueVoice}
+                          onChange={(e) => setParlandoDialogueVoice(e.target.value)}
+                          style={{ marginTop: '4px' }}
+                        >
+                          <option value="">Same as Primary Narrator ({parlandoVoice})</option>
+                          <optgroup label="Neural Voices">
+                            <option value="Puck">Puck (Energetic / Youthful / Direct)</option>
+                            <option value="Charon">Charon (Deep / Gravitas / Cynical)</option>
+                            <option value="Aoede">Aoede (Expressive / Rich / Resonant)</option>
+                            <option value="Kore">Kore (Warm / Introspective / Calm)</option>
+                            <option value="Fenrir">Fenrir (Authoritative / Narrative Pace)</option>
+                            <option value="en-US-GuyNeural">Guy (US - Natural / Conversational)</option>
+                            <option value="en-US-JennyNeural">Jenny (US - Warm / Clear)</option>
+                            <option value="en-US-AriaNeural">Aria (US - Balanced / Modern)</option>
+                          </optgroup>
+                        </select>
+                      </div>
+                    )}
+
+                    <div>
                       <label htmlFor="parlandoPacing" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Pacing Preset</label>
                       <select
                         id="parlandoPacing"
@@ -303,8 +350,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
                       </select>
                     </div>
 
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <label htmlFor="parlandoSpeed" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Speech Playback Speed ({parlandoSpeed}x)</label>
+                    <div>
+                      <label htmlFor="parlandoSpeed" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Playback Speed ({parlandoSpeed}x)</label>
                       <select
                         id="parlandoSpeed"
                         value={parlandoSpeed}

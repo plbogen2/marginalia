@@ -99,19 +99,55 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
     setIsTtsLoading(false);
   }, []);
 
+  const parseFrontmatterCast = (text: string): Record<string, string> | undefined => {
+    if (!text.startsWith('---')) return undefined;
+    const parts = text.split('---', 3);
+    if (parts.length < 3) return undefined;
+    const fm = parts[1];
+    const cast: Record<string, string> = {};
+    let inCastBlock = false;
+    for (const line of fm.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('cast:') || trimmed.startsWith('characters:')) {
+        inCastBlock = true;
+        continue;
+      }
+      if (inCastBlock) {
+        if (/^[a-zA-Z0-9_-]+:/.test(line) && !line.startsWith(' ') && !line.startsWith('\t')) {
+          inCastBlock = false;
+        } else if (trimmed.includes(':')) {
+          const [charName, charVoice] = trimmed.replace(/^-\s*/, '').split(':', 2);
+          if (charName && charVoice) {
+            cast[charName.trim()] = charVoice.trim().replace(/^["']|["']$/g, '');
+          }
+        }
+      }
+    }
+    return Object.keys(cast).length > 0 ? cast : undefined;
+  };
+
   const fetchParlandoChunk = async (
     textChunk: string,
     voice: string,
     pacing: string,
     speed: number,
-    sessionId: number
+    sessionId: number,
+    characters?: Record<string, any>,
+    dialogueVoice?: string,
   ): Promise<string | null> => {
     if (speechSessionRef.current !== sessionId || !textChunk.trim()) return null;
     try {
       const res = await fetch('/api/tts/synthesize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: textChunk, voice, pacing, speed }),
+        body: JSON.stringify({
+          text: textChunk,
+          voice,
+          pacing,
+          speed,
+          characters,
+          dialogue_voice: dialogueVoice
+        }),
       });
       if (speechSessionRef.current !== sessionId) return null;
       if (!res.ok) throw new Error('Speech synthesis request failed');
@@ -127,8 +163,17 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
   };
 
   const splitIntoParagraphChunks = (text: string, maxLen: number = 350): string[] => {
+    // Strip YAML frontmatter if reading from beginning of document
+    let clean = text;
+    if (clean.startsWith('---')) {
+      const parts = clean.split('---', 3);
+      if (parts.length >= 3) {
+        clean = parts[2];
+      }
+    }
+
     // Strip markdown structural tokens while preserving dialogue quotes and contractions
-    const clean = text
+    clean = clean
       .replace(/^#+\s+/gm, '')
       .replace(/[*_`~>]/g, '')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
@@ -215,9 +260,23 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
     if (ttsEngine === 'parlando') {
       setIsTtsLoading(true);
       try {
-        const voice = localStorage.getItem('marginalia_parlando_voice') || 'en-US-ChristopherNeural';
+        const voice = localStorage.getItem('marginalia_parlando_voice') || 'Fenrir';
         const pacing = localStorage.getItem('marginalia_parlando_pacing') || 'normal';
         const speed = parseFloat(localStorage.getItem('marginalia_parlando_speed') || '1.0');
+        const dialogueMode = localStorage.getItem('marginalia_parlando_dialogue_mode') || 'auto';
+        const dialogueVoice = dialogueMode === 'single' ? voice : (localStorage.getItem('marginalia_parlando_dialogue_voice') || undefined);
+
+        let customCast = parseFrontmatterCast(editorValue);
+        if (!customCast) {
+          try {
+            const savedCast = localStorage.getItem('marginalia_parlando_cast');
+            if (savedCast) {
+              customCast = JSON.parse(savedCast);
+            }
+          } catch {
+            // ignore
+          }
+        }
 
         const chunks = splitIntoParagraphChunks(textToRead, 350);
         if (chunks.length === 0 || speechSessionRef.current !== sessionId) {
@@ -232,7 +291,7 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
 
         const ensurePrefetched = (idx: number) => {
           if (idx < chunks.length && !prefetchCache.has(idx) && speechSessionRef.current === sessionId) {
-            prefetchCache.set(idx, fetchParlandoChunk(chunks[idx], voice, pacing, speed, sessionId));
+            prefetchCache.set(idx, fetchParlandoChunk(chunks[idx], voice, pacing, speed, sessionId, customCast, dialogueVoice));
           }
         };
 
@@ -278,7 +337,7 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
               ensurePrefetched(currentChunkIdx + 2);
               ensurePrefetched(currentChunkIdx + 3);
               const nextPromise = prefetchCache.get(currentChunkIdx);
-              const nextAudio = nextPromise ? await nextPromise : await fetchParlandoChunk(chunks[currentChunkIdx], voice, pacing, speed, sessionId);
+              const nextAudio = nextPromise ? await nextPromise : await fetchParlandoChunk(chunks[currentChunkIdx], voice, pacing, speed, sessionId, customCast, dialogueVoice);
               prefetchCache.delete(currentChunkIdx);
               if (nextAudio && speechSessionRef.current === sessionId) {
                 await playChunk(nextAudio);
@@ -306,7 +365,7 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
 
         // Await first chunk (already requested in parallel) for instant start
         const firstAudioPromise = prefetchCache.get(0);
-        const firstAudio = firstAudioPromise ? await firstAudioPromise : await fetchParlandoChunk(chunks[0], voice, pacing, speed, sessionId);
+        const firstAudio = firstAudioPromise ? await firstAudioPromise : await fetchParlandoChunk(chunks[0], voice, pacing, speed, sessionId, customCast, dialogueVoice);
         prefetchCache.delete(0);
         if (firstAudio && speechSessionRef.current === sessionId) {
           await playChunk(firstAudio);
