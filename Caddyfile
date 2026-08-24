@@ -2,7 +2,7 @@
     tls {
         issuer acme {
             dir https://acme-v02.api.letsencrypt.org/directory
-            challenges tls-alpn-01
+            disable_http_challenge
         }
     }
     reverse_proxy marginalia:3000
