@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chiba City Blues - Parlando Audiobook Player</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: radial-gradient(circle at 50% 0%, #0f172a 0%, #020617 100%);
+      color: #f1f5f9;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .player-card {
+      max-width: 42rem;
+      width: 100%;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid #1e293b;
+      border-radius: 1.25rem;
+      padding: 1.75rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px rgba(6, 182, 212, 0.15);
+      transition: box-shadow 0.3s ease;
+    }
+    .player-card:hover {
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 40px rgba(6, 182, 212, 0.25);
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.25rem 0.75rem;
+      background: rgba(8, 47, 73, 0.8);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      border-radius: 9999px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.75rem;
+      color: #22d3ee;
+      margin-bottom: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+    .pulse-dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 9999px;
+      background-color: #22d3ee;
+      box-shadow: 0 0 8px #22d3ee;
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    .title {
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.025em;
+      line-height: 1.25;
+    }
+    .author {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #94a3b8;
+      margin-top: 0.35rem;
+    }
+    .visualizer-container {
+      position: relative;
+      background: rgba(2, 6, 23, 0.9);
+      border: 1px solid rgba(30, 41, 59, 0.8);
+      border-radius: 0.875rem;
+      padding: 0.75rem;
+      margin-bottom: 1.5rem;
+      height: 6.5rem;
+      overflow: hidden;
+    }
+    #visualizer {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 0.5rem;
+    }
+    .time-row {
+      display: flex;
+      justify-content: space-between;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-bottom: 0.5rem;
+    }
+    .slider-wrapper {
+      margin-bottom: 1.25rem;
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 0.5rem;
+      background: #1e293b;
+      border-radius: 0.5rem;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 1.1rem;
+      height: 1.1rem;
+      border-radius: 50%;
+      background: #22d3ee;
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.6);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 1.1rem;
+      height: 1.1rem;
+      border: none;
+      border-radius: 50%;
+      background: #22d3ee;
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.6);
+      cursor: pointer;
+    }
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .btn-icon {
+      padding: 0.65rem 0.9rem;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      border-radius: 0.75rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    .btn-icon:hover {
+      background: #334155;
+      color: #fff;
+      border-color: #475569;
+    }
+    .btn-play {
+      padding: 0.75rem 1.75rem;
+      background: linear-gradient(135deg, #06b6d4 0%, #2563eb 100%);
+      color: #020617;
+      border: none;
+      border-radius: 0.75rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+      transition: all 0.2s ease;
+    }
+    .btn-play:hover {
+      background: linear-gradient(135deg, #22d3ee 0%, #3b82f6 100%);
+      box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+      transform: translateY(-1px);
+    }
+    .btn-play svg {
+      width: 1.25rem;
+      height: 1.25rem;
+      fill: currentColor;
+    }
+    .speed-select {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8rem;
+      border-radius: 0.75rem;
+      padding: 0.65rem 0.75rem;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .speed-select:hover {
+      border-color: #475569;
+    }
+    .chapters-section {
+      border-top: 1px solid rgba(30, 41, 59, 0.8);
+      padding-top: 1.25rem;
+    }
+    .chapters-header {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #94a3b8;
+      margin-bottom: 0.75rem;
+    }
+    .chapters-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      max-height: 13rem;
+      overflow-y: auto;
+      padding-right: 0.25rem;
+    }
+    .chapters-list::-webkit-scrollbar {
+      width: 5px;
+    }
+    .chapters-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .chapters-list::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    .chapter-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 0.85rem;
+      border-radius: 0.6rem;
+      background: rgba(30, 41, 59, 0.45);
+      border: 1px solid rgba(30, 41, 59, 0.6);
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .chapter-item:hover {
+      background: rgba(30, 41, 59, 0.85);
+      border-color: #475569;
+      color: #fff;
+    }
+    .chapter-item.active {
+      background: rgba(8, 47, 73, 0.6);
+      border-color: rgba(6, 182, 212, 0.6);
+    }
+    .chapter-item.active .chap-title {
+      color: #22d3ee;
+      font-weight: 600;
+    }
+    .chap-time {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.75rem;
+      color: #06b6d4;
+    }
+  </style>
+</head>
+<body>
+  <div class="player-card">
+    
+    <div class="header">
+      <div class="badge">
+        <span class="pulse-dot"></span>
+        PARLANDO AUDIO MASTER
+      </div>
+      <h1 class="title">Chiba City Blues</h1>
+      <p class="author">by William Gibson</p>
+    </div>
+
+    <!-- Web Audio FFT Visualizer -->
+    <div class="visualizer-container">
+      <canvas id="visualizer"></canvas>
+    </div>
+
+    <audio id="audio" src="chiba_city_blues.mp3" preload="metadata"></audio>
+
+    <!-- Progress Scrubber -->
+    <div class="slider-wrapper">
+      <div class="time-row">
+        <span id="curTime">00:00</span>
+        <span id="durTime">00:00</span>
+      </div>
+      <input type="range" id="seek" min="0" max="100" value="0" step="0.1">
+    </div>
+
+    <!-- Playback Controls -->
+    <div class="controls-row">
+      <button id="skipBack" class="btn-icon" title="Rewind 15 seconds">-15s</button>
+      <button id="playBtn" class="btn-play">
+        <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <span id="playText">Play</span>
+      </button>
+      <button id="skipFwd" class="btn-icon" title="Forward 15 seconds">+15s</button>
+      <select id="speedSel" class="speed-select" title="Playback Speed">
+        <option value="0.75">0.75x</option>
+        <option value="1.0" selected>1.0x</option>
+        <option value="1.25">1.25x</option>
+        <option value="1.5">1.5x</option>
+        <option value="2.0">2.0x</option>
+      </select>
+    </div>
+
+    <!-- Chapter Navigation -->
+    <div class="chapters-section">
+      <h3 class="chapters-header">Chapters</h3>
+      <div id="chapterList" class="chapters-list"></div>
+    </div>
+
+  </div>
+
+  <script>
+    const chapters = [{"title": "Chapter 1: The Sky Above the Port", "start_sec": 0.0, "end_sec": 64.0, "chapter_index": 0}, {"title": "Chapter 2: The Coffin Racks", "start_sec": 64.0, "end_sec": 102.0, "chapter_index": 1}];
+    const audio = document.getElementById('audio');
+    const playBtn = document.getElementById('playBtn');
+    const playIcon = document.getElementById('playIcon');
+    const playText = document.getElementById('playText');
+    const seek = document.getElementById('seek');
+    const curTime = document.getElementById('curTime');
+    const durTime = document.getElementById('durTime');
+    const skipBack = document.getElementById('skipBack');
+    const skipFwd = document.getElementById('skipFwd');
+    const speedSel = document.getElementById('speedSel');
+    const chapterList = document.getElementById('chapterList');
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+
+    let audioCtx, analyser, source, isInit = false;
+
+    function initAudio() {
+      if (isInit) return;
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        analyser.smoothingTimeConstant = 0.8;
+        source = audioCtx.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        isInit = true;
+      } catch (e) {
+        console.warn("AudioContext setup failed:", e);
+      }
+    }
+
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth * window.devicePixelRatio;
+      canvas.height = canvas.parentElement.clientHeight * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function drawVisualizer() {
+      requestAnimationFrame(drawVisualizer);
+      const w = canvas.width / window.devicePixelRatio;
+      const h = canvas.height / window.devicePixelRatio;
+      ctx.clearRect(0, 0, w, h);
+
+      const numBars = 36;
+      const barWidth = (w / numBars) - 2;
+
+      let freqData = new Uint8Array(32);
+      if (analyser && !audio.paused) {
+        analyser.getByteFrequencyData(freqData);
+      }
+
+      for (let i = 0; i < numBars; i++) {
+        const fIdx = Math.floor((i / numBars) * freqData.length);
+        const val = freqData[fIdx] || 0;
+        const barHeight = audio.paused ? 4 : Math.max(4, (val / 255) * h * 0.9);
+        const x = i * (barWidth + 2);
+        const y = (h - barHeight) / 2;
+
+        const grad = ctx.createLinearGradient(0, y, 0, y + barHeight);
+        grad.addColorStop(0, '#22d3ee');
+        grad.addColorStop(1, '#0284c7');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, barWidth, barHeight);
+      }
+    }
+    drawVisualizer();
+
+    function fmt(s) {
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+    }
+
+    function renderChapters() {
+      chapterList.innerHTML = '';
+      if (!chapters || chapters.length === 0) {
+        chapterList.innerHTML = '<div style="font-size: 0.8rem; color: #64748b; font-style: italic; padding: 0.5rem;">No embedded chapter marks</div>';
+        return;
+      }
+      chapters.forEach((ch, i) => {
+        const div = document.createElement('div');
+        div.className = 'chapter-item';
+        div.id = 'chap-' + i;
+        div.innerHTML = `
+          <span class="chap-title">${ch.title}</span>
+          <span class="chap-time">${fmt(ch.start_sec)}</span>
+        `;
+        div.onclick = () => {
+          audio.currentTime = ch.start_sec;
+          if (audio.paused) togglePlay();
+        };
+        chapterList.appendChild(div);
+      });
+    }
+    renderChapters();
+
+    function updateActiveChapter() {
+      const t = audio.currentTime;
+      chapters.forEach((ch, i) => {
+        const el = document.getElementById('chap-' + i);
+        if (el) {
+          if (t >= ch.start_sec && t < (ch.end_sec || Infinity)) {
+            el.classList.add('active');
+          } else {
+            el.classList.remove('active');
+          }
+        }
+      });
+    }
+
+    function togglePlay() {
+      initAudio();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      if (audio.paused) {
+        audio.play();
+        playText.textContent = 'Pause';
+        playIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+      } else {
+        audio.pause();
+        playText.textContent = 'Play';
+        playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+      }
+    }
+
+    playBtn.onclick = togglePlay;
+
+    audio.ontimeupdate = () => {
+      if (!isNaN(audio.duration)) {
+        seek.value = (audio.currentTime / audio.duration) * 100;
+        curTime.textContent = fmt(audio.currentTime);
+        durTime.textContent = fmt(audio.duration);
+        updateActiveChapter();
+      }
+    };
+
+    seek.oninput = () => {
+      if (!isNaN(audio.duration)) {
+        audio.currentTime = (seek.value / 100) * audio.duration;
+      }
+    };
+
+    skipBack.onclick = () => { audio.currentTime = Math.max(0, audio.currentTime - 15); };
+    skipFwd.onclick = () => { audio.currentTime = Math.min(audio.duration, audio.currentTime + 15); };
+    speedSel.onchange = () => { audio.playbackRate = parseFloat(speedSel.value); };
+  </script>
+</body>
+</html>

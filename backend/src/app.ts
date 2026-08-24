@@ -126,7 +126,7 @@ function authMiddleware(req: any, res: any, next: any) {
 }
 
 app.use((req: any, res: any, next: any) => {
-  if (req.path.startsWith('/api/auth/') || req.path === '/api/health') {
+  if (req.path.startsWith('/api/auth/') || req.path === '/api/health' || req.path.startsWith('/samples/')) {
     return next();
   }
 
