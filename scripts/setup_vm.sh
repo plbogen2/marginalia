@@ -52,9 +52,7 @@ fi
 
 # 2. Configure local iptables firewall
 echo "--> Configuring iptables firewall to open port 80..."
-# Remove any existing port 80 ACCEPT rule to avoid duplicates or wrong positioning
 while sudo iptables -D INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null; do :; done
-# Insert it at position 1 (top of the chain) to override any reject rules
 sudo iptables -I INPUT 1 -p tcp --dport 80 -j ACCEPT
 
 if command -v netfilter-persistent &> /dev/null; then
@@ -63,13 +61,14 @@ fi
 
 # 4. Clone or update the repository
 if [ ! -d "marginalia" ]; then
-  echo "--> Cloning Marginalia repository..."
-  git clone https://github.com/plbogen2/marginalia.git
+  echo "--> Cloning Marginalia repository with submodules..."
+  git clone --recurse-submodules https://github.com/plbogen2/marginalia.git
   cd marginalia
 else
   echo "--> Updating Marginalia repository..."
   cd marginalia
   git pull origin main
+  git submodule update --init --recursive
   cp scripts/setup_vm.sh $HOME/setup_vm.sh 2>/dev/null && chmod +x $HOME/setup_vm.sh || true
 fi
 
@@ -84,24 +83,14 @@ GEMINI_API_KEY=
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 ALLOWED_USER=
+PARLANDO_URL=http://parlando:8765
 EOT
   echo ".env file created with secure session secrets."
 fi
 
 # 6. Build and Start the application on port 80
 echo "--> Launching Marginalia containers on port 80..."
-cat <<EOT > docker-compose.override.yml
-version: '3.8'
-services:
-  marginalia:
-    ports:
-      - "80:3000"
-EOT
-
-# Run with sudo to ensure docker-compose permissions
 sudo docker-compose down || true
 sudo docker-compose up -d --build
 
-echo "=== Setup Complete! ==="
-echo "Access Marginalia at: http://$(curl -s ifconfig.me)"
-echo "Note: If the page doesn't load, make sure you opened Port 80 (TCP) under Ingress Rules in your OCI VCN Security List."
+echo "=== Marginalia OCI VM Setup Complete! ==="

@@ -2,12 +2,12 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, getActiveWorkspaceName, selectWorkspaceByName, IGNORED_DIRS, getUserStorageRoot, getDirectorySize } from './config.js';
+import { getTargetDir, setTargetDir, getRecentWorkspaces, getActiveWorkspaceId, getActiveWorkspaceName, selectWorkspaceByName, IGNORED_DIRS, getUserStorageRoot, getDirectorySize, getStorageDir } from './config.js';
 import { getGitStatus, gitCommit, gitPush, gitPull, getGitBranch, cloneRepo, hasGitRemote, getGitAheadCount, getCommitDiff, gitShowHead } from './git.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { addIgnoredWord, getIgnoredWords, getAllApplicableIgnoredWords } from './dictionary.js';
 import { isPathSafe, isWorkspacePathAllowed, isAllowedFileType } from './utils/pathSafety.js';
-import { db } from './db.js';
+import { db, recordEvent, recordTokenUsage } from './db.js';
 import { verifySessionToken, createSessionToken } from './utils/auth.js';
 import { lint as markdownLint } from 'markdownlint/sync';
 import crypto from 'crypto';
@@ -1436,6 +1436,175 @@ app.post('/api/auth/logout', async (req: any, res: any) => {
   }
   res.setHeader('Set-Cookie', 'session_token=; HttpOnly; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
   res.json({ status: 'ok' });
+});
+
+// --- PARLANDO NEURAL TTS PROXY ROUTES ---
+const PARLANDO_URL = process.env.PARLANDO_URL || 'http://localhost:8765';
+
+app.get('/api/tts/voices', async (req, res) => {
+  try {
+    const response = await fetch(`${PARLANDO_URL}/api/voices`);
+    if (!response.ok) throw new Error('Parlando API unavailable');
+    const data = await response.json();
+    res.json({ ...data, available: true });
+  } catch (err) {
+    res.json({
+      voices: [
+        'en-US-ChristopherNeural',
+        'en-US-GuyNeural',
+        'en-US-JennyNeural',
+        'en-US-AriaNeural',
+        'en-GB-RyanNeural',
+        'en-GB-SoniaNeural',
+      ],
+      profiles: ['cyberpunk_noir', 'space_opera', 'classic_fiction'],
+      pacing: ['normal', 'brisk', 'dramatic', 'cinematic', 'contemplative'],
+      available: false,
+    });
+  }
+});
+
+app.post('/api/tts/synthesize', async (req: any, res: any) => {
+  const { text, voice, pacing, speed } = req.body;
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'Missing text content' });
+  }
+
+  try {
+    recordEvent(req.user, 'synthesize', 'tts_narration', { length: text.length, voice, pacing });
+    const response = await fetch(`${PARLANDO_URL}/api/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        voice: voice || 'en-US-ChristopherNeural',
+        pacing: pacing || 'normal',
+        speed: speed || 1.0,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Parlando error: ${errText}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error('Parlando synthesis failed:', err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// --- ADMIN TELEMETRY & FEATURE USAGE MONITOR ---
+app.get('/api/admin/metrics', async (req: any, res: any) => {
+  const adminUser = getAllowedUser();
+  if (isHostedModeActive() && req.user && adminUser && req.user.toLowerCase() !== adminUser.toLowerCase()) {
+    return res.status(403).json({ error: 'Forbidden: Admin metrics are restricted to administrator' });
+  }
+
+  try {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const dayAgoSec = nowSec - 86400;
+    const weekAgoSec = nowSec - 7 * 86400;
+    const monthAgoSec = nowSec - 30 * 86400;
+
+    // Users
+    const totalUsersRow = db.prepare("SELECT COUNT(DISTINCT user) as count FROM workspaces WHERE user IS NOT NULL AND user != 'anonymous';").get() as any;
+    const totalUsers = totalUsersRow?.count || 0;
+
+    const activeUsers24hRow = db.prepare("SELECT COUNT(DISTINCT user) as count FROM analytics_events WHERE created_at >= ? AND user != 'anonymous';").get(dayAgoSec) as any;
+    const activeUsers7dRow = db.prepare("SELECT COUNT(DISTINCT user) as count FROM analytics_events WHERE created_at >= ? AND user != 'anonymous';").get(weekAgoSec) as any;
+
+    // Storage
+    let totalStorageBytes = 0;
+    const userStorageBreakdown: { user: string; sizeBytes: number }[] = [];
+    const storageRoot = getStorageDir();
+    try {
+      if (existsSync(storageRoot)) {
+        const userDirs = await fs.readdir(storageRoot, { withFileTypes: true });
+        for (const u of userDirs) {
+          if (u.isDirectory()) {
+            const userPath = path.join(storageRoot, u.name);
+            const size = await getDirectorySize(userPath);
+            totalStorageBytes += size;
+            userStorageBreakdown.push({ user: u.name, sizeBytes: size });
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // AI Token Usage
+    const tokenTotals = db.prepare(`
+      SELECT 
+        SUM(prompt_tokens) as prompt_tokens,
+        SUM(completion_tokens) as completion_tokens,
+        SUM(total_tokens) as total_tokens
+      FROM ai_token_usage;
+    `).get() as any;
+
+    const tokensByFeature = db.prepare(`
+      SELECT feature, SUM(total_tokens) as total_tokens, COUNT(*) as count
+      FROM ai_token_usage
+      GROUP BY feature
+      ORDER BY total_tokens DESC;
+    `).all() as any[];
+
+    const tokensByModel = db.prepare(`
+      SELECT model, SUM(total_tokens) as total_tokens, COUNT(*) as count
+      FROM ai_token_usage
+      GROUP BY model
+      ORDER BY total_tokens DESC;
+    `).all() as any[];
+
+    const tokensTimeSeries = db.prepare(`
+      SELECT date(created_at, 'unixepoch') as date, SUM(total_tokens) as total_tokens, COUNT(*) as count
+      FROM ai_token_usage
+      WHERE created_at >= ?
+      GROUP BY date(created_at, 'unixepoch')
+      ORDER BY date ASC;
+    `).all(monthAgoSec) as any[];
+
+    // Feature Events
+    const featureEvents = db.prepare(`
+      SELECT feature, COUNT(*) as count
+      FROM analytics_events
+      GROUP BY feature
+      ORDER BY count DESC;
+    `).all() as any[];
+
+    const recentEvents = db.prepare(`
+      SELECT id, user, event_type, feature, metadata, created_at
+      FROM analytics_events
+      ORDER BY created_at DESC
+      LIMIT 50;
+    `).all() as any[];
+
+    res.json({
+      overview: {
+        totalUsers,
+        activeUsers24h: activeUsers24hRow?.count || 0,
+        activeUsers7d: activeUsers7dRow?.count || 0,
+        totalStorageBytes,
+        totalTokens: tokenTotals?.total_tokens || 0,
+        promptTokens: tokenTotals?.prompt_tokens || 0,
+        completionTokens: tokenTotals?.completion_tokens || 0,
+      },
+      userStorage: userStorageBreakdown,
+      aiUsage: {
+        byFeature: tokensByFeature,
+        byModel: tokensByModel,
+        timeSeries: tokensTimeSeries,
+      },
+      features: featureEvents,
+      recentActivity: recentEvents,
+    });
+  } catch (err) {
+    console.error('Admin metrics error:', err);
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 import { existsSync } from 'fs';

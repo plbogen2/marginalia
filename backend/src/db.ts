@@ -42,7 +42,7 @@ function initTables() {
   try {
     db.exec("ALTER TABLE workspaces ADD COLUMN user TEXT;");
   } catch (err) {
-    // Ignore error if column already exists (e.g. table already altered)
+    // Ignore error if column already exists
   }
 
   db.exec(`
@@ -88,13 +88,7 @@ function initTables() {
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_workspaces_user_last_opened ON workspaces(user, last_opened DESC);
-  `);
-
-  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_workspaces_name_user ON workspaces(name, user COLLATE NOCASE);
-  `);
-
-  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_ignored_words_workspace_id ON ignored_words(workspace_id);
   `);
 
@@ -109,9 +103,6 @@ function initTables() {
 
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_rules_global ON ignored_rules(rule_id) WHERE workspace_id IS NULL;
-  `);
-
-  db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_rules_local ON ignored_rules(rule_id, workspace_id) WHERE workspace_id IS NOT NULL;
   `);
 
@@ -131,6 +122,71 @@ function initTables() {
     ON ignored_instances(file_path, workspace_id, rule_id, context_hash) 
     WHERE workspace_id IS NOT NULL;
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user TEXT,
+      event_type TEXT NOT NULL,
+      feature TEXT NOT NULL,
+      metadata TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_user_created ON analytics_events(user, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_feature ON analytics_events(feature);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_token_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user TEXT,
+      model TEXT NOT NULL,
+      feature TEXT NOT NULL,
+      prompt_tokens INTEGER DEFAULT 0,
+      completion_tokens INTEGER DEFAULT 0,
+      total_tokens INTEGER DEFAULT 0,
+      created_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ai_token_usage_user_created ON ai_token_usage(user, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_ai_token_usage_feature ON ai_token_usage(feature);
+  `);
+}
+
+export function recordEvent(user: string | null | undefined, event_type: string, feature: string, metadata?: any) {
+  try {
+    const metaStr = metadata ? (typeof metadata === 'string' ? metadata : JSON.stringify(metadata)) : null;
+    db.prepare(`
+      INSERT INTO analytics_events (user, event_type, feature, metadata, created_at)
+      VALUES (?, ?, ?, ?, strftime('%s', 'now'))
+    `).run(user || 'anonymous', event_type, feature, metaStr);
+  } catch (err) {
+    console.error('Failed to record analytics event:', err);
+  }
+}
+
+export function recordTokenUsage(
+  user: string | null | undefined,
+  model: string,
+  feature: string,
+  prompt_tokens: number = 0,
+  completion_tokens: number = 0,
+  total_tokens: number = 0
+) {
+  try {
+    const total = total_tokens || (prompt_tokens + completion_tokens);
+    db.prepare(`
+      INSERT INTO ai_token_usage (user, model, feature, prompt_tokens, completion_tokens, total_tokens, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
+    `).run(user || 'anonymous', model, feature, prompt_tokens, completion_tokens, total);
+  } catch (err) {
+    console.error('Failed to record AI token usage:', err);
+  }
 }
 
 export { db };

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
+import { X, Eye, EyeOff, Check, AlertCircle, Volume2, Activity } from 'lucide-react';
 
 interface SettingsModalProps {
   onClose: () => void;
   onSave: () => void;
   onOpenAbout?: () => void;
+  onOpenAdmin?: () => void;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, onOpenAbout }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, onOpenAbout, onOpenAdmin }) => {
   const [geminiKey, setGeminiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
@@ -30,11 +31,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // TTS Engine & Settings
+  const [ttsEngine, setTtsEngine] = useState<'parlando' | 'browser'>(() => {
+    return (localStorage.getItem('marginalia_tts_engine') as 'parlando' | 'browser') || 'parlando';
+  });
+  const [parlandoVoice, setParlandoVoice] = useState<string>(() => {
+    return localStorage.getItem('marginalia_parlando_voice') || 'en-US-ChristopherNeural';
+  });
+  const [parlandoPacing, setParlandoPacing] = useState<string>(() => {
+    return localStorage.getItem('marginalia_parlando_pacing') || 'normal';
+  });
+  const [parlandoSpeed, setParlandoSpeed] = useState<string>(() => {
+    return localStorage.getItem('marginalia_parlando_speed') || '1.0';
+  });
+
   const [ttsVoices, setTtsVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedTtsVoice, setSelectedTtsVoice] = useState<string>(() => {
-    return localStorage.getItem('marginalia_tts_voice_uri') || '';
-  });
-  const [initialTtsVoice, setInitialTtsVoice] = useState<string>(() => {
     return localStorage.getItem('marginalia_tts_voice_uri') || '';
   });
 
@@ -47,10 +59,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
     loadVoices();
     window.speechSynthesis.onvoiceschanged = loadVoices;
   }, []);
-
-  const handleVoiceChange = (uri: string) => {
-    setSelectedTtsVoice(uri);
-  };
 
   const fetchConfigStatus = async () => {
     try {
@@ -90,6 +98,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Save TTS Preferences
+    localStorage.setItem('marginalia_tts_engine', ttsEngine);
+    localStorage.setItem('marginalia_parlando_voice', parlandoVoice);
+    localStorage.setItem('marginalia_parlando_pacing', parlandoPacing);
+    localStorage.setItem('marginalia_parlando_speed', parlandoSpeed);
+    localStorage.setItem('marginalia_tts_voice_uri', selectedTtsVoice);
+
     setSaving(true);
     setError(null);
     try {
@@ -101,83 +116,82 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
         allowedUser?: string;
         geminiModel?: string;
       } = {};
-
+      
       if (geminiKey.trim()) {
         payload.geminiApiKey = geminiKey.trim();
-      }
-      if (geminiModel !== initialGeminiModel) {
-        payload.geminiModel = geminiModel;
       }
       if (simulateHosted !== initialSimulateHosted) {
         payload.simulateHostedMode = simulateHosted;
       }
-      if (githubClientId.trim() !== initialGithubClientId) {
+      if (githubClientId !== initialGithubClientId) {
         payload.githubClientId = githubClientId.trim();
       }
       if (githubClientSecret.trim()) {
         payload.githubClientSecret = githubClientSecret.trim();
       }
-      if (allowedUser.trim() !== initialAllowedUser) {
+      if (allowedUser !== initialAllowedUser) {
         payload.allowedUser = allowedUser.trim();
       }
-
-      const res = await fetch('/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to save settings');
+      if (geminiModel !== initialGeminiModel) {
+        payload.geminiModel = geminiModel;
       }
-      localStorage.setItem('marginalia_tts_voice_uri', selectedTtsVoice);
-      setInitialTtsVoice(selectedTtsVoice);
 
-      setGeminiKey('');
-      setGithubClientSecret('');
-      await fetchConfigStatus();
+      if (Object.keys(payload).length > 0) {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to save configuration');
+        }
+      }
+
       onSave();
-      
-      if (simulateHosted !== initialSimulateHosted) {
-        window.location.reload();
-      } else {
-        onClose();
-      }
-    } catch (err) {
-      setError((err as Error).message);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while saving.');
     } finally {
       setSaving(false);
     }
   };
 
   const isDirty = 
-    geminiKey.trim() !== '' || 
-    geminiModel !== initialGeminiModel ||
-    selectedTtsVoice !== initialTtsVoice ||
+    geminiKey.trim().length > 0 ||
     simulateHosted !== initialSimulateHosted ||
-    githubClientId.trim() !== initialGithubClientId ||
-    githubClientSecret.trim() !== '' ||
-    allowedUser.trim() !== initialAllowedUser;
+    githubClientId !== initialGithubClientId ||
+    githubClientSecret.trim().length > 0 ||
+    allowedUser !== initialAllowedUser ||
+    geminiModel !== initialGeminiModel ||
+    ttsEngine !== (localStorage.getItem('marginalia_tts_engine') || 'parlando') ||
+    parlandoVoice !== (localStorage.getItem('marginalia_parlando_voice') || 'en-US-ChristopherNeural') ||
+    parlandoPacing !== (localStorage.getItem('marginalia_parlando_pacing') || 'normal') ||
+    parlandoSpeed !== (localStorage.getItem('marginalia_parlando_speed') || '1.0') ||
+    selectedTtsVoice !== (localStorage.getItem('marginalia_tts_voice_uri') || '');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content settings-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content settings-modal" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>Settings</h3>
-          <button className="close-btn" onClick={onClose}>
-            <X size={16} />
+          <h2>Application Settings</h2>
+          <button className="btn-close" onClick={onClose}>
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="settings-form">
+        <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            
+            {/* Gemini API Key */}
             <div className="form-group">
               <label htmlFor="geminiKey">Gemini API Key</label>
               <div className="input-with-button">
                 <input
                   id="geminiKey"
                   type={showKey ? 'text' : 'password'}
-                  placeholder={isConfigured ? "••••••••••••••••" : "Enter Gemini API Key"}
+                  placeholder={isConfigured ? "••••••••••••••••" : "Enter Google Gemini API Key"}
                   value={geminiKey}
                   onChange={(e) => setGeminiKey(e.target.value)}
                 />
@@ -191,12 +205,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
                 </button>
               </div>
               <p className="help-text">
-                Providing a Gemini Key enables automatic git commit message summaries.
+                Required for AI-assisted structural editing, inline line-editing feedback, and semantic expansions.
               </p>
             </div>
 
+            {/* Model Selection */}
             <div className="form-group">
-              <label htmlFor="geminiModel">Gemini Model</label>
+              <label htmlFor="geminiModel">AI Feedback Model</label>
               <select
                 id="geminiModel"
                 value={geminiModel}
@@ -213,89 +228,111 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
               </p>
             </div>
 
-            {ttsVoices.length > 0 && (() => {
-              const isNaturalVoice = (v: SpeechSynthesisVoice) => {
-                const name = v.name.toLowerCase();
-                return (
-                  name.includes('natural') ||
-                  name.includes('google') ||
-                  name.includes('enhanced') ||
-                  name.includes('premium') ||
-                  name.includes('neural') ||
-                  name.includes('online')
-                );
-              };
+            {/* TTS Engine & Voice Configuration */}
+            <div className="form-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '16px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                <Volume2 size={16} /> Read Aloud & Audiobook Voice (TTS)
+              </label>
 
-              const naturalEnglish = ttsVoices
-                .filter((v) => v.lang.toLowerCase().startsWith('en') && isNaturalVoice(v))
-                .sort((a, b) => a.name.localeCompare(b.name));
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px', marginBottom: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                  <input
+                    type="radio"
+                    name="tts_engine"
+                    value="parlando"
+                    checked={ttsEngine === 'parlando'}
+                    onChange={() => setTtsEngine('parlando')}
+                  />
+                  <span>🎭 <strong>Parlando</strong> (Neural Speech Studio)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                  <input
+                    type="radio"
+                    name="tts_engine"
+                    value="browser"
+                    checked={ttsEngine === 'browser'}
+                    onChange={() => setTtsEngine('browser')}
+                  />
+                  <span>🌐 <strong>Browser Voice</strong> (Local / Fast)</span>
+                </label>
+              </div>
 
-              const standardEnglish = ttsVoices
-                .filter((v) => v.lang.toLowerCase().startsWith('en') && !isNaturalVoice(v))
-                .sort((a, b) => a.name.localeCompare(b.name));
+              {ttsEngine === 'parlando' ? (
+                <div style={{ background: 'var(--bg-secondary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                    <div>
+                      <label htmlFor="parlandoVoice" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Neural Voice</label>
+                      <select
+                        id="parlandoVoice"
+                        value={parlandoVoice}
+                        onChange={(e) => setParlandoVoice(e.target.value)}
+                        style={{ marginTop: '4px' }}
+                      >
+                        <option value="en-US-ChristopherNeural">Christopher (US - Deep / Dramatic)</option>
+                        <option value="en-US-GuyNeural">Guy (US - Narrative / Crisp)</option>
+                        <option value="en-US-JennyNeural">Jenny (US - Expressive / Clear)</option>
+                        <option value="en-GB-RyanNeural">Ryan (UK - Atmospheric / Fiction)</option>
+                        <option value="en-GB-SoniaNeural">Sonia (UK - Classical Prose)</option>
+                        <option value="en-US-AriaNeural">Aria (US - Balanced / Modern)</option>
+                      </select>
+                    </div>
 
-              const naturalOther = ttsVoices
-                .filter((v) => !v.lang.toLowerCase().startsWith('en') && isNaturalVoice(v))
-                .sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
+                    <div>
+                      <label htmlFor="parlandoPacing" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Pacing Preset</label>
+                      <select
+                        id="parlandoPacing"
+                        value={parlandoPacing}
+                        onChange={(e) => setParlandoPacing(e.target.value)}
+                        style={{ marginTop: '4px' }}
+                      >
+                        <option value="normal">Normal (Standard cadence)</option>
+                        <option value="brisk">Brisk (Fast proofreading)</option>
+                        <option value="dramatic">Dramatic (Extended punctuation pauses)</option>
+                        <option value="cinematic">Cinematic (Atmospheric pauses)</option>
+                        <option value="contemplative">Contemplative (Slow recitation)</option>
+                      </select>
+                    </div>
 
-              const standardOther = ttsVoices
-                .filter((v) => !v.lang.toLowerCase().startsWith('en') && !isNaturalVoice(v))
-                .sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label htmlFor="parlandoSpeed" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Speech Playback Speed ({parlandoSpeed}x)</label>
+                      <select
+                        id="parlandoSpeed"
+                        value={parlandoSpeed}
+                        onChange={(e) => setParlandoSpeed(e.target.value)}
+                        style={{ marginTop: '4px' }}
+                      >
+                        <option value="0.75">0.75x — Deliberate</option>
+                        <option value="1.0">1.0x — Normal</option>
+                        <option value="1.25">1.25x — Fast</option>
+                        <option value="1.5">1.5x — Quick Proof</option>
+                      </select>
+                    </div>
+                  </div>
 
-              return (
-                <div className="form-group">
-                  <label htmlFor="ttsVoice">Read Aloud Voice (TTS)</label>
+                  <p className="help-text" style={{ margin: 0 }}>
+                    Parlando uses zero-crossing crossfading DSP and semantic dialogue isolation for human-like narrative cadence.
+                  </p>
+                </div>
+              ) : (
+                <div className="form-group" style={{ margin: 0 }}>
                   <select
                     id="ttsVoice"
                     value={selectedTtsVoice}
-                    onChange={(e) => handleVoiceChange(e.target.value)}
+                    onChange={(e) => setSelectedTtsVoice(e.target.value)}
                   >
-                    <option value="">Auto-select Highest Quality Natural / Neural Voice</option>
-                    {naturalEnglish.length > 0 && (
-                      <optgroup label="✨ English — Natural & Neural Voices">
-                        {naturalEnglish.map((voice) => (
-                          <option key={voice.voiceURI} value={voice.voiceURI}>
-                            {voice.name} ({voice.lang}) ✨
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {standardEnglish.length > 0 && (
-                      <optgroup label="English — Standard Voices">
-                        {standardEnglish.map((voice) => (
-                          <option key={voice.voiceURI} value={voice.voiceURI}>
-                            {voice.name} ({voice.lang})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {naturalOther.length > 0 && (
-                      <optgroup label="✨ International — Natural & Neural Voices">
-                        {naturalOther.map((voice) => (
-                          <option key={voice.voiceURI} value={voice.voiceURI}>
-                            {voice.name} ({voice.lang}) ✨
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {standardOther.length > 0 && (
-                      <optgroup label="International — Standard Voices">
-                        {standardOther.map((voice) => (
-                          <option key={voice.voiceURI} value={voice.voiceURI}>
-                            {voice.name} ({voice.lang})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
+                    <option value="">Auto-select Highest Quality Natural Voice</option>
+                    {ttsVoices.map((v) => (
+                      <option key={v.voiceURI} value={v.voiceURI}>
+                        {v.name} ({v.lang})
+                      </option>
+                    ))}
                   </select>
-                  <p className="help-text">
-                    Select your preferred voice for manuscript audio proofreading.
-                  </p>
                 </div>
-              );
-            })()}
+              )}
+            </div>
 
-            <div className="form-group checkbox-group">
+            {/* Hosted & Auth Settings */}
+            <div className="form-group checkbox-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '16px' }}>
               <label className="checkbox-label">
                 <input
                   type="checkbox"
@@ -377,7 +414,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
 
             {error && <div className="error-message">{error}</div>}
 
-            <div className="form-actions">
+            <div className="form-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               {onOpenAbout && (
                 <button
                   type="button"
@@ -386,17 +423,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
                     onClose();
                     onOpenAbout();
                   }}
-                  style={{ marginRight: 'auto' }}
                 >
-                  About Marginalia
+                  About
                 </button>
               )}
-              <button type="button" className="btn-secondary" onClick={onClose}>
-                Cancel
-              </button>
-              <button type="submit" className="btn-primary" disabled={saving || !isDirty}>
-                {saving ? 'Saving...' : 'Save Settings'}
-              </button>
+              {onOpenAdmin && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    onClose();
+                    onOpenAdmin();
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <Activity size={14} /> Admin Monitor
+                </button>
+              )}
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                <button type="button" className="btn-secondary" onClick={onClose}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={saving || !isDirty}>
+                  {saving ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
             </div>
           </div>
         </form>

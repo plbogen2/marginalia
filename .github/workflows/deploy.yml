@@ -19,6 +19,8 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
     - name: SSH and Deploy to VM
       uses: appleboy/ssh-action@v1.2.0
@@ -36,8 +38,9 @@ jobs:
         script: |
           if [ -d "marginalia" ]; then
             cd marginalia
-            echo "--> Pulling latest changes..."
+            echo "--> Pulling latest changes and updating submodules..."
             git pull origin main
+            git submodule update --init --recursive
             cp scripts/setup_vm.sh $HOME/setup_vm.sh 2>/dev/null && chmod +x $HOME/setup_vm.sh || true
             
             echo "--> Updating environment configuration..."
@@ -49,7 +52,7 @@ jobs:
               SESSION_SECRET=$(openssl rand -hex 24)
             fi
 
-            printf "PORT=3000\nSESSION_SECRET=%s\nGEMINI_API_KEY=%s\nGITHUB_CLIENT_ID=%s\nGITHUB_CLIENT_SECRET=%s\nALLOWED_USER=%s\n" "$SESSION_SECRET" "$GEMINI_API_KEY" "$GH_CLIENT_ID" "$GH_CLIENT_SECRET" "$ALLOWED_USER" > .env
+            printf "PORT=3000\nSESSION_SECRET=%s\nGEMINI_API_KEY=%s\nGITHUB_CLIENT_ID=%s\nGITHUB_CLIENT_SECRET=%s\nALLOWED_USER=%s\nPARLANDO_URL=http://parlando:8765\n" "$SESSION_SECRET" "$GEMINI_API_KEY" "$GH_CLIENT_ID" "$GH_CLIENT_SECRET" "$ALLOWED_USER" > .env
 
             echo "--> Opening ports 80 and 443 in host firewall..."
             sudo iptables -I INPUT 1 -p tcp --dport 80 -j ACCEPT 2>/dev/null || true

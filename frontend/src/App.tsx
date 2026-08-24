@@ -10,6 +10,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { MarkdownGuideModal } from './components/MarkdownGuideModal';
 import { GitDiffModal } from './components/GitDiffModal';
 import { AboutModal } from './components/AboutModal';
+import { AdminDashboardModal } from './components/AdminDashboardModal';
 import { AiPanel, type Persona } from './components/AiPanel';
 import { type ChatMessage, parseMessage } from './utils/aiParser';
 import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX, Pen, PenOff } from 'lucide-react';
@@ -59,6 +60,7 @@ function App() {
   const [gitAhead, setGitAhead] = useState(0);
   const [hasGemini, setHasGemini] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
@@ -318,6 +320,7 @@ function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [cursorOffset, setCursorOffset] = useState<number>(0);
   const utteranceRef = useRef<any>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const isCancelledRef = useRef<boolean>(false);
 
   const stopSpeech = () => {
@@ -330,15 +333,14 @@ function App() {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
     setIsSpeaking(false);
   };
 
-  const toggleReadAloud = () => {
-    if (!('speechSynthesis' in window)) {
-      alert('Text-to-Speech is not supported in this browser.');
-      return;
-    }
-
+  const toggleReadAloud = async () => {
     if (isSpeaking) {
       stopSpeech();
       return;
@@ -359,6 +361,65 @@ function App() {
       if (sliced.length > 0) {
         textToRead = sliced;
       }
+    }
+
+    const ttsEngine = (localStorage.getItem('marginalia_tts_engine') as 'parlando' | 'browser') || 'parlando';
+
+    if (ttsEngine === 'parlando') {
+      setIsSpeaking(true);
+      try {
+        const voice = localStorage.getItem('marginalia_parlando_voice') || 'en-US-ChristopherNeural';
+        const pacing = localStorage.getItem('marginalia_parlando_pacing') || 'normal';
+        const speed = parseFloat(localStorage.getItem('marginalia_parlando_speed') || '1.0');
+
+        const res = await fetch('/api/tts/synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: textToRead,
+            voice,
+            pacing,
+            speed
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error('Parlando speech synthesis request failed');
+        }
+
+        const data = await res.json();
+        if (isCancelledRef.current) return;
+
+        if (data.audio_base64) {
+          const audio = new Audio(data.audio_base64);
+          audio.playbackRate = speed;
+          audioPlayerRef.current = audio;
+          audio.onended = () => {
+            setIsSpeaking(false);
+            audioPlayerRef.current = null;
+          };
+          audio.onerror = (e) => {
+            console.error('Parlando audio playback error:', e);
+            setIsSpeaking(false);
+            audioPlayerRef.current = null;
+          };
+          await audio.play();
+        } else {
+          setIsSpeaking(false);
+        }
+      } catch (err) {
+        console.warn('Parlando neural speech failed, falling back to local speech:', err);
+        setIsSpeaking(false);
+        if ('speechSynthesis' in window) {
+          // Speak with browser fallback
+        }
+      }
+      return;
+    }
+
+    if (!('speechSynthesis' in window)) {
+      alert('Text-to-Speech is not supported in this browser.');
+      return;
     }
 
     // Strip markdown formatting and quotation marks so TTS voices don't read "quote" out loud
@@ -441,7 +502,6 @@ function App() {
         }
       };
 
-      // Store in ref to prevent Chrome V8 Garbage Collection from silencing speech
       utteranceRef.current = utterance;
       if ('resume' in window.speechSynthesis) {
         window.speechSynthesis.resume();
@@ -1143,6 +1203,12 @@ function App() {
             fetchGitStatus();
           }}
           onOpenAbout={() => setAboutOpen(true)}
+          onOpenAdmin={() => setAdminOpen(true)}
+        />
+      )}
+      {adminOpen && (
+        <AdminDashboardModal
+          onClose={() => setAdminOpen(false)}
         />
       )}
       {guideOpen && (
