@@ -1,6 +1,9 @@
 name: Deploy to Oracle Cloud VM
 
 on:
+  push:
+    branches:
+      - main
   workflow_run:
     workflows: ["Auto Release"]
     types:
@@ -14,7 +17,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
     - name: Checkout Code
@@ -64,7 +67,10 @@ jobs:
 
             echo "--> Rebuilding and starting containers..."
             sudo docker-compose down || true
-            sudo docker-compose up -d --build
+            sudo docker-compose up -d --build --remove-orphans
+            
+            echo "--> Verifying container status..."
+            sudo docker ps
           else
             echo "--> Repository folder 'marginalia' not found. Please run scripts/setup_vm.sh on the host first!"
             exit 1
