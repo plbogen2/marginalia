@@ -43,6 +43,7 @@ services:
       - "8765:8765"
     environment:
       - PORT=8765
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
 
   caddy:
     image: caddy:2-alpine

@@ -269,12 +269,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
                         onChange={(e) => setParlandoVoice(e.target.value)}
                         style={{ marginTop: '4px' }}
                       >
-                        <option value="en-US-ChristopherNeural">Christopher (US - Deep / Dramatic)</option>
-                        <option value="en-US-GuyNeural">Guy (US - Narrative / Crisp)</option>
-                        <option value="en-US-JennyNeural">Jenny (US - Expressive / Clear)</option>
-                        <option value="en-GB-RyanNeural">Ryan (UK - Atmospheric / Fiction)</option>
-                        <option value="en-GB-SoniaNeural">Sonia (UK - Classical Prose)</option>
-                        <option value="en-US-AriaNeural">Aria (US - Balanced / Modern)</option>
+                        <optgroup label="Google Gemini Neural Voices">
+                          <option value="Fenrir">Fenrir (Gemini / Deep Male)</option>
+                          <option value="Puck">Puck (Gemini / Energetic Male)</option>
+                          <option value="Charon">Charon (Gemini / Authoritative Male)</option>
+                          <option value="Aoede">Aoede (Gemini / Warm Female)</option>
+                          <option value="Kore">Kore (Gemini / Soft Female)</option>
+                        </optgroup>
+                        <optgroup label="Microsoft Neural Voices">
+                          <option value="en-US-ChristopherNeural">Christopher (US - Deep / Dramatic)</option>
+                          <option value="en-US-GuyNeural">Guy (US - Narrative / Crisp)</option>
+                          <option value="en-US-JennyNeural">Jenny (US - Expressive / Clear)</option>
+                          <option value="en-GB-RyanNeural">Ryan (UK - Atmospheric / Fiction)</option>
+                          <option value="en-GB-SoniaNeural">Sonia (UK - Classical Prose)</option>
+                          <option value="en-US-AriaNeural">Aria (US - Balanced / Modern)</option>
+                        </optgroup>
                       </select>
                     </div>
 
