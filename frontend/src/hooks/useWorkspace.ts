@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { resolveRelativePath } from '../utils/pathResolver';
 import type { AuthInfo } from './useAuth';
 
@@ -19,6 +19,18 @@ export function useWorkspace({
 }: UseWorkspaceProps) {
   const [files, setFiles] = useState<string[]>([]);
   const [activeWorkspaceName, setActiveWorkspaceName] = useState<string | null>(null);
+
+  // Use refs for callbacks to prevent unnecessary recreation of callbacks and infinite render loops
+  const onRefreshedRef = useRef(onWorkspaceOrFilesRefreshed);
+  onRefreshedRef.current = onWorkspaceOrFilesRefreshed;
+
+  const setLoadingRef = useRef(setLoading);
+  setLoadingRef.current = setLoading;
+
+  const setActiveFileRef = useRef(setActiveFile);
+  setActiveFileRef.current = setActiveFile;
+
+  const initializedRef = useRef(false);
 
   const fetchFiles = useCallback(async () => {
     try {
@@ -51,18 +63,18 @@ export function useWorkspace({
         setActiveWorkspaceName(data.activeName);
         window.history.replaceState(null, '', `/${encodeURIComponent(data.activeName)}/`);
         await fetchFiles();
-        if (onWorkspaceOrFilesRefreshed) {
-          await onWorkspaceOrFilesRefreshed();
+        if (onRefreshedRef.current) {
+          await onRefreshedRef.current();
         }
-        setActiveFile(null);
+        setActiveFileRef.current(null);
       }
     } catch (err) {
       console.error('Failed to load default workspace:', err);
     }
-  }, [fetchFiles, onWorkspaceOrFilesRefreshed, setActiveFile]);
+  }, [fetchFiles]);
 
   const initWorkspaceAndLoad = useCallback(async () => {
-    setLoading(true);
+    setLoadingRef.current(true);
     try {
       const pathSegments = window.location.pathname.split('/').filter(Boolean);
       let workspaceName = '';
@@ -86,11 +98,11 @@ export function useWorkspace({
           const data = await res.json();
           setActiveWorkspaceName(data.name);
           await fetchFiles();
-          if (onWorkspaceOrFilesRefreshed) {
-            await onWorkspaceOrFilesRefreshed();
+          if (onRefreshedRef.current) {
+            await onRefreshedRef.current();
           }
           if (filePath) {
-            setActiveFile(filePath);
+            setActiveFileRef.current(filePath);
           }
         } else {
           console.warn(`Workspace not found: ${workspaceName}, falling back to default`);
@@ -102,15 +114,18 @@ export function useWorkspace({
     } catch (err) {
       console.error('Initialization failed:', err);
     } finally {
-      setLoading(false);
+      setLoadingRef.current(false);
     }
-  }, [fetchFiles, loadDefaultWorkspace, onWorkspaceOrFilesRefreshed, setActiveFile, setLoading]);
+  }, [fetchFiles, loadDefaultWorkspace]);
 
   useEffect(() => {
-    if (authInfo && authInfo.loggedIn) {
+    if (authInfo && authInfo.loggedIn && !initializedRef.current) {
+      initializedRef.current = true;
       initWorkspaceAndLoad();
+    } else if (!authInfo || !authInfo.loggedIn) {
+      initializedRef.current = false;
     }
-  }, [authInfo, initWorkspaceAndLoad]);
+  }, [authInfo?.loggedIn, initWorkspaceAndLoad]);
 
   useEffect(() => {
     const handlePopState = async () => {
@@ -121,7 +136,7 @@ export function useWorkspace({
         const filePath = parts.slice(1).join('/');
 
         if (wsName !== activeWorkspaceName) {
-          setLoading(true);
+          setLoadingRef.current(true);
           try {
             const res = await fetch('/api/workspaces/select-by-name', {
               method: 'POST',
@@ -132,21 +147,21 @@ export function useWorkspace({
               const data = await res.json();
               setActiveWorkspaceName(data.name);
               await fetchFiles();
-              if (onWorkspaceOrFilesRefreshed) {
-                await onWorkspaceOrFilesRefreshed();
+              if (onRefreshedRef.current) {
+                await onRefreshedRef.current();
               }
-              setActiveFile(filePath || null);
+              setActiveFileRef.current(filePath || null);
             }
           } catch (err) {
             console.error(err);
           } finally {
-            setLoading(false);
+            setLoadingRef.current(false);
           }
         } else {
-          setActiveFile(filePath || null);
+          setActiveFileRef.current(filePath || null);
         }
       } else {
-        setActiveFile(null);
+        setActiveFileRef.current(null);
       }
     };
 
@@ -154,10 +169,10 @@ export function useWorkspace({
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [activeWorkspaceName, fetchFiles, onWorkspaceOrFilesRefreshed, setActiveFile, setLoading]);
+  }, [activeWorkspaceName, fetchFiles]);
 
   const selectFile = useCallback((filePath: string | null) => {
-    setActiveFile(filePath);
+    setActiveFileRef.current(filePath);
     let newUrl = '/';
     if (activeWorkspaceName) {
       newUrl += encodeURIComponent(activeWorkspaceName) + '/';
@@ -171,7 +186,7 @@ export function useWorkspace({
     if (currentPath !== targetPath) {
       window.history.pushState(null, '', newUrl);
     }
-  }, [activeWorkspaceName, setActiveFile]);
+  }, [activeWorkspaceName]);
 
   const handleNavigateLink = useCallback((href: string) => {
     if (!activeFile) return;

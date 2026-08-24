@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 interface UseGitProps {
   setLoading: (loading: boolean) => void;
@@ -20,6 +20,18 @@ export function useGit({
   const [hasRemote, setHasRemote] = useState(false);
   const [gitAhead, setGitAhead] = useState(0);
   const [hasGemini, setHasGemini] = useState(false);
+
+  const setLoadingRef = useRef(setLoading);
+  setLoadingRef.current = setLoading;
+
+  const fetchFilesRef = useRef(fetchFiles);
+  fetchFilesRef.current = fetchFiles;
+
+  const setEditorValueRef = useRef(setEditorValue);
+  setEditorValueRef.current = setEditorValue;
+
+  const setOriginalContentRef = useRef(setOriginalContent);
+  setOriginalContentRef.current = setOriginalContent;
 
   const fetchGitStatus = useCallback(async () => {
     try {
@@ -66,13 +78,13 @@ export function useGit({
   }, []);
 
   const handleRefresh = useCallback(() => {
-    fetchFiles();
+    if (fetchFilesRef.current) fetchFilesRef.current();
     fetchGitStatus();
     fetchGitBranch();
-  }, [fetchFiles, fetchGitStatus, fetchGitBranch]);
+  }, [fetchGitStatus, fetchGitBranch]);
 
   const handleCommit = useCallback(async (message: string) => {
-    setLoading(true);
+    setLoadingRef.current(true);
     try {
       const res = await fetch('/api/git/commit', {
         method: 'POST',
@@ -86,12 +98,12 @@ export function useGit({
       console.error('Failed to commit:', err);
       alert(`Commit failed: ${(err as Error).message}`);
     } finally {
-      setLoading(false);
+      setLoadingRef.current(false);
     }
-  }, [fetchGitStatus, setLoading]);
+  }, [fetchGitStatus]);
 
   const handlePush = useCallback(async () => {
-    setLoading(true);
+    setLoadingRef.current(true);
     try {
       const res = await fetch('/api/git/push', { method: 'POST' });
       const data = await res.json();
@@ -108,12 +120,12 @@ export function useGit({
       }
       alert(`Push failed: ${msg}`);
     } finally {
-      setLoading(false);
+      setLoadingRef.current(false);
     }
-  }, [fetchGitStatus, setLoading]);
+  }, [fetchGitStatus]);
 
   const handlePull = useCallback(async () => {
-    setLoading(true);
+    setLoadingRef.current(true);
     try {
       const res = await fetch('/api/git/pull', { method: 'POST' });
       const data = await res.json();
@@ -121,13 +133,15 @@ export function useGit({
         throw new Error(data.error || 'Pull failed');
       }
       alert('Successfully pulled changes from GitHub.');
-      await fetchFiles();
+      if (fetchFilesRef.current) {
+        await fetchFilesRef.current();
+      }
       await fetchGitStatus();
       if (activeFile) {
         const activeRes = await fetch(`/api/file?path=${encodeURIComponent(activeFile)}`);
         const activeData = await activeRes.json();
-        setEditorValue(activeData.content);
-        setOriginalContent(activeData.content);
+        setEditorValueRef.current(activeData.content);
+        setOriginalContentRef.current(activeData.content);
       }
     } catch (err) {
       console.error('Failed to pull:', err);
@@ -137,9 +151,9 @@ export function useGit({
       }
       alert(`Pull failed: ${msg}`);
     } finally {
-      setLoading(false);
+      setLoadingRef.current(false);
     }
-  }, [activeFile, fetchFiles, fetchGitStatus, setEditorValue, setOriginalContent, setLoading]);
+  }, [activeFile, fetchGitStatus]);
 
   return {
     gitStatus,

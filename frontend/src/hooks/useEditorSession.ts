@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatMarkdown } from '../utils/markdownLinter';
 
 interface UseEditorSessionProps {
@@ -12,6 +12,12 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
   const [originalContent, setOriginalContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [checkingGrammar, setCheckingGrammar] = useState(false);
+
+  const fetchFilesRef = useRef(fetchFiles);
+  fetchFilesRef.current = fetchFiles;
+
+  const fetchGitStatusRef = useRef(fetchGitStatus);
+  fetchGitStatusRef.current = fetchGitStatus;
 
   const [pageFormat, setPageFormat] = useState<'paperback' | 'hardback'>(() => {
     const saved = localStorage.getItem('marginalia_page_format');
@@ -65,7 +71,9 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
           body: JSON.stringify({ path: activeFile, content: editorValue })
         });
         setOriginalContent(editorValue);
-        await fetchGitStatus();
+        if (fetchGitStatusRef.current) {
+          await fetchGitStatusRef.current();
+        }
       } catch (err) {
         console.error('Failed to save file:', err);
       } finally {
@@ -74,7 +82,7 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [editorValue, activeFile, originalContent, fetchGitStatus]);
+  }, [editorValue, activeFile, originalContent]);
 
   const handleCreateFile = useCallback(async (path: string) => {
     setLoading(true);
@@ -84,15 +92,19 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path, content: '# ' + path.replace('.md', '') + '\n\nStart writing here...' })
       });
-      await fetchFiles();
+      if (fetchFilesRef.current) {
+        await fetchFilesRef.current();
+      }
       setActiveFile(path);
-      await fetchGitStatus();
+      if (fetchGitStatusRef.current) {
+        await fetchGitStatusRef.current();
+      }
     } catch (err) {
       console.error('Failed to create file:', err);
     } finally {
       setLoading(false);
     }
-  }, [fetchFiles, fetchGitStatus]);
+  }, []);
 
   const handleDeleteFile = useCallback(async (path: string) => {
     setLoading(true);
@@ -104,20 +116,24 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
         const data = await res.json();
         throw new Error(data.error || 'Failed to delete file');
       }
-      await fetchFiles();
+      if (fetchFilesRef.current) {
+        await fetchFilesRef.current();
+      }
       if (activeFile === path) {
         setActiveFile(null);
         setEditorValue('');
         setOriginalContent('');
       }
-      await fetchGitStatus();
+      if (fetchGitStatusRef.current) {
+        await fetchGitStatusRef.current();
+      }
     } catch (err) {
       console.error('Failed to delete file:', err);
       alert(`Delete failed: ${(err as Error).message}`);
     } finally {
       setLoading(false);
     }
-  }, [activeFile, fetchFiles, fetchGitStatus]);
+  }, [activeFile]);
 
   const handleApplyChange = useCallback((original: string, replacement: string): boolean => {
     if (!editorValue.includes(original)) {
@@ -134,7 +150,9 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
       }).then(res => {
         if (res.ok) {
           setOriginalContent(updated);
-          fetchGitStatus();
+          if (fetchGitStatusRef.current) {
+            fetchGitStatusRef.current();
+          }
         } else {
           console.error('Failed to auto-save change application to disk');
         }
@@ -143,7 +161,7 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
       });
     }
     return true;
-  }, [activeFile, editorValue, fetchGitStatus]);
+  }, [activeFile, editorValue]);
 
   const handleFormatDocument = useCallback(() => {
     const formatted = formatMarkdown(editorValue);
@@ -157,7 +175,9 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
         }).then(res => {
           if (res.ok) {
             setOriginalContent(formatted);
-            fetchGitStatus();
+            if (fetchGitStatusRef.current) {
+              fetchGitStatusRef.current();
+            }
           } else {
             console.error('Failed to auto-save formatted text to disk');
           }
@@ -166,7 +186,7 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
         });
       }
     }
-  }, [activeFile, editorValue, fetchGitStatus]);
+  }, [activeFile, editorValue]);
 
   return {
     activeFile,

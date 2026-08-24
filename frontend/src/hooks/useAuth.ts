@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface AuthInfo {
   loggedIn: boolean;
@@ -35,19 +35,20 @@ export function useAuth() {
   }, [fetchAuthStatus]);
 
   // Server Update Auto-Reload Detection
-  useEffect(() => {
-    let initialBuildTime: number | null = null;
+  const initialBuildTimeRef = useRef<number | null>(null);
 
+  useEffect(() => {
     const checkServerVersion = async () => {
       try {
         const res = await fetch('/api/version');
         if (!res.ok) return;
         const data = await res.json();
         if (typeof data.buildTime === 'number') {
-          if (initialBuildTime === null) {
-            initialBuildTime = data.buildTime;
-          } else if (data.buildTime !== initialBuildTime) {
+          if (initialBuildTimeRef.current === null) {
+            initialBuildTimeRef.current = data.buildTime;
+          } else if (data.buildTime !== initialBuildTimeRef.current) {
             console.log('New server deployment detected. Reloading application...');
+            initialBuildTimeRef.current = data.buildTime;
             window.location.reload();
           }
         }
@@ -57,7 +58,7 @@ export function useAuth() {
     };
 
     checkServerVersion();
-    const interval = setInterval(checkServerVersion, 20000);
+    const interval = setInterval(checkServerVersion, 30000);
     return () => clearInterval(interval);
   }, []);
 
