@@ -1549,13 +1549,24 @@ app.post('/api/tts/synthesize', async (req: any, res: any) => {
 
     // Fallback to edge engine if Gemini synthesis encounters an issue
     if (!response.ok && selectedBackend === 'gemini') {
-      console.warn('Gemini TTS synthesis failed, falling back to EdgeTTS...');
+      const geminiToEdgeMap: Record<string, string> = {
+        'Fenrir': 'en-US-ChristopherNeural',
+        'Puck': 'en-US-GuyNeural',
+        'Charon': 'en-GB-RyanNeural',
+        'Aoede': 'en-US-JennyNeural',
+        'Kore': 'en-US-AriaNeural',
+        'Leda': 'en-GB-SoniaNeural',
+        'Oran': 'en-US-EricNeural',
+        'Zephyr': 'en-US-RogerNeural',
+      };
+      const fallbackVoice = geminiToEdgeMap[voice] || 'en-US-ChristopherNeural';
+      console.warn(`Gemini TTS synthesis failed, falling back to EdgeTTS (${fallbackVoice})...`);
       response = await fetch(`${PARLANDO_URL}/api/preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
-          voice: 'en-US-ChristopherNeural',
+          voice: fallbackVoice,
           pacing: pacing || 'normal',
           speed: speed || 1.0,
           backend: 'edge',

@@ -489,6 +489,12 @@ function App() {
           }
         };
 
+        // Immediately kick off parallel prefetching for initial chunks
+        ensurePrefetched(0);
+        ensurePrefetched(1);
+        ensurePrefetched(2);
+        ensurePrefetched(3);
+
         const playChunk = async (audioData: string) => {
           if (speechSessionRef.current !== sessionId) return;
 
@@ -511,9 +517,10 @@ function App() {
           audio.playbackRate = 1.0;
           audioPlayerRef.current = audio;
 
-          // Aggressively prefetch a 2-chunk sliding window in the background queue
+          // Aggressively prefetch a 3-chunk sliding window in the background queue
           ensurePrefetched(currentChunkIdx + 1);
           ensurePrefetched(currentChunkIdx + 2);
+          ensurePrefetched(currentChunkIdx + 3);
 
           audio.onended = async () => {
             if (speechSessionRef.current !== sessionId) return;
@@ -521,6 +528,8 @@ function App() {
             if (currentChunkIdx < chunks.length) {
               ensurePrefetched(currentChunkIdx);
               ensurePrefetched(currentChunkIdx + 1);
+              ensurePrefetched(currentChunkIdx + 2);
+              ensurePrefetched(currentChunkIdx + 3);
               const nextPromise = prefetchCache.get(currentChunkIdx);
               const nextAudio = nextPromise ? await nextPromise : await fetchParlandoChunk(chunks[currentChunkIdx], voice, pacing, speed, sessionId);
               prefetchCache.delete(currentChunkIdx);
@@ -548,8 +557,10 @@ function App() {
           }
         };
 
-        // Fetch first chunk (optimized fast-start sentence) for immediate playback
-        const firstAudio = await fetchParlandoChunk(chunks[0], voice, pacing, speed, sessionId);
+        // Await first chunk (already requested in parallel) for instant start
+        const firstAudioPromise = prefetchCache.get(0);
+        const firstAudio = firstAudioPromise ? await firstAudioPromise : await fetchParlandoChunk(chunks[0], voice, pacing, speed, sessionId);
+        prefetchCache.delete(0);
         if (firstAudio && speechSessionRef.current === sessionId) {
           await playChunk(firstAudio);
         } else if (speechSessionRef.current === sessionId) {

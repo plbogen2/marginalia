@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.7.3 (August 2026)
+- **Voice Consistency & Allocation Fix**: Fixed `ProsodyDirector` and preview fast-path to preserve requested voices across chunks and prevent defaulting to primary profile voice.
+- **Matched Fallback Voices**: Added mapped Edge neural voices for each Gemini voice in backend proxy when fallbacks are needed.
+- **Continuous Gapless Audio Pipeline**: Initiates immediate parallel prefetching of 4 initial chunks on playback start and maintains a 3-chunk sliding window to eliminate inter-paragraph pauses.
+- **Fast Exponential Backoff**: Cleaned up retry delay and shortened timeouts in Gemini engine for faster recovery.
+
 ## v1.7.2 (August 2026)
 - **Monotonic Speech Session Lifecycle**: Implemented monotonic `speechSessionRef` lifecycle tokens to eliminate async race conditions, overlapping audio instances, and premature restart loops across start/stop/restart interactions.
 - **Audio Hardware Buffer Flush**: Ensured explicit pause, src reset, and unload on playback stop or cancellation.
