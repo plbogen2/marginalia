@@ -322,27 +322,59 @@ function App() {
   const [cursorOffset, setCursorOffset] = useState<number>(0);
   const utteranceRef = useRef<any>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const isCancelledRef = useRef<boolean>(false);
+  const speechSessionRef = useRef<number>(0);
+
+  const stopSpeech = () => {
+    // Increment monotonic session ID to immediately invalidate all in-flight requests & callbacks
+    speechSessionRef.current += 1;
+
+    if (utteranceRef.current) {
+      utteranceRef.current.onend = null;
+      utteranceRef.current.onerror = null;
+      utteranceRef.current = null;
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    if (audioPlayerRef.current) {
+      try {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.onended = null;
+        audioPlayerRef.current.onerror = null;
+        audioPlayerRef.current.src = '';
+        audioPlayerRef.current.load();
+      } catch (e) {
+        // ignore
+      }
+      audioPlayerRef.current = null;
+    }
+    setIsSpeaking(false);
+    setIsTtsLoading(false);
+  };
 
   const fetchParlandoChunk = async (
     textChunk: string,
     voice: string,
     pacing: string,
-    speed: number
+    speed: number,
+    sessionId: number
   ): Promise<string | null> => {
-    if (isCancelledRef.current || !textChunk.trim()) return null;
+    if (speechSessionRef.current !== sessionId || !textChunk.trim()) return null;
     try {
       const res = await fetch('/api/tts/synthesize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textChunk, voice, pacing, speed }),
       });
+      if (speechSessionRef.current !== sessionId) return null;
       if (!res.ok) throw new Error('Speech synthesis request failed');
       const data = await res.json();
-      if (isCancelledRef.current) return null;
+      if (speechSessionRef.current !== sessionId) return null;
       return data.audio_base64 || null;
     } catch (err) {
-      console.warn('Parlando chunk fetch failed:', err);
+      if (speechSessionRef.current === sessionId) {
+        console.warn('Parlando chunk fetch failed:', err);
+      }
       return null;
     }
   };
@@ -406,26 +438,6 @@ function App() {
     return chunks.length > 0 ? chunks : [clean];
   };
 
-  const stopSpeech = () => {
-    isCancelledRef.current = true;
-    if (utteranceRef.current) {
-      utteranceRef.current.onend = null;
-      utteranceRef.current.onerror = null;
-      utteranceRef.current = null;
-    }
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.pause();
-      audioPlayerRef.current.onended = null;
-      audioPlayerRef.current.onerror = null;
-      audioPlayerRef.current = null;
-    }
-    setIsSpeaking(false);
-    setIsTtsLoading(false);
-  };
-
   const toggleReadAloud = async () => {
     if (isSpeaking || isTtsLoading) {
       stopSpeech();
@@ -438,11 +450,13 @@ function App() {
     }
 
     stopSpeech();
-    isCancelledRef.current = false;
+    const sessionId = ++speechSessionRef.current;
 
-    // Start reading from current cursor position if cursor is placed inside document
+    // Start reading from selected text, or current cursor position, or document start
     let textToRead = editorValue;
-    if (cursorOffset > 0 && cursorOffset < editorValue.length) {
+    if (selectedText && selectedText.trim().length > 0) {
+      textToRead = selectedText.trim();
+    } else if (cursorOffset > 0 && cursorOffset < editorValue.length) {
       const sliced = editorValue.slice(cursorOffset).trim();
       if (sliced.length > 0) {
         textToRead = sliced;
@@ -459,8 +473,10 @@ function App() {
         const speed = parseFloat(localStorage.getItem('marginalia_parlando_speed') || '1.0');
 
         const chunks = splitIntoParagraphChunks(textToRead, 350);
-        if (chunks.length === 0) {
-          setIsTtsLoading(false);
+        if (chunks.length === 0 || speechSessionRef.current !== sessionId) {
+          if (speechSessionRef.current === sessionId) {
+            setIsTtsLoading(false);
+          }
           return;
         }
 
@@ -468,13 +484,28 @@ function App() {
         const prefetchCache = new Map<number, Promise<string | null>>();
 
         const ensurePrefetched = (idx: number) => {
-          if (idx < chunks.length && !prefetchCache.has(idx) && !isCancelledRef.current) {
-            prefetchCache.set(idx, fetchParlandoChunk(chunks[idx], voice, pacing, speed));
+          if (idx < chunks.length && !prefetchCache.has(idx) && speechSessionRef.current === sessionId) {
+            prefetchCache.set(idx, fetchParlandoChunk(chunks[idx], voice, pacing, speed, sessionId));
           }
         };
 
         const playChunk = async (audioData: string) => {
-          if (isCancelledRef.current) return;
+          if (speechSessionRef.current !== sessionId) return;
+
+          // Stop previous audio instance if still active
+          if (audioPlayerRef.current) {
+            try {
+              audioPlayerRef.current.pause();
+              audioPlayerRef.current.onended = null;
+              audioPlayerRef.current.onerror = null;
+              audioPlayerRef.current.src = '';
+              audioPlayerRef.current.load();
+            } catch (e) {
+              // ignore
+            }
+            audioPlayerRef.current = null;
+          }
+
           const audio = new Audio(audioData);
           // Parlando renders speed natively in neural synthesis SSML/rate; do not double-stretch in browser
           audio.playbackRate = 1.0;
@@ -485,15 +516,15 @@ function App() {
           ensurePrefetched(currentChunkIdx + 2);
 
           audio.onended = async () => {
-            if (isCancelledRef.current) return;
+            if (speechSessionRef.current !== sessionId) return;
             currentChunkIdx++;
             if (currentChunkIdx < chunks.length) {
               ensurePrefetched(currentChunkIdx);
               ensurePrefetched(currentChunkIdx + 1);
               const nextPromise = prefetchCache.get(currentChunkIdx);
-              const nextAudio = nextPromise ? await nextPromise : await fetchParlandoChunk(chunks[currentChunkIdx], voice, pacing, speed);
+              const nextAudio = nextPromise ? await nextPromise : await fetchParlandoChunk(chunks[currentChunkIdx], voice, pacing, speed, sessionId);
               prefetchCache.delete(currentChunkIdx);
-              if (nextAudio && !isCancelledRef.current) {
+              if (nextAudio && speechSessionRef.current === sessionId) {
                 await playChunk(nextAudio);
               } else {
                 stopSpeech();
@@ -504,25 +535,31 @@ function App() {
           };
 
           audio.onerror = (e) => {
-            console.error('Parlando audio playback error:', e);
-            stopSpeech();
+            if (speechSessionRef.current === sessionId) {
+              console.error('Parlando audio playback error:', e);
+              stopSpeech();
+            }
           };
 
-          setIsTtsLoading(false);
-          setIsSpeaking(true);
-          await audio.play();
+          if (speechSessionRef.current === sessionId) {
+            setIsTtsLoading(false);
+            setIsSpeaking(true);
+            await audio.play();
+          }
         };
 
         // Fetch first chunk (optimized fast-start sentence) for immediate playback
-        const firstAudio = await fetchParlandoChunk(chunks[0], voice, pacing, speed);
-        if (firstAudio && !isCancelledRef.current) {
+        const firstAudio = await fetchParlandoChunk(chunks[0], voice, pacing, speed, sessionId);
+        if (firstAudio && speechSessionRef.current === sessionId) {
           await playChunk(firstAudio);
-        } else {
+        } else if (speechSessionRef.current === sessionId) {
           stopSpeech();
         }
       } catch (err) {
-        console.warn('Parlando neural speech failed, falling back to local speech:', err);
-        stopSpeech();
+        if (speechSessionRef.current === sessionId) {
+          console.warn('Parlando neural speech failed, falling back to local speech:', err);
+          stopSpeech();
+        }
       }
       return;
     }
@@ -547,9 +584,11 @@ function App() {
     let currentIndex = 0;
 
     const speakNextSentence = () => {
-      if (isCancelledRef.current || currentIndex >= sentences.length) {
-        setIsSpeaking(false);
-        utteranceRef.current = null;
+      if (speechSessionRef.current !== sessionId || currentIndex >= sentences.length) {
+        if (speechSessionRef.current === sessionId) {
+          setIsSpeaking(false);
+          utteranceRef.current = null;
+        }
         return;
       }
 
@@ -595,13 +634,13 @@ function App() {
       }
 
       utterance.onend = () => {
-        if (isCancelledRef.current) return;
+        if (speechSessionRef.current !== sessionId) return;
         currentIndex++;
         speakNextSentence();
       };
 
       utterance.onerror = (err) => {
-        if (isCancelledRef.current) return;
+        if (speechSessionRef.current !== sessionId) return;
         console.error('TTS utterance error:', err);
         currentIndex++;
         if (currentIndex < sentences.length) {
