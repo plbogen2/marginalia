@@ -347,17 +347,44 @@ function App() {
     }
   };
 
-  const splitIntoParagraphChunks = (text: string, maxLen: number = 300): string[] => {
+  const splitIntoParagraphChunks = (text: string, maxLen: number = 350): string[] => {
     // Strip markdown structural tokens while preserving dialogue quotes and contractions
     const clean = text
       .replace(/^#+\s+/gm, '')
       .replace(/[*_`~>]/g, '')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 
-    const paragraphs = clean.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    const rawParagraphs = clean.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     const chunks: string[] = [];
 
-    for (const para of paragraphs) {
+    for (let pIdx = 0; pIdx < rawParagraphs.length; pIdx++) {
+      const para = rawParagraphs[pIdx];
+
+      // Fast start optimization (Chunk 0): split first sentence so initial playback starts in <500ms
+      if (chunks.length === 0) {
+        const sentences = para.match(/[^.!?]+[.!?]+|\S+/g) || [para];
+        if (sentences.length > 1 && sentences[0].length <= 160) {
+          chunks.push(sentences[0].trim());
+          const restOfPara = sentences.slice(1).join(' ').trim();
+          if (restOfPara.length <= maxLen) {
+            chunks.push(restOfPara);
+          } else {
+            let current = '';
+            for (let i = 1; i < sentences.length; i++) {
+              const s = sentences[i];
+              if ((current + ' ' + s).trim().length > maxLen && current.length > 0) {
+                chunks.push(current.trim());
+                current = s;
+              } else {
+                current = current ? `${current} ${s}` : s;
+              }
+            }
+            if (current.trim().length > 0) chunks.push(current.trim());
+          }
+          continue;
+        }
+      }
+
       if (para.length <= maxLen) {
         chunks.push(para);
       } else {
@@ -431,13 +458,20 @@ function App() {
         const pacing = localStorage.getItem('marginalia_parlando_pacing') || 'normal';
         const speed = parseFloat(localStorage.getItem('marginalia_parlando_speed') || '1.0');
 
-        const chunks = splitIntoParagraphChunks(textToRead, 300);
+        const chunks = splitIntoParagraphChunks(textToRead, 350);
         if (chunks.length === 0) {
           setIsTtsLoading(false);
           return;
         }
 
         let currentChunkIdx = 0;
+        const prefetchCache = new Map<number, Promise<string | null>>();
+
+        const ensurePrefetched = (idx: number) => {
+          if (idx < chunks.length && !prefetchCache.has(idx) && !isCancelledRef.current) {
+            prefetchCache.set(idx, fetchParlandoChunk(chunks[idx], voice, pacing, speed));
+          }
+        };
 
         const playChunk = async (audioData: string) => {
           if (isCancelledRef.current) return;
@@ -446,18 +480,19 @@ function App() {
           audio.playbackRate = 1.0;
           audioPlayerRef.current = audio;
 
-          // Pre-fetch next chunk concurrently in background while current chunk plays
-          const nextIdx = currentChunkIdx + 1;
-          let nextPromise: Promise<string | null> | null = null;
-          if (nextIdx < chunks.length && !isCancelledRef.current) {
-            nextPromise = fetchParlandoChunk(chunks[nextIdx], voice, pacing, speed);
-          }
+          // Aggressively prefetch a 2-chunk sliding window in the background queue
+          ensurePrefetched(currentChunkIdx + 1);
+          ensurePrefetched(currentChunkIdx + 2);
 
           audio.onended = async () => {
             if (isCancelledRef.current) return;
             currentChunkIdx++;
             if (currentChunkIdx < chunks.length) {
+              ensurePrefetched(currentChunkIdx);
+              ensurePrefetched(currentChunkIdx + 1);
+              const nextPromise = prefetchCache.get(currentChunkIdx);
               const nextAudio = nextPromise ? await nextPromise : await fetchParlandoChunk(chunks[currentChunkIdx], voice, pacing, speed);
+              prefetchCache.delete(currentChunkIdx);
               if (nextAudio && !isCancelledRef.current) {
                 await playChunk(nextAudio);
               } else {
@@ -478,7 +513,7 @@ function App() {
           await audio.play();
         };
 
-        // Fetch first chunk for sub-second playback start
+        // Fetch first chunk (optimized fast-start sentence) for immediate playback
         const firstAudio = await fetchParlandoChunk(chunks[0], voice, pacing, speed);
         if (firstAudio && !isCancelledRef.current) {
           await playChunk(firstAudio);
