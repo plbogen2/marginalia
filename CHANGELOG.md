@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.7.2 (August 2026)
+- **Monotonic Speech Session Lifecycle**: Implemented monotonic `speechSessionRef` lifecycle tokens to eliminate async race conditions, overlapping audio instances, and premature restart loops across start/stop/restart interactions.
+- **Audio Hardware Buffer Flush**: Ensured explicit pause, src reset, and unload on playback stop or cancellation.
+- **Selection-Aware Reading**: Support highlighting text to read only the selected excerpt.
+
+## v1.7.1 (August 2026)
+- **Parlando Preview Fast-Path**: Direct in-memory synthesis for read-aloud requests (<1,500 chars), bypassing multi-pass document parsing and FFmpeg mastering overhead.
+- **Gemini 2.5 TTS Model Fix & PCM L16 Decoder**: Upgraded to `gemini-2.5-flash-preview-tts` and implemented direct 24kHz 16-bit PCM WAV container encapsulation.
+- **Adaptive Fast-Start & 2-Chunk Prefetch**: Chunk 0 first sentence (<160 chars) fast-start with sliding window background prefetching.
+
+## v1.7.0 (August 2026)
+- **Parlando Neural Speech Engine Integration**: Integrated Parlando as a core TTS engine with Microsoft Edge neural voices and Google Gemini Speech Synthesis (`Fenrir`, `Puck`, `Charon`, `Aoede`, `Kore`).
+- **Settings Voice & Pacing Customization**: Configurable voice engine selector, neural voice picker, pacing presets (normal, dramatic, rapid, relaxed), and speed multiplier.
+- **Admin Telemetry & Feature Usage Monitor**: Added `/api/admin/metrics`, telemetry tracking, and Admin Dashboard.
+
 ## v1.6.0 (August 2026)
 - feat: support selected text as context in write-with-me co-writer
 
