@@ -58,20 +58,33 @@ jobs:
 
             printf "PORT=3000\nSESSION_SECRET=%s\nGEMINI_API_KEY=%s\nGITHUB_CLIENT_ID=%s\nGITHUB_CLIENT_SECRET=%s\nALLOWED_USER=%s\nPARLANDO_URL=http://parlando:8765\n" "$SESSION_SECRET" "$GEMINI_API_KEY" "$GH_CLIENT_ID" "$GH_CLIENT_SECRET" "$ALLOWED_USER" > .env
 
-            echo "--> Opening ports 80 and 443 in host firewall..."
+            echo "--> Configuring firewall for ports 80, 443, 3000, 8765..."
             sudo iptables -I INPUT 1 -p tcp --dport 80 -j ACCEPT 2>/dev/null || true
             sudo iptables -I INPUT 1 -p tcp --dport 443 -j ACCEPT 2>/dev/null || true
+            sudo iptables -I INPUT 1 -p tcp --dport 3000 -j ACCEPT 2>/dev/null || true
+            sudo iptables -I INPUT 1 -p tcp --dport 8765 -j ACCEPT 2>/dev/null || true
             if command -v netfilter-persistent &> /dev/null; then
               sudo netfilter-persistent save 2>/dev/null || true
             fi
             rm -f docker-compose.override.yml 2>/dev/null || true
 
-            echo "--> Rebuilding and starting containers..."
+            echo "--> Rebuilding and starting containers sequentially to avoid memory pressure..."
             sudo docker-compose down || true
-            sudo docker-compose up -d --build --remove-orphans
+            sudo docker-compose build parlando
+            sudo docker-compose build marginalia
+            sudo docker-compose up -d --remove-orphans
             
-            echo "--> Verifying container status..."
-            sudo docker ps
+            echo "--> Container status:"
+            sudo docker ps -a
+            
+            echo "--> Container logs:"
+            sudo docker logs --tail 20 marginalia_caddy || true
+            sudo docker logs --tail 20 marginalia || true
+            sudo docker logs --tail 20 marginalia_parlando || true
+
+            echo "--> Testing localhost connection:"
+            curl -I http://127.0.0.1:80 || true
+            curl -I http://127.0.0.1:3000 || true
           else
             echo "--> Repository folder 'marginalia' not found. Please run scripts/setup_vm.sh on the host first!"
             exit 1

@@ -4,8 +4,11 @@ services:
   marginalia:
     build: .
     container_name: marginalia
+    restart: unless-stopped
     expose:
       - "3000"
+    ports:
+      - "3000:3000"
     devices:
       - "/dev/fuse:/dev/fuse"
     cap_add:
@@ -36,6 +39,8 @@ services:
     restart: unless-stopped
     expose:
       - "8765"
+    ports:
+      - "8765:8765"
     environment:
       - PORT=8765
 
