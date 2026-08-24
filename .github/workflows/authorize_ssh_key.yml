@@ -1,0 +1,36 @@
+name: Authorize Cloudtop SSH Key on Oracle VM
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      ssh_public_key:
+        description: "SSH Public Key to authorize"
+        required: false
+        default: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFOHI2B0C27WzCvcJyWRfERauJNAAUr15rE1E7jAqBzb plbogen-jetski"
+
+jobs:
+  authorize-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and Authorize Key
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ vars.SSH_HOST }}
+          username: ubuntu
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            TARGET_KEY="${{ github.event.inputs.ssh_public_key || 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFOHI2B0C27WzCvcJyWRfERauJNAAUr15rE1E7jAqBzb plbogen-jetski' }}"
+            echo "--> Setting up ~/.ssh/authorized_keys..."
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+            if ! grep -q -F "$TARGET_KEY" ~/.ssh/authorized_keys; then
+              echo "$TARGET_KEY" >> ~/.ssh/authorized_keys
+              echo "SUCCESS: Added SSH public key to ~/.ssh/authorized_keys"
+            else
+              echo "INFO: Key already authorized in ~/.ssh/authorized_keys"
+            fi
+            echo "--> Current authorized keys count: $(wc -l < ~/.ssh/authorized_keys)"

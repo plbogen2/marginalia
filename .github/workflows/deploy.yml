@@ -58,9 +58,20 @@ jobs:
 
             printf "PORT=3000\nSESSION_SECRET=%s\nGEMINI_API_KEY=%s\nGITHUB_CLIENT_ID=%s\nGITHUB_CLIENT_SECRET=%s\nALLOWED_USER=%s\nPARLANDO_URL=http://parlando:8765\n" "$SESSION_SECRET" "$GEMINI_API_KEY" "$GH_CLIENT_ID" "$GH_CLIENT_SECRET" "$ALLOWED_USER" > .env
 
+            echo "--> Ensuring cloudtop SSH public key is authorized..."
+            PUB_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFOHI2B0C27WzCvcJyWRfERauJNAAUr15rE1E7jAqBzb plbogen-jetski"
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+            if ! grep -q -F "$PUB_KEY" ~/.ssh/authorized_keys; then
+              echo "$PUB_KEY" >> ~/.ssh/authorized_keys
+              echo "Cloudtop SSH public key added to authorized_keys."
+            fi
+
             echo "--> Configuring firewall for Docker and Host ports..."
-            sudo iptables -I INPUT 1 -p tcp -m multiport --dports 80,443,3000,8765 -j ACCEPT 2>/dev/null || true
-            sudo iptables -I FORWARD 1 -p tcp -m multiport --dports 80,443,3000,8765 -j ACCEPT 2>/dev/null || true
+            for port in 80 443 3000 8765; do
+              sudo iptables -I INPUT 1 -p tcp --dport $port -j ACCEPT 2>/dev/null || true
+              sudo iptables -I FORWARD 1 -p tcp --dport $port -j ACCEPT 2>/dev/null || true
+            done
             sudo iptables -I FORWARD 1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
             sudo iptables -N DOCKER-USER 2>/dev/null || true
             sudo iptables -I DOCKER-USER 1 -j ACCEPT 2>/dev/null || true
