@@ -41,8 +41,9 @@ jobs:
         script: |
           if [ -d "marginalia" ]; then
             cd marginalia
-            echo "--> Pulling latest changes and updating submodules..."
+            echo "--> Pulling latest changes and syncing submodules..."
             git pull origin main
+            git submodule sync
             git submodule update --init --recursive
             cp scripts/setup_vm.sh $HOME/setup_vm.sh 2>/dev/null && chmod +x $HOME/setup_vm.sh || true
             

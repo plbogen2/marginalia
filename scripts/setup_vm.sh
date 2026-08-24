@@ -51,9 +51,11 @@ else
 fi
 
 # 2. Configure local iptables firewall
-echo "--> Configuring iptables firewall to open port 80..."
+echo "--> Configuring iptables firewall to open ports 80 and 443..."
 while sudo iptables -D INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null; do :; done
 sudo iptables -I INPUT 1 -p tcp --dport 80 -j ACCEPT
+while sudo iptables -D INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null; do :; done
+sudo iptables -I INPUT 1 -p tcp --dport 443 -j ACCEPT
 
 if command -v netfilter-persistent &> /dev/null; then
   sudo netfilter-persistent save
@@ -68,6 +70,7 @@ else
   echo "--> Updating Marginalia repository..."
   cd marginalia
   git pull origin main
+  git submodule sync
   git submodule update --init --recursive
   cp scripts/setup_vm.sh $HOME/setup_vm.sh 2>/dev/null && chmod +x $HOME/setup_vm.sh || true
 fi
@@ -88,9 +91,9 @@ EOT
   echo ".env file created with secure session secrets."
 fi
 
-# 6. Build and Start the application on port 80
-echo "--> Launching Marginalia containers on port 80..."
+# 6. Build and Start the application on ports 80 and 443
+echo "--> Launching Marginalia containers on ports 80 and 443..."
 sudo docker-compose down || true
-sudo docker-compose up -d --build
+sudo docker-compose up -d --build --remove-orphans
 
 echo "=== Marginalia OCI VM Setup Complete! ==="
