@@ -348,11 +348,11 @@ function App() {
   };
 
   const splitIntoParagraphChunks = (text: string, maxLen: number = 300): string[] => {
+    // Strip markdown structural tokens while preserving dialogue quotes and contractions
     const clean = text
-      .replace(/#+\s+/g, '')
+      .replace(/^#+\s+/gm, '')
       .replace(/[*_`~>]/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/["'“”‘’]/g, '');
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 
     const paragraphs = clean.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     const chunks: string[] = [];
@@ -442,7 +442,8 @@ function App() {
         const playChunk = async (audioData: string) => {
           if (isCancelledRef.current) return;
           const audio = new Audio(audioData);
-          audio.playbackRate = speed;
+          // Parlando renders speed natively in neural synthesis SSML/rate; do not double-stretch in browser
+          audio.playbackRate = 1.0;
           audioPlayerRef.current = audio;
 
           // Pre-fetch next chunk concurrently in background while current chunk plays
