@@ -1,3 +1,9 @@
 64-181-248-211.nip.io {
+    tls {
+        issuer acme {
+            dir https://acme-v02.api.letsencrypt.org/directory
+            challenges tls-alpn-01
+        }
+    }
     reverse_proxy marginalia:3000
 }
