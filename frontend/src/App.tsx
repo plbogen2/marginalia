@@ -1,214 +1,155 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
 import { Preview } from './components/Preview';
 import { GitBar } from './components/GitBar';
-import { WorkspaceManager } from './components/WorkspaceManager';
 import './App.scss';
-import { resolveRelativePath } from './utils/pathResolver';
-import { SettingsModal } from './components/SettingsModal';
-import { MarkdownGuideModal } from './components/MarkdownGuideModal';
-import { GitDiffModal } from './components/GitDiffModal';
-import { AboutModal } from './components/AboutModal';
-import { AdminDashboardModal } from './components/AdminDashboardModal';
-import { AiPanel, type Persona } from './components/AiPanel';
-import { type ChatMessage, parseMessage } from './utils/aiParser';
+
+import { useAuth } from './hooks/useAuth';
+import { useSidebarResize } from './hooks/useSidebarResize';
+import { useWorkspace } from './hooks/useWorkspace';
+import { useGit } from './hooks/useGit';
+import { useEditorSession } from './hooks/useEditorSession';
+import { useAiCoWriter } from './hooks/useAiCoWriter';
+import { useAudio } from './hooks/useAudio';
+import { useScrollSync } from './hooks/useScrollSync';
+
 import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX, Pen, PenOff } from 'lucide-react';
-import { formatMarkdown } from './utils/markdownLinter';
+
+// Lazy-loaded secondary modals and panels to enable code-splitting
+const WorkspaceManager = lazy(() => import('./components/WorkspaceManager').then(m => ({ default: m.WorkspaceManager })));
+const SettingsModal = lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })));
+const AdminDashboardModal = lazy(() => import('./components/AdminDashboardModal').then(m => ({ default: m.AdminDashboardModal })));
+const MarkdownGuideModal = lazy(() => import('./components/MarkdownGuideModal').then(m => ({ default: m.MarkdownGuideModal })));
+const AboutModal = lazy(() => import('./components/AboutModal').then(m => ({ default: m.AboutModal })));
+const GitDiffModal = lazy(() => import('./components/GitDiffModal').then(m => ({ default: m.GitDiffModal })));
+const AiPanel = lazy(() => import('./components/AiPanel').then(m => ({ default: m.AiPanel })));
 
 function App() {
-  const [files, setFiles] = useState<string[]>([]);
-  const [sidebarWidth, setSidebarWidth] = useState(250);
-  const isResizing = useRef(false);
+  // Authentication & Server Lifecycle
+  const { authInfo, handleLogout } = useAuth();
 
-  const startResizing = useCallback((mouseDownEvent: React.MouseEvent) => {
-    mouseDownEvent.preventDefault();
-    isResizing.current = true;
-  }, []);
-
-  const stopResizing = useCallback(() => {
-    isResizing.current = false;
-  }, []);
-
-  const resize = useCallback((mouseMoveEvent: MouseEvent) => {
-    if (isResizing.current) {
-      const newWidth = Math.max(150, Math.min(600, mouseMoveEvent.clientX));
-      setSidebarWidth(newWidth);
-    }
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('mousemove', resize);
-    window.addEventListener('mouseup', stopResizing);
-    return () => {
-      window.removeEventListener('mousemove', resize);
-      window.removeEventListener('mouseup', stopResizing);
-    };
-  }, [resize, stopResizing]);
-  const [activeWorkspaceName, setActiveWorkspaceName] = useState<string | null>(null);
-  const [activeFile, setActiveFile] = useState<string | null>(null);
-  const [editorValue, setEditorValue] = useState('');
-  const [originalContent, setOriginalContent] = useState('');
-  const [gitStatus, setGitStatus] = useState('');
-  const [gitBranch, setGitBranch] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [checkingGrammar, setCheckingGrammar] = useState(false);
+  // Layout & Resizing
+  const { sidebarWidth, startResizing } = useSidebarResize(250);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(true);
+
+  // Modal Visibility State
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [hasRemote, setHasRemote] = useState(false);
-  const [gitAhead, setGitAhead] = useState(0);
-  const [hasGemini, setHasGemini] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
-  const [aiPanelOpen, setAiPanelOpen] = useState(() => {
-    const saved = localStorage.getItem('marginalia_ai_panel_open');
-    return saved === 'true';
-  });
-  const [selectedPersona, setSelectedPersona] = useState<Persona>('developmental');
-  const [writeWithMeLoading, setWriteWithMeLoading] = useState(false);
-  const [writeWithMeActive, setWriteWithMeActive] = useState(false);
-  const [writeWithMeMessages, setWriteWithMeMessages] = useState<ChatMessage[]>([]);
-  const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
-  const [selectedText, setSelectedText] = useState<string | null>(null);
 
-
-  useEffect(() => {
-    localStorage.setItem('marginalia_ai_panel_open', String(aiPanelOpen));
-  }, [aiPanelOpen]);
-  const saveWriteWithMeCache = useCallback(async (msgs: ChatMessage[]) => {
-    if (!activeFile) return;
-    try {
-      await fetch('/api/ai/cache', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path: activeFile,
-          persona: 'write-with-me',
-          messages: msgs
-        })
-      });
-    } catch (err) {
-      console.error('Failed to save Write With Me cache:', err);
+  // Editor Session & Document Lifecycle
+  const editorSession = useEditorSession({
+    fetchFiles: async () => {
+      await workspace.fetchFiles();
+    },
+    fetchGitStatus: async () => {
+      await git.fetchGitStatus();
     }
-  }, [activeFile]);
-
-  const triggerInlineSuggestion = useCallback(async (userMessage?: string, historyOverride?: ChatMessage[]) => {
-    if (!activeFile || writeWithMeLoading) return;
-    setWriteWithMeLoading(true);
-    try {
-      let nextHistory = historyOverride || [...writeWithMeMessages];
-
-      if (userMessage) {
-        const userMsg: ChatMessage = {
-          id: `msg-user-${Date.now()}`,
-          role: 'user',
-          content: userMessage,
-          rawContent: userMessage,
-          suggestions: []
-        };
-        nextHistory = [...nextHistory, userMsg];
-        setWriteWithMeMessages(nextHistory);
-        await saveWriteWithMeCache(nextHistory);
-      }
-
-      const payload: {
-        path: string;
-        persona: string;
-        contextFiles?: string[];
-        message?: string;
-        history?: { role: 'user' | 'model'; content: string }[];
-        selectedText?: string;
-      } = {
-        path: activeFile,
-        persona: 'write-with-me'
-      };
-
-      if (selectedContextFiles.length > 0) {
-        payload.contextFiles = selectedContextFiles;
-      }
-
-      if (selectedText) {
-        payload.selectedText = selectedText;
-      }
-
-      if (nextHistory.length > 0) {
-        payload.history = nextHistory.map(m => ({
-          role: m.role,
-          content: m.rawContent
-        }));
-        if (userMessage) {
-          payload.message = userMessage;
-          payload.history = payload.history.slice(0, -1);
-        }
-      }
-
-      const res = await fetch('/api/ai/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to get suggestion');
-
-      const modelId = `msg-model-${Date.now()}`;
-      const parsed = parseMessage(data.feedback || '', modelId);
-      
-      const finalHistory = [...nextHistory, parsed];
-      setWriteWithMeMessages(finalHistory);
-      await saveWriteWithMeCache(finalHistory);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to get suggestion: ' + (err as Error).message);
-    } finally {
-      setWriteWithMeLoading(false);
-    }
-  }, [activeFile, writeWithMeLoading, writeWithMeMessages, selectedContextFiles, saveWriteWithMeCache, selectedText]);
-
-  const loadWriteWithMeCache = useCallback(async (file: string) => {
-    try {
-      const res = await fetch(`/api/ai/cache?path=${encodeURIComponent(file)}&persona=write-with-me`);
-      if (res.ok) {
-        const data = await res.json();
-        const msgs = data.messages || [];
-        setWriteWithMeMessages(msgs);
-        if (msgs.length === 0) {
-          triggerInlineSuggestion(undefined, msgs);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load Write With Me cache:', err);
-    }
-  }, [triggerInlineSuggestion]);
-
-  useEffect(() => {
-    if (writeWithMeActive && activeFile) {
-      loadWriteWithMeCache(activeFile);
-    } else {
-      setWriteWithMeMessages([]);
-    }
-  }, [writeWithMeActive, activeFile, loadWriteWithMeCache]);
-
-
-  const [authInfo, setAuthInfo] = useState<{ loggedIn: boolean, user: string | null, isOAuthMode: boolean, isAdmin?: boolean } | null>(null);
-
-  const [pageFormat, setPageFormat] = useState<'paperback' | 'hardback'>(() => {
-    const saved = localStorage.getItem('marginalia_page_format');
-    return (saved === 'paperback' || saved === 'hardback') ? saved : 'paperback';
   });
 
-  useEffect(() => {
-    localStorage.setItem('marginalia_page_format', pageFormat);
-  }, [pageFormat]);
+  const {
+    activeFile,
+    setActiveFile,
+    editorValue,
+    setEditorValue,
+    setOriginalContent,
+    loading,
+    checkingGrammar,
+    setCheckingGrammar,
+    pageFormat,
+    setPageFormat,
+    wordCount,
+    pageCount,
+    handleCreateFile,
+    handleDeleteFile,
+    handleApplyChange,
+    handleFormatDocument
+  } = editorSession;
 
-  const cleanText = editorValue.replace(/<!--[\s\S]*?-->/g, '');
-  const wordCount = cleanText.trim() ? cleanText.trim().split(/\s+/).length : 0;
-  const wordsPerPage = pageFormat === 'paperback' ? 300 : 250;
-  const pageCount = Math.ceil(wordCount / wordsPerPage);
+  // Workspace & File Navigation
+  const workspace = useWorkspace({
+    authInfo,
+    activeFile,
+    setActiveFile,
+    setLoading: editorSession.setLoading,
+    onWorkspaceOrFilesRefreshed: async () => {
+      await git.fetchGitStatus();
+      await git.fetchGitBranch();
+    }
+  });
 
+  const {
+    files,
+    fetchFiles,
+    setActiveWorkspaceName,
+    selectFile,
+    handleNavigateLink
+  } = workspace;
+
+  // Git VCS State & Actions
+  const git = useGit({
+    setLoading: editorSession.setLoading,
+    fetchFiles,
+    activeFile,
+    setEditorValue,
+    setOriginalContent
+  });
+
+  const {
+    gitStatus,
+    gitBranch,
+    hasRemote,
+    gitAhead,
+    hasGemini,
+    fetchGitStatus,
+    handleRefresh,
+    handleCommit,
+    handlePush,
+    handlePull
+  } = git;
+
+  // AI Co-Writer & Editorial Assistant
+  const {
+    aiPanelOpen,
+    setAiPanelOpen,
+    selectedPersona,
+    setSelectedPersona,
+    writeWithMeLoading,
+    writeWithMeActive,
+    setWriteWithMeActive,
+    writeWithMeMessages,
+    selectedContextFiles,
+    setSelectedContextFiles,
+    selectedText,
+    setSelectedText,
+    triggerInlineSuggestion,
+    deactivateWriteWithMe
+  } = useAiCoWriter({ activeFile });
+
+  // Audio (Dictation & Text-to-Speech)
+  const {
+    isDictating,
+    toggleDictation,
+    isSpeaking,
+    isTtsLoading,
+    setCursorOffset,
+    toggleReadAloud
+  } = useAudio({
+    editorValue,
+    setEditorValue,
+    selectedText,
+    activeFile
+  });
+
+  // Bidirectional scroll sync
+  useScrollSync(activeFile, previewOpen);
+
+  // F1 Help Shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F1') {
@@ -219,954 +160,6 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  const fetchAuthStatus = async () => {
-    try {
-      const res = await fetch('/api/auth/status');
-      const data = await res.json();
-      setAuthInfo(data);
-    } catch (err) {
-      console.error('Failed to fetch auth status:', err);
-    }
-  };
-
-  useEffect(() => {
-    fetchAuthStatus();
-  }, []);
-
-  // Server Update Auto-Reload Detection
-  useEffect(() => {
-    let initialBuildTime: number | null = null;
-
-    const checkServerVersion = async () => {
-      try {
-        const res = await fetch('/api/version');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (typeof data.buildTime === 'number') {
-          if (initialBuildTime === null) {
-            initialBuildTime = data.buildTime;
-          } else if (data.buildTime !== initialBuildTime) {
-            console.log('New server deployment detected. Reloading application...');
-            window.location.reload();
-          }
-        }
-      } catch (err) {
-        // Ignore temporary network errors during server restart
-      }
-    };
-
-    checkServerVersion();
-    const interval = setInterval(checkServerVersion, 20000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Voice Dictation (Speech-to-Text)
-  const [isDictating, setIsDictating] = useState(false);
-  const recognitionRef = useRef<any>(null);
-
-  const toggleDictation = () => {
-    if (isDictating) {
-      recognitionRef.current?.stop();
-      setIsDictating(false);
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Speech Recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
-
-    recognition.onresult = (event: any) => {
-      const lastResultIndex = event.results.length - 1;
-      let transcript = event.results[lastResultIndex][0].transcript;
-
-      // Format common voice punctuation commands
-      transcript = transcript
-        .replace(/\bperiod\b/gi, '.')
-        .replace(/\bcomma\b/gi, ',')
-        .replace(/\bquestion mark\b/gi, '?')
-        .replace(/\bexclamation mark\b/gi, '!')
-        .replace(/\bnew line\b/gi, '\n')
-        .replace(/\bnew paragraph\b/gi, '\n\n');
-
-      setEditorValue((prev) => {
-        const needsSpace = prev.length > 0 && !prev.endsWith(' ') && !prev.endsWith('\n');
-        return prev + (needsSpace ? ' ' : '') + transcript;
-      });
-    };
-
-    recognition.onerror = (err: any) => {
-      console.warn('Dictation error:', err);
-      setIsDictating(false);
-    };
-
-    recognition.onend = () => {
-      setIsDictating(false);
-    };
-
-    recognition.start();
-    recognitionRef.current = recognition;
-    setIsDictating(true);
-  };
-
-  // Text-to-Speech (Read Aloud)
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isTtsLoading, setIsTtsLoading] = useState(false);
-  const [cursorOffset, setCursorOffset] = useState<number>(0);
-  const utteranceRef = useRef<any>(null);
-  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const speechSessionRef = useRef<number>(0);
-
-  const stopSpeech = () => {
-    // Increment monotonic session ID to immediately invalidate all in-flight requests & callbacks
-    speechSessionRef.current += 1;
-
-    if (utteranceRef.current) {
-      utteranceRef.current.onend = null;
-      utteranceRef.current.onerror = null;
-      utteranceRef.current = null;
-    }
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    if (audioPlayerRef.current) {
-      try {
-        audioPlayerRef.current.pause();
-        audioPlayerRef.current.onended = null;
-        audioPlayerRef.current.onerror = null;
-        audioPlayerRef.current.src = '';
-        audioPlayerRef.current.load();
-      } catch (e) {
-        // ignore
-      }
-      audioPlayerRef.current = null;
-    }
-    setIsSpeaking(false);
-    setIsTtsLoading(false);
-  };
-
-  const fetchParlandoChunk = async (
-    textChunk: string,
-    voice: string,
-    pacing: string,
-    speed: number,
-    sessionId: number
-  ): Promise<string | null> => {
-    if (speechSessionRef.current !== sessionId || !textChunk.trim()) return null;
-    try {
-      const res = await fetch('/api/tts/synthesize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: textChunk, voice, pacing, speed }),
-      });
-      if (speechSessionRef.current !== sessionId) return null;
-      if (!res.ok) throw new Error('Speech synthesis request failed');
-      const data = await res.json();
-      if (speechSessionRef.current !== sessionId) return null;
-      return data.audio_base64 || null;
-    } catch (err) {
-      if (speechSessionRef.current === sessionId) {
-        console.warn('Parlando chunk fetch failed:', err);
-      }
-      return null;
-    }
-  };
-
-  const splitIntoParagraphChunks = (text: string, maxLen: number = 350): string[] => {
-    // Strip markdown structural tokens while preserving dialogue quotes and contractions
-    const clean = text
-      .replace(/^#+\s+/gm, '')
-      .replace(/[*_`~>]/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-
-    const rawParagraphs = clean.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
-    const chunks: string[] = [];
-
-    for (let pIdx = 0; pIdx < rawParagraphs.length; pIdx++) {
-      const para = rawParagraphs[pIdx];
-
-      // Fast start optimization (Chunk 0): split first sentence so initial playback starts in <500ms
-      if (chunks.length === 0) {
-        const sentences = para.match(/[^.!?]+[.!?]+|\S+/g) || [para];
-        if (sentences.length > 1 && sentences[0].length <= 160) {
-          chunks.push(sentences[0].trim());
-          const restOfPara = sentences.slice(1).join(' ').trim();
-          if (restOfPara.length <= maxLen) {
-            chunks.push(restOfPara);
-          } else {
-            let current = '';
-            for (let i = 1; i < sentences.length; i++) {
-              const s = sentences[i];
-              if ((current + ' ' + s).trim().length > maxLen && current.length > 0) {
-                chunks.push(current.trim());
-                current = s;
-              } else {
-                current = current ? `${current} ${s}` : s;
-              }
-            }
-            if (current.trim().length > 0) chunks.push(current.trim());
-          }
-          continue;
-        }
-      }
-
-      if (para.length <= maxLen) {
-        chunks.push(para);
-      } else {
-        const sentences = para.match(/[^.!?]+[.!?]+|\S+/g) || [para];
-        let current = '';
-        for (const s of sentences) {
-          if ((current + ' ' + s).trim().length > maxLen && current.length > 0) {
-            chunks.push(current.trim());
-            current = s;
-          } else {
-            current = current ? `${current} ${s}` : s;
-          }
-        }
-        if (current.trim().length > 0) {
-          chunks.push(current.trim());
-        }
-      }
-    }
-    return chunks.length > 0 ? chunks : [clean];
-  };
-
-  const toggleReadAloud = async () => {
-    if (isSpeaking || isTtsLoading) {
-      stopSpeech();
-      return;
-    }
-
-    if (!editorValue || editorValue.trim().length === 0) {
-      alert('Nothing to read aloud in this file.');
-      return;
-    }
-
-    stopSpeech();
-    const sessionId = ++speechSessionRef.current;
-
-    // Start reading from selected text, or current cursor position, or document start
-    let textToRead = editorValue;
-    if (selectedText && selectedText.trim().length > 0) {
-      textToRead = selectedText.trim();
-    } else if (cursorOffset > 0 && cursorOffset < editorValue.length) {
-      const sliced = editorValue.slice(cursorOffset).trim();
-      if (sliced.length > 0) {
-        textToRead = sliced;
-      }
-    }
-
-    const ttsEngine = (localStorage.getItem('marginalia_tts_engine') as 'parlando' | 'browser') || 'parlando';
-
-    if (ttsEngine === 'parlando') {
-      setIsTtsLoading(true);
-      try {
-        const voice = localStorage.getItem('marginalia_parlando_voice') || 'en-US-ChristopherNeural';
-        const pacing = localStorage.getItem('marginalia_parlando_pacing') || 'normal';
-        const speed = parseFloat(localStorage.getItem('marginalia_parlando_speed') || '1.0');
-
-        const chunks = splitIntoParagraphChunks(textToRead, 350);
-        if (chunks.length === 0 || speechSessionRef.current !== sessionId) {
-          if (speechSessionRef.current === sessionId) {
-            setIsTtsLoading(false);
-          }
-          return;
-        }
-
-        let currentChunkIdx = 0;
-        const prefetchCache = new Map<number, Promise<string | null>>();
-
-        const ensurePrefetched = (idx: number) => {
-          if (idx < chunks.length && !prefetchCache.has(idx) && speechSessionRef.current === sessionId) {
-            prefetchCache.set(idx, fetchParlandoChunk(chunks[idx], voice, pacing, speed, sessionId));
-          }
-        };
-
-        // Immediately kick off parallel prefetching for initial chunks
-        ensurePrefetched(0);
-        ensurePrefetched(1);
-        ensurePrefetched(2);
-        ensurePrefetched(3);
-
-        const playChunk = async (audioData: string) => {
-          if (speechSessionRef.current !== sessionId) return;
-
-          // Stop previous audio instance if still active
-          if (audioPlayerRef.current) {
-            try {
-              audioPlayerRef.current.pause();
-              audioPlayerRef.current.onended = null;
-              audioPlayerRef.current.onerror = null;
-              audioPlayerRef.current.src = '';
-              audioPlayerRef.current.load();
-            } catch (e) {
-              // ignore
-            }
-            audioPlayerRef.current = null;
-          }
-
-          const audio = new Audio(audioData);
-          // Parlando renders speed natively in neural synthesis SSML/rate; do not double-stretch in browser
-          audio.playbackRate = 1.0;
-          audioPlayerRef.current = audio;
-
-          // Aggressively prefetch a 3-chunk sliding window in the background queue
-          ensurePrefetched(currentChunkIdx + 1);
-          ensurePrefetched(currentChunkIdx + 2);
-          ensurePrefetched(currentChunkIdx + 3);
-
-          audio.onended = async () => {
-            if (speechSessionRef.current !== sessionId) return;
-            currentChunkIdx++;
-            if (currentChunkIdx < chunks.length) {
-              ensurePrefetched(currentChunkIdx);
-              ensurePrefetched(currentChunkIdx + 1);
-              ensurePrefetched(currentChunkIdx + 2);
-              ensurePrefetched(currentChunkIdx + 3);
-              const nextPromise = prefetchCache.get(currentChunkIdx);
-              const nextAudio = nextPromise ? await nextPromise : await fetchParlandoChunk(chunks[currentChunkIdx], voice, pacing, speed, sessionId);
-              prefetchCache.delete(currentChunkIdx);
-              if (nextAudio && speechSessionRef.current === sessionId) {
-                await playChunk(nextAudio);
-              } else {
-                stopSpeech();
-              }
-            } else {
-              stopSpeech();
-            }
-          };
-
-          audio.onerror = (e) => {
-            if (speechSessionRef.current === sessionId) {
-              console.error('Parlando audio playback error:', e);
-              stopSpeech();
-            }
-          };
-
-          if (speechSessionRef.current === sessionId) {
-            setIsTtsLoading(false);
-            setIsSpeaking(true);
-            await audio.play();
-          }
-        };
-
-        // Await first chunk (already requested in parallel) for instant start
-        const firstAudioPromise = prefetchCache.get(0);
-        const firstAudio = firstAudioPromise ? await firstAudioPromise : await fetchParlandoChunk(chunks[0], voice, pacing, speed, sessionId);
-        prefetchCache.delete(0);
-        if (firstAudio && speechSessionRef.current === sessionId) {
-          await playChunk(firstAudio);
-        } else if (speechSessionRef.current === sessionId) {
-          stopSpeech();
-        }
-      } catch (err) {
-        if (speechSessionRef.current === sessionId) {
-          console.warn('Parlando neural speech failed, falling back to local speech:', err);
-          stopSpeech();
-        }
-      }
-      return;
-    }
-
-    if (!('speechSynthesis' in window)) {
-      alert('Text-to-Speech is not supported in this browser.');
-      return;
-    }
-
-    // Strip markdown formatting and quotation marks so TTS voices don't read "quote" out loud
-    const cleanText = textToRead
-      .replace(/#+\s+/g, '')
-      .replace(/[*_`~>]/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/["'“”‘’]/g, '')
-      .trim();
-
-    if (!cleanText) return;
-
-    // Split text into sentence chunks to prevent Chrome max buffer truncation
-    const sentences = cleanText.match(/[^.!?\n]+[.!?\n]+/g) || [cleanText];
-    let currentIndex = 0;
-
-    const speakNextSentence = () => {
-      if (speechSessionRef.current !== sessionId || currentIndex >= sentences.length) {
-        if (speechSessionRef.current === sessionId) {
-          setIsSpeaking(false);
-          utteranceRef.current = null;
-        }
-        return;
-      }
-
-      const sentenceText = sentences[currentIndex].trim();
-      if (!sentenceText) {
-        currentIndex++;
-        speakNextSentence();
-        return;
-      }
-
-      const utterance = new SpeechSynthesisUtterance(sentenceText);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-
-      try {
-        const voices = window.speechSynthesis.getVoices();
-        if (voices && voices.length > 0) {
-          const savedURI = localStorage.getItem('marginalia_tts_voice_uri');
-          let selectedVoice: SpeechSynthesisVoice | undefined;
-
-          if (savedURI) {
-            selectedVoice = voices.find((v) => v.voiceURI === savedURI);
-          }
-
-          if (!selectedVoice) {
-            selectedVoice = voices.find((v) => 
-              v.lang.startsWith('en') && (
-                v.name.includes('Natural') || 
-                v.name.includes('Online (Natural)') ||
-                v.name.includes('Enhanced') || 
-                v.name.includes('Premium') ||
-                v.name.includes('Google')
-              )
-            ) || voices.find((v) => v.lang.startsWith('en'));
-          }
-
-          if (selectedVoice) {
-            utterance.voice = selectedVoice;
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to assign voice:', e);
-      }
-
-      utterance.onend = () => {
-        if (speechSessionRef.current !== sessionId) return;
-        currentIndex++;
-        speakNextSentence();
-      };
-
-      utterance.onerror = (err) => {
-        if (speechSessionRef.current !== sessionId) return;
-        console.error('TTS utterance error:', err);
-        currentIndex++;
-        if (currentIndex < sentences.length) {
-          speakNextSentence();
-        } else {
-          setIsSpeaking(false);
-          utteranceRef.current = null;
-        }
-      };
-
-      utteranceRef.current = utterance;
-      if ('resume' in window.speechSynthesis) {
-        window.speechSynthesis.resume();
-      }
-      window.speechSynthesis.speak(utterance);
-    };
-
-    setIsSpeaking(true);
-    speakNextSentence();
-  };
-
-  useEffect(() => {
-    stopSpeech();
-    setCursorOffset(0);
-  }, [activeFile]);
-
-  useEffect(() => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.getVoices();
-      const handleVoicesChanged = () => {
-        window.speechSynthesis.getVoices();
-      };
-      window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
-    }
-  }, []);
-
-
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      window.location.href = '/';
-    } catch (err) {
-      console.error('Failed to log out:', err);
-      window.location.href = '/';
-    }
-  };
-
-  const selectFile = (filePath: string | null) => {
-    setActiveFile(filePath);
-    let newUrl = '/';
-    if (activeWorkspaceName) {
-      newUrl += encodeURIComponent(activeWorkspaceName) + '/';
-    }
-    if (filePath) {
-      newUrl += filePath.split('/').map(encodeURIComponent).join('/');
-    }
-
-    const currentPath = decodeURIComponent(window.location.pathname.slice(1));
-    const targetPath = (activeWorkspaceName ? activeWorkspaceName + '/' : '') + (filePath || '');
-    if (currentPath !== targetPath) {
-      window.history.pushState(null, '', newUrl);
-    }
-  };
-
-  const handleNavigateLink = (href: string) => {
-    if (!activeFile) return;
-    const resolved = resolveRelativePath(activeFile, href);
-    if (files.includes(resolved)) {
-      selectFile(resolved);
-    } else {
-      console.warn(`File not found in workspace: ${resolved}`);
-      alert(`Linked file not found: ${resolved}`);
-    }
-  };
-
-  const handleApplyChange = (original: string, replacement: string): boolean => {
-    if (!editorValue.includes(original)) {
-      return false;
-    }
-    const updated = editorValue.replace(original, replacement);
-    setEditorValue(updated);
-    
-    if (activeFile) {
-      fetch('/api/file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: activeFile, content: updated })
-      }).then(res => {
-        if (res.ok) {
-          setOriginalContent(updated);
-          fetchGitStatus();
-        } else {
-          console.error('Failed to auto-save change application to disk');
-        }
-      }).catch(err => {
-        console.error('Error auto-saving change application:', err);
-      });
-    }
-    return true;
-  };
-
-
-
-  const deactivateWriteWithMe = () => {
-    setWriteWithMeActive(false);
-  };
-
-  const handleFormatDocument = () => {
-    const formatted = formatMarkdown(editorValue);
-    if (formatted !== editorValue) {
-      setEditorValue(formatted);
-      if (activeFile) {
-        fetch('/api/file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: activeFile, content: formatted })
-        }).then(res => {
-          if (res.ok) {
-            setOriginalContent(formatted);
-            fetchGitStatus();
-          } else {
-            console.error('Failed to auto-save formatted text to disk');
-          }
-        }).catch(err => {
-          console.error('Error auto-saving formatted text:', err);
-        });
-      }
-    }
-  };
-
-  const fetchFiles = async () => {
-    try {
-      const res = await fetch('/api/files');
-      let data;
-      try {
-        data = await res.json();
-      } catch (e) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      if (!res.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      if (Array.isArray(data)) {
-        setFiles(data);
-      } else {
-        throw new Error('Received invalid files data');
-      }
-    } catch (err) {
-      console.error('Failed to fetch files:', err);
-      setFiles([]);
-    }
-  };
-
-  const fetchGitStatus = async () => {
-    try {
-      const res = await fetch('/api/git/status');
-      let data;
-      try {
-        data = await res.json();
-      } catch (e) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      if (!res.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      setGitStatus(data.status || '');
-      setHasRemote(!!data.hasRemote);
-      setGitAhead(data.ahead || 0);
-      setHasGemini(!!data.hasGemini);
-    } catch (err) {
-      console.error('Failed to fetch git status:', err);
-      setGitStatus('');
-      setHasRemote(false);
-      setGitAhead(0);
-      setHasGemini(false);
-    }
-  };
-
-  const fetchGitBranch = async () => {
-    try {
-      const res = await fetch('/api/git/branch');
-      let data;
-      try {
-        data = await res.json();
-      } catch (e) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      if (!res.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      setGitBranch(data.branch || '');
-    } catch (err) {
-      console.error('Failed to fetch git branch:', err);
-      setGitBranch('unknown');
-    }
-  };
-
-  const loadDefaultWorkspace = async () => {
-    const res = await fetch('/api/workspaces');
-    const data = await res.json();
-    if (data.activeName) {
-      setActiveWorkspaceName(data.activeName);
-      window.history.replaceState(null, '', `/${encodeURIComponent(data.activeName)}/`);
-      await fetchFiles();
-      await fetchGitStatus();
-      await fetchGitBranch();
-      setActiveFile(null);
-    }
-  };
-
-  const initWorkspaceAndLoad = async () => {
-    setLoading(true);
-    try {
-      const pathSegments = window.location.pathname.split('/').filter(Boolean);
-      let workspaceName = '';
-      let filePath: string | null = null;
-
-      if (pathSegments.length >= 1) {
-        workspaceName = decodeURIComponent(pathSegments[0]);
-        if (pathSegments.length >= 2) {
-          filePath = pathSegments.slice(1).map(decodeURIComponent).join('/');
-        }
-      }
-
-      if (workspaceName) {
-        const res = await fetch('/api/workspaces/select-by-name', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: workspaceName })
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          setActiveWorkspaceName(data.name);
-          await fetchFiles();
-          await fetchGitStatus();
-          await fetchGitBranch();
-          if (filePath) {
-            setActiveFile(filePath);
-          }
-        } else {
-          console.warn(`Workspace not found: ${workspaceName}, falling back to default`);
-          await loadDefaultWorkspace();
-        }
-      } else {
-        await loadDefaultWorkspace();
-      }
-    } catch (err) {
-      console.error('Initialization failed:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (authInfo && authInfo.loggedIn) {
-      initWorkspaceAndLoad();
-    }
-  }, [authInfo]);
-
-  useEffect(() => {
-    const handlePopState = async () => {
-      const fullPath = decodeURIComponent(window.location.pathname.slice(1));
-      const parts = fullPath.split('/');
-      if (parts.length >= 1) {
-        const wsName = parts[0];
-        const filePath = parts.slice(1).join('/');
-        
-        if (wsName !== activeWorkspaceName) {
-          setLoading(true);
-          try {
-            const res = await fetch('/api/workspaces/select-by-name', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: wsName })
-            });
-            if (res.ok) {
-              const data = await res.json();
-              setActiveWorkspaceName(data.name);
-              await fetchFiles();
-              await fetchGitStatus();
-              await fetchGitBranch();
-              setActiveFile(filePath || null);
-            }
-          } catch (err) {
-            console.error(err);
-          } finally {
-            setLoading(false);
-          }
-        } else {
-          setActiveFile(filePath || null);
-        }
-      } else {
-        setActiveFile(null);
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [activeWorkspaceName]);
-
-  useEffect(() => {
-    if (!activeFile) {
-      setEditorValue('');
-      setOriginalContent('');
-      return;
-    }
-
-    const loadFile = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/file?path=${encodeURIComponent(activeFile)}`);
-        const data = await res.json();
-        setEditorValue(data.content);
-        setOriginalContent(data.content);
-      } catch (err) {
-        console.error('Failed to load file:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadFile();
-  }, [activeFile]);
-
-  // Auto-save logic (1s debounce)
-  useEffect(() => {
-    if (!activeFile || editorValue === originalContent) return;
-
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try {
-        await fetch('/api/file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: activeFile, content: editorValue })
-        });
-        setOriginalContent(editorValue);
-        await fetchGitStatus();
-      } catch (err) {
-        console.error('Failed to save file:', err);
-      } finally {
-        setLoading(false);
-      }
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [editorValue, activeFile, originalContent]);
-
-  // Synchronized scroll logic between CodeMirror and HTML Preview
-  useEffect(() => {
-    if (!activeFile || !previewOpen) return;
-
-    const timer = setTimeout(() => {
-      const editorScrollEl = document.querySelector('.editor-cm-wrapper .cm-scroller');
-      const previewScrollEl = document.querySelector('.preview-content');
-
-      if (!editorScrollEl || !previewScrollEl) return;
-
-      let isSyncingEditorScroll = false;
-      let isSyncingPreviewScroll = false;
-
-      const handleEditorScroll = () => {
-        if (isSyncingPreviewScroll) {
-          isSyncingPreviewScroll = false;
-          return;
-        }
-        isSyncingEditorScroll = true;
-        const percentage = editorScrollEl.scrollTop / (editorScrollEl.scrollHeight - editorScrollEl.clientHeight);
-        previewScrollEl.scrollTop = percentage * (previewScrollEl.scrollHeight - previewScrollEl.clientHeight);
-      };
-
-      const handlePreviewScroll = () => {
-        if (isSyncingEditorScroll) {
-          isSyncingEditorScroll = false;
-          return;
-        }
-        isSyncingPreviewScroll = true;
-        const percentage = previewScrollEl.scrollTop / (previewScrollEl.scrollHeight - previewScrollEl.clientHeight);
-        editorScrollEl.scrollTop = percentage * (editorScrollEl.scrollHeight - editorScrollEl.clientHeight);
-      };
-
-      editorScrollEl.addEventListener('scroll', handleEditorScroll);
-      previewScrollEl.addEventListener('scroll', handlePreviewScroll);
-
-      return () => {
-        editorScrollEl.removeEventListener('scroll', handleEditorScroll);
-        previewScrollEl.removeEventListener('scroll', handlePreviewScroll);
-      };
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [activeFile, previewOpen]);
-
-  const handleCreateFile = async (path: string) => {
-    setLoading(true);
-    try {
-      await fetch('/api/file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path, content: '# ' + path.replace('.md', '') + '\n\nStart writing here...' })
-      });
-      await fetchFiles();
-      setActiveFile(path);
-      await fetchGitStatus();
-    } catch (err) {
-      console.error('Failed to create file:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteFile = async (path: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to delete file');
-      }
-      await fetchFiles();
-      if (activeFile === path) {
-        setActiveFile(null);
-        setEditorValue('');
-        setOriginalContent('');
-      }
-      await fetchGitStatus();
-    } catch (err) {
-      console.error('Failed to delete file:', err);
-      alert(`Delete failed: ${(err as Error).message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCommit = async (message: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/git/commit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message })
-      });
-      const data = await res.json();
-      alert(`Committed: ${data.result}`);
-      await fetchGitStatus();
-    } catch (err) {
-      console.error('Failed to commit:', err);
-      alert(`Commit failed: ${(err as Error).message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePush = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/git/push', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Push failed');
-      }
-      alert("Successfully pushed changes to GitHub.");
-      await fetchGitStatus();
-    } catch (err) {
-      console.error('Failed to push:', err);
-      let msg = (err as Error).message;
-      if (msg.includes('rejected') || msg.includes('fetch first')) {
-        msg = 'The remote contains changes that you do not have locally. Please pull first.';
-      }
-      alert(`Push failed: ${msg}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePull = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/git/pull', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Pull failed');
-      }
-      alert("Successfully pulled changes from GitHub.");
-      await fetchFiles();
-      await fetchGitStatus();
-      if (activeFile) {
-        const activeRes = await fetch(`/api/file?path=${encodeURIComponent(activeFile)}`);
-        const activeData = await activeRes.json();
-        setEditorValue(activeData.content);
-        setOriginalContent(activeData.content);
-      }
-    } catch (err) {
-      console.error('Failed to pull:', err);
-      let msg = (err as Error).message;
-      if (msg.includes('unstaged changes') || msg.includes('locally modified files')) {
-        msg = 'You have unstaged changes that would be overwritten by pull. Please commit or stash them first.';
-      }
-      alert(`Pull failed: ${msg}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRefresh = () => {
-    fetchFiles();
-    fetchGitStatus();
-    fetchGitBranch();
-  };
 
   if (!authInfo) {
     return <div className="app-loading">Loading...</div>;
@@ -1340,70 +333,74 @@ function App() {
               <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />
             )}
             {aiPanelOpen && activeFile && hasGemini && (
-              <AiPanel 
-                activeFile={activeFile} 
-                editorValue={editorValue}
-                files={files}
-                onApplyChange={handleApplyChange}
-                selectedPersona={selectedPersona}
-                onPersonaChange={setSelectedPersona}
-                selectedContextFiles={selectedContextFiles}
-                onSelectedContextFilesChange={setSelectedContextFiles}
-              />
+              <Suspense fallback={<div className="ai-panel-loading">Loading AI Assistant...</div>}>
+                <AiPanel 
+                  activeFile={activeFile} 
+                  editorValue={editorValue}
+                  files={files}
+                  onApplyChange={handleApplyChange}
+                  selectedPersona={selectedPersona}
+                  onPersonaChange={setSelectedPersona}
+                  selectedContextFiles={selectedContextFiles}
+                  onSelectedContextFilesChange={setSelectedContextFiles}
+                />
+              </Suspense>
             )}
           </div>
         </div>
       </div>
-      {workspaceOpen && (
-        <WorkspaceManager
-          onClose={() => setWorkspaceOpen(false)}
-          authInfo={authInfo}
-          onWorkspaceChanged={(newName) => {
-            setActiveWorkspaceName(newName);
-            setActiveFile(null);
-            setEditorValue('');
-            setOriginalContent('');
-            const targetUrl = newName ? `/${encodeURIComponent(newName)}/` : '/';
-            window.history.pushState(null, '', targetUrl);
-            handleRefresh();
-          }}
-        />
-      )}
-      {settingsOpen && (
-        <SettingsModal
-          onClose={() => setSettingsOpen(false)}
-          onSave={() => {
-            fetchGitStatus();
-          }}
-          onOpenAbout={() => setAboutOpen(true)}
-          onOpenAdmin={() => setAdminOpen(true)}
-          isAdmin={authInfo?.isAdmin}
-        />
-      )}
-      {adminOpen && (
-        <AdminDashboardModal
-          onClose={() => setAdminOpen(false)}
-        />
-      )}
-      {guideOpen && (
-        <MarkdownGuideModal
-          onClose={() => setGuideOpen(false)}
-        />
-      )}
-      {aboutOpen && (
-        <AboutModal
-          onClose={() => setAboutOpen(false)}
-        />
-      )}
-      {diffOpen && (
-        <GitDiffModal
-          onClose={() => setDiffOpen(false)}
-          gitStatus={gitStatus}
-          onRefreshStatus={handleRefresh}
-          onCommit={handleCommit}
-          hasGemini={hasGemini}
-        />
-      )}
+      <Suspense fallback={null}>
+        {workspaceOpen && (
+          <WorkspaceManager
+            onClose={() => setWorkspaceOpen(false)}
+            authInfo={authInfo}
+            onWorkspaceChanged={(newName) => {
+              setActiveWorkspaceName(newName);
+              setActiveFile(null);
+              setEditorValue('');
+              setOriginalContent('');
+              const targetUrl = newName ? `/${encodeURIComponent(newName)}/` : '/';
+              window.history.pushState(null, '', targetUrl);
+              handleRefresh();
+            }}
+          />
+        )}
+        {settingsOpen && (
+          <SettingsModal
+            onClose={() => setSettingsOpen(false)}
+            onSave={() => {
+              fetchGitStatus();
+            }}
+            onOpenAbout={() => setAboutOpen(true)}
+            onOpenAdmin={() => setAdminOpen(true)}
+            isAdmin={authInfo?.isAdmin}
+          />
+        )}
+        {adminOpen && (
+          <AdminDashboardModal
+            onClose={() => setAdminOpen(false)}
+          />
+        )}
+        {guideOpen && (
+          <MarkdownGuideModal
+            onClose={() => setGuideOpen(false)}
+          />
+        )}
+        {aboutOpen && (
+          <AboutModal
+            onClose={() => setAboutOpen(false)}
+          />
+        )}
+        {diffOpen && (
+          <GitDiffModal
+            onClose={() => setDiffOpen(false)}
+            gitStatus={gitStatus}
+            onRefreshStatus={handleRefresh}
+            onCommit={handleCommit}
+            hasGemini={hasGemini}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

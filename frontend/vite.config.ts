@@ -11,5 +11,27 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('@codemirror') || id.includes('@uiw/react-codemirror')) {
+              return 'vendor-codemirror';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('marked') || id.includes('diff')) {
+              return 'vendor-utils';
+            }
+          }
+        }
+      }
+    }
   }
 })
