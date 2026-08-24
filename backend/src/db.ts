@@ -50,12 +50,19 @@ function initTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       word TEXT NOT NULL,
       workspace_id INTEGER,
+      user TEXT,
       FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     );
   `);
 
+  try {
+    db.exec("ALTER TABLE ignored_words ADD COLUMN user TEXT;");
+  } catch (err) {
+    // Ignore error if column already exists
+  }
+
   db.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_words_global ON ignored_words(word) WHERE workspace_id IS NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_words_global ON ignored_words(word, user) WHERE workspace_id IS NULL;
   `);
 
   db.exec(`
@@ -90,6 +97,7 @@ function initTables() {
     CREATE INDEX IF NOT EXISTS idx_workspaces_user_last_opened ON workspaces(user, last_opened DESC);
     CREATE INDEX IF NOT EXISTS idx_workspaces_name_user ON workspaces(name, user COLLATE NOCASE);
     CREATE INDEX IF NOT EXISTS idx_ignored_words_workspace_id ON ignored_words(workspace_id);
+    CREATE INDEX IF NOT EXISTS idx_ignored_words_user ON ignored_words(user);
   `);
 
   db.exec(`
@@ -97,13 +105,21 @@ function initTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       rule_id TEXT NOT NULL,
       workspace_id INTEGER,
+      user TEXT,
       FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     );
   `);
 
+  try {
+    db.exec("ALTER TABLE ignored_rules ADD COLUMN user TEXT;");
+  } catch (err) {
+    // Ignore error if column already exists
+  }
+
   db.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_rules_global ON ignored_rules(rule_id) WHERE workspace_id IS NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_rules_global ON ignored_rules(rule_id, user) WHERE workspace_id IS NULL;
     CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_rules_local ON ignored_rules(rule_id, workspace_id) WHERE workspace_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_ignored_rules_user ON ignored_rules(user);
   `);
 
   db.exec(`
@@ -113,14 +129,22 @@ function initTables() {
       workspace_id INTEGER,
       rule_id TEXT NOT NULL,
       context_hash TEXT NOT NULL,
+      user TEXT,
       FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     );
   `);
+
+  try {
+    db.exec("ALTER TABLE ignored_instances ADD COLUMN user TEXT;");
+  } catch (err) {
+    // Ignore error if column already exists
+  }
 
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_instances_local 
     ON ignored_instances(file_path, workspace_id, rule_id, context_hash) 
     WHERE workspace_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_ignored_instances_user ON ignored_instances(user);
   `);
 
   db.exec(`

@@ -1076,7 +1076,7 @@ app.post('/api/dictionary/add', async (req, res) => {
 
   try {
     const workspacePath = scope === 'workspace' ? getTargetDir(req) : null;
-    await addIgnoredWord(word, workspacePath);
+    await addIgnoredWord(word, workspacePath, (req.user as string) || null);
     res.json({ status: 'ok' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -1085,7 +1085,7 @@ app.post('/api/dictionary/add', async (req, res) => {
 
 app.get('/api/dictionary', async (req, res) => {
   try {
-    const dictionary = await getIgnoredWords(getTargetDir(req));
+    const dictionary = await getIgnoredWords(getTargetDir(req), (req.user as string) || null);
     res.json(dictionary);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -1103,9 +1103,16 @@ app.post('/api/grammar/ignore', async (req, res) => {
 
   try {
     const workspaceId = scope === 'workspace' ? getActiveWorkspaceId() : null;
-    db.prepare(`
-      INSERT OR IGNORE INTO ignored_rules (rule_id, workspace_id) VALUES (?, ?);
-    `).run(ruleId, workspaceId);
+    const user = (req.user as string) || null;
+    if (scope === 'global') {
+      db.prepare(`
+        INSERT OR IGNORE INTO ignored_rules (rule_id, workspace_id, user) VALUES (?, NULL, ?);
+      `).run(ruleId, user);
+    } else {
+      db.prepare(`
+        INSERT OR IGNORE INTO ignored_rules (rule_id, workspace_id, user) VALUES (?, ?, ?);
+      `).run(ruleId, workspaceId, user);
+    }
     res.json({ status: 'ok' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -1115,10 +1122,21 @@ app.post('/api/grammar/ignore', async (req, res) => {
 app.get('/api/grammar/ignored', async (req, res) => {
   try {
     const workspaceId = getActiveWorkspaceId();
-    const rows = db.prepare(`
-      SELECT rule_id, workspace_id FROM ignored_rules 
-      WHERE workspace_id IS NULL OR workspace_id = ?;
-    `).all(workspaceId) as { rule_id: string, workspace_id: number | null }[];
+    const user = (req.user as string) || null;
+    let rows: { rule_id: string, workspace_id: number | null }[] = [];
+    if (user) {
+      rows = db.prepare(`
+        SELECT rule_id, workspace_id FROM ignored_rules 
+        WHERE (workspace_id IS NULL AND (user = ? OR user IS NULL))
+           OR (workspace_id = ?);
+      `).all(user, workspaceId) as { rule_id: string, workspace_id: number | null }[];
+    } else {
+      rows = db.prepare(`
+        SELECT rule_id, workspace_id FROM ignored_rules 
+        WHERE (workspace_id IS NULL AND user IS NULL)
+           OR (workspace_id = ?);
+      `).all(workspaceId) as { rule_id: string, workspace_id: number | null }[];
+    }
 
     const result = {
       global: rows.filter(r => r.workspace_id === null).map(r => r.rule_id),
@@ -1147,11 +1165,12 @@ app.post('/api/grammar/ignore-instance', async (req, res) => {
     }
     const cleanSentence = sentence.trim();
     const hash = crypto.createHash('md5').update(cleanSentence).digest('hex');
+    const user = (req.user as string) || null;
 
     db.prepare(`
-      INSERT OR IGNORE INTO ignored_instances (file_path, workspace_id, rule_id, context_hash)
-      VALUES (?, ?, ?, ?);
-    `).run(filePath, workspaceId, ruleId, hash);
+      INSERT OR IGNORE INTO ignored_instances (file_path, workspace_id, rule_id, context_hash, user)
+      VALUES (?, ?, ?, ?, ?);
+    `).run(filePath, workspaceId, ruleId, hash, user);
 
     res.json({ status: 'ok' });
   } catch (err) {
@@ -1235,21 +1254,40 @@ app.post('/api/languagetool/check', async (req, res) => {
     const results = await Promise.all(checkPromises);
     const allMatches = results.flat();
 
-    const ignoredWords = await getAllApplicableIgnoredWords(getTargetDir(req));
+    const user = (req.user as string) || null;
+    const ignoredWords = await getAllApplicableIgnoredWords(getTargetDir(req), user);
 
     const workspaceId = getActiveWorkspaceId();
-    const ignoredRulesRows = db.prepare(`
-      SELECT rule_id FROM ignored_rules 
-      WHERE workspace_id IS NULL OR workspace_id = ?;
-    `).all(workspaceId) as { rule_id: string }[];
+    let ignoredRulesRows: { rule_id: string }[] = [];
+    if (user) {
+      ignoredRulesRows = db.prepare(`
+        SELECT rule_id FROM ignored_rules 
+        WHERE (workspace_id IS NULL AND (user = ? OR user IS NULL))
+           OR (workspace_id = ?);
+      `).all(user, workspaceId) as { rule_id: string }[];
+    } else {
+      ignoredRulesRows = db.prepare(`
+        SELECT rule_id FROM ignored_rules 
+        WHERE (workspace_id IS NULL AND user IS NULL)
+           OR (workspace_id = ?);
+      `).all(workspaceId) as { rule_id: string }[];
+    }
     const ignoredRules = new Set(ignoredRulesRows.map(r => r.rule_id));
 
     let ignoredInstances = new Set<string>();
     if (filePath && workspaceId) {
-      const instanceRows = db.prepare(`
-        SELECT rule_id, context_hash FROM ignored_instances
-        WHERE file_path = ? AND workspace_id = ?;
-      `).all(filePath, workspaceId) as { rule_id: string, context_hash: string }[];
+      let instanceRows: { rule_id: string, context_hash: string }[] = [];
+      if (user) {
+        instanceRows = db.prepare(`
+          SELECT rule_id, context_hash FROM ignored_instances
+          WHERE file_path = ? AND workspace_id = ? AND (user = ? OR user IS NULL);
+        `).all(filePath, workspaceId, user) as { rule_id: string, context_hash: string }[];
+      } else {
+        instanceRows = db.prepare(`
+          SELECT rule_id, context_hash FROM ignored_instances
+          WHERE file_path = ? AND workspace_id = ?;
+        `).all(filePath, workspaceId) as { rule_id: string, context_hash: string }[];
+      }
       ignoredInstances = new Set(instanceRows.map(r => `${r.rule_id}:${r.context_hash}`));
     }
 

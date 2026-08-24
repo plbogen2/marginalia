@@ -48,4 +48,25 @@ test('Database Initialization', () => {
 
   // Clean up
   db.prepare("DELETE FROM ignored_words;").run();
+
+  // Test user-scoped global ignored words
+  db.prepare("INSERT INTO ignored_words (word, workspace_id, user) VALUES (?, NULL, ?);").run('foo', 'userA');
+  // Duplicate for same user should throw
+  assert.throws(() => {
+    db.prepare("INSERT INTO ignored_words (word, workspace_id, user) VALUES (?, NULL, ?);").run('foo', 'userA');
+  }, /UNIQUE constraint failed/);
+  // Same word for userB is allowed
+  db.prepare("INSERT INTO ignored_words (word, workspace_id, user) VALUES (?, NULL, ?);").run('foo', 'userB');
+  
+  // Test user-scoped ignored rules
+  db.prepare("DELETE FROM ignored_rules;").run();
+  db.prepare("INSERT INTO ignored_rules (rule_id, workspace_id, user) VALUES (?, NULL, ?);").run('RULE1', 'userA');
+  assert.throws(() => {
+    db.prepare("INSERT INTO ignored_rules (rule_id, workspace_id, user) VALUES (?, NULL, ?);").run('RULE1', 'userA');
+  }, /UNIQUE constraint failed/);
+  db.prepare("INSERT INTO ignored_rules (rule_id, workspace_id, user) VALUES (?, NULL, ?);").run('RULE1', 'userB');
+
+  // Clean up
+  db.prepare("DELETE FROM ignored_words;").run();
+  db.prepare("DELETE FROM ignored_rules;").run();
 });

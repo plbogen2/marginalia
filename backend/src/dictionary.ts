@@ -2,12 +2,17 @@ import { db } from './db.js';
 import fs from 'fs/promises';
 import path from 'path';
 
-export async function addIgnoredWord(word: string, workspacePath: string | null): Promise<void> {
+export async function addIgnoredWord(word: string, workspacePath: string | null, user: string | null = null): Promise<void> {
   const normalized = word.trim().toLowerCase();
   
   if (workspacePath === null) {
-    const stmt = db.prepare('INSERT OR IGNORE INTO ignored_words (word, workspace_id) VALUES (?, NULL)');
-    stmt.run(normalized);
+    if (user) {
+      const stmt = db.prepare('INSERT OR IGNORE INTO ignored_words (word, workspace_id, user) VALUES (?, NULL, ?)');
+      stmt.run(normalized, user);
+    } else {
+      const stmt = db.prepare('INSERT OR IGNORE INTO ignored_words (word, workspace_id, user) VALUES (?, NULL, NULL)');
+      stmt.run(normalized);
+    }
   } else {
     const configDir = path.join(workspacePath, '.marginalia');
     const dictFile = path.join(configDir, 'dictionary.json');
@@ -32,10 +37,17 @@ export async function addIgnoredWord(word: string, workspacePath: string | null)
   }
 }
 
-export async function getIgnoredWords(workspacePath: string | null): Promise<{ global: string[], workspace: string[] }> {
-  const globalStmt = db.prepare('SELECT word FROM ignored_words WHERE workspace_id IS NULL');
-  const globalRows = globalStmt.all() as { word: string }[];
-  const globalWords = globalRows.map(r => r.word);
+export async function getIgnoredWords(workspacePath: string | null, user: string | null = null): Promise<{ global: string[], workspace: string[] }> {
+  let globalWords: string[] = [];
+  if (user) {
+    const globalStmt = db.prepare('SELECT word FROM ignored_words WHERE workspace_id IS NULL AND (user = ? OR user IS NULL)');
+    const globalRows = globalStmt.all(user) as { word: string }[];
+    globalWords = globalRows.map(r => r.word);
+  } else {
+    const globalStmt = db.prepare('SELECT word FROM ignored_words WHERE workspace_id IS NULL AND user IS NULL');
+    const globalRows = globalStmt.all() as { word: string }[];
+    globalWords = globalRows.map(r => r.word);
+  }
 
   let workspaceWords: string[] = [];
   if (workspacePath !== null) {
@@ -54,7 +66,7 @@ export async function getIgnoredWords(workspacePath: string | null): Promise<{ g
   };
 }
 
-export async function getAllApplicableIgnoredWords(workspacePath: string | null): Promise<Set<string>> {
-  const dict = await getIgnoredWords(workspacePath);
+export async function getAllApplicableIgnoredWords(workspacePath: string | null, user: string | null = null): Promise<Set<string>> {
+  const dict = await getIgnoredWords(workspacePath, user);
   return new Set([...dict.global, ...dict.workspace]);
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.7.4 (August 2026)
+- **Per-User Global Ignore Scoping**: Scoped all global dictionary words, global grammar rules, and grammar instance ignores per authenticated user, preventing rule/dictionary ignore collisions across multi-user environments.
+- **Database Index Optimization**: Added user-scoped unique indexes and query filters for `ignored_words`, `ignored_rules`, and `ignored_instances`.
+
 ## v1.7.3 (August 2026)
 - **Voice Consistency & Allocation Fix**: Fixed `ProsodyDirector` and preview fast-path to preserve requested voices across chunks and prevent defaulting to primary profile voice.
 - **Matched Fallback Voices**: Added mapped Edge neural voices for each Gemini voice in backend proxy when fallbacks are needed.
