@@ -3665,7 +3665,7 @@ kbd {
     justify-content: space-between;
     align-items: center;
     padding: 10px 14px;
-    background-color: #1b1e2e;
+    background-color: $bg-panel;
     border-bottom: 1px solid $border-color;
 
     .header-left {
@@ -3674,7 +3674,7 @@ kbd {
       gap: 8px;
 
       .panel-icon {
-        color: #22d3ee;
+        color: $accent-color;
       }
 
       .panel-title {
@@ -3686,9 +3686,9 @@ kbd {
       .gemini-pill {
         font-size: 9px;
         font-weight: 700;
-        background: rgba(34, 211, 238, 0.15);
-        border: 1px solid rgba(34, 211, 238, 0.4);
-        color: #22d3ee;
+        background: rgba(14, 99, 156, 0.2);
+        border: 1px solid rgba(14, 99, 156, 0.5);
+        color: #58a6ff;
         padding: 1px 6px;
         border-radius: 999px;
         text-transform: uppercase;
@@ -3698,9 +3698,9 @@ kbd {
       .edge-pill {
         font-size: 9px;
         font-weight: 700;
-        background: rgba(148, 163, 184, 0.15);
-        border: 1px solid rgba(148, 163, 184, 0.3);
-        color: #94a3b8;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: $text-muted;
         padding: 1px 6px;
         border-radius: 999px;
         text-transform: uppercase;
@@ -3717,13 +3717,13 @@ kbd {
         color: $text-muted;
         cursor: pointer;
         padding: 4px;
-        border-radius: 4px;
+        border-radius: $radius-sm;
         display: flex;
         align-items: center;
 
         &:hover {
           color: $text-light;
-          background-color: rgba(255, 255, 255, 0.1);
+          background-color: $bg-hover;
         }
       }
     }
@@ -3731,7 +3731,7 @@ kbd {
 
   .studio-panel-nav {
     display: flex;
-    background-color: #161826;
+    background-color: $bg-panel;
     border-bottom: 1px solid $border-color;
     padding: 0 8px;
     gap: 4px;
@@ -3755,9 +3755,9 @@ kbd {
       }
 
       &.active {
-        color: #22d3ee;
-        border-bottom-color: #22d3ee;
-        background-color: rgba(34, 211, 238, 0.05);
+        color: $text-light;
+        border-bottom-color: $accent-color;
+        background-color: rgba(14, 99, 156, 0.08);
       }
     }
   }
@@ -3766,19 +3766,23 @@ kbd {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: rgba(34, 211, 238, 0.1);
-    border-bottom: 1px solid rgba(34, 211, 238, 0.25);
-    color: #38bdf8;
+    background-color: rgba(14, 99, 156, 0.15);
+    border-bottom: 1px solid rgba(14, 99, 156, 0.3);
+    color: #79c0ff;
     font-size: 11px;
     padding: 6px 12px;
 
     .dismiss-btn {
       background: none;
       border: none;
-      color: #38bdf8;
+      color: #79c0ff;
       cursor: pointer;
       font-size: 10px;
       padding: 2px 4px;
+
+      &:hover {
+        color: #ffffff;
+      }
     }
   }
 
@@ -3794,9 +3798,136 @@ kbd {
       flex-direction: column;
       height: 100%;
 
+      /* Scope Section */
+      .cast-scope-section {
+        padding: 8px 12px;
+        background-color: $bg-main;
+        border-bottom: 1px solid $border-color;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+
+        .scope-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 11px;
+
+          .scope-title {
+            color: $text-muted;
+            font-size: 11px;
+
+            strong {
+              color: $text-light;
+            }
+          }
+
+          .scope-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+
+            .scope-btn {
+              background: none;
+              border: 1px solid $border-color;
+              color: $text-muted;
+              padding: 2px 6px;
+              border-radius: $radius-sm;
+              font-size: 10px;
+              cursor: pointer;
+              transition: all 0.15s ease;
+
+              &:hover {
+                color: $text-light;
+                background-color: $bg-hover;
+                border-color: $border-light;
+              }
+
+              &.tree-btn {
+                color: #58a6ff;
+                border-color: rgba(14, 99, 156, 0.4);
+
+                &:hover {
+                  background-color: rgba(14, 99, 156, 0.15);
+                  border-color: $accent-color;
+                }
+              }
+            }
+          }
+        }
+
+        .scope-chips-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          max-height: 80px;
+          overflow-y: auto;
+
+          .no-files-hint {
+            font-size: 10px;
+            color: $text-muted;
+            font-style: italic;
+          }
+
+          .scope-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 6px;
+            background-color: $bg-panel;
+            border: 1px solid $border-color;
+            border-radius: $radius-sm;
+            color: $text-muted;
+            font-size: 10.5px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+
+            &:hover {
+              background-color: $bg-hover;
+              color: $text-bright;
+              border-color: $border-light;
+            }
+
+            &.selected {
+              background-color: rgba(14, 99, 156, 0.15);
+              border-color: rgba(14, 99, 156, 0.5);
+              color: $text-light;
+
+              .chip-check {
+                color: #58a6ff;
+              }
+            }
+
+            &.active-file {
+              border-left: 2px solid $accent-color;
+            }
+
+            .chip-check {
+              color: $text-muted;
+            }
+
+            .chip-label {
+              max-width: 140px;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+
+            .chip-tag {
+              font-size: 8.5px;
+              background-color: $accent-color;
+              color: #ffffff;
+              padding: 0 3px;
+              border-radius: 2px;
+              text-transform: uppercase;
+            }
+          }
+        }
+      }
+
       .cast-action-bar {
         padding: 10px 12px;
-        background-color: #181b2a;
+        background-color: $bg-panel;
         border-bottom: 1px solid $border-color;
         display: flex;
         flex-direction: column;
@@ -3819,13 +3950,13 @@ kbd {
             padding: 5px 8px;
             background-color: $bg-main;
             border: 1px solid $border-color;
-            border-radius: 4px;
+            border-radius: $radius-sm;
             color: $text-bright;
             font-size: 11px;
             outline: none;
 
             &:focus {
-              border-color: #22d3ee;
+              border-color: $accent-color;
             }
           }
         }
@@ -3840,28 +3971,29 @@ kbd {
             align-items: center;
             justify-content: center;
             gap: 4px;
-            padding: 5px 8px;
-            background-color: #26293b;
+            padding: 6px 8px;
+            background-color: $bg-main;
             border: 1px solid $border-color;
             color: $text-bright;
-            border-radius: 4px;
+            border-radius: $radius-sm;
             font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.15s ease;
 
             &:hover:not(:disabled) {
-              background-color: #32374e;
+              background-color: $bg-hover;
               color: $text-light;
+              border-color: $border-light;
             }
 
             &.primary {
-              background-color: rgba(34, 211, 238, 0.15);
-              border-color: rgba(34, 211, 238, 0.4);
-              color: #22d3ee;
+              background-color: $accent-color;
+              border-color: $accent-hover;
+              color: #ffffff;
 
               &:hover:not(:disabled) {
-                background-color: rgba(34, 211, 238, 0.25);
+                background-color: $accent-hover;
               }
             }
 
@@ -3888,7 +4020,7 @@ kbd {
             padding: 5px 24px 5px 26px;
             background-color: $bg-main;
             border: 1px solid $border-color;
-            border-radius: 4px;
+            border-radius: $radius-sm;
             color: $text-bright;
             font-size: 11px;
             outline: none;
@@ -3898,7 +4030,7 @@ kbd {
             }
 
             &:focus {
-              border-color: #22d3ee;
+              border-color: $accent-color;
             }
           }
 
@@ -3959,9 +4091,9 @@ kbd {
         }
 
         .char-card {
-          background-color: #171a27;
-          border: 1px solid #282c40;
-          border-radius: 6px;
+          background-color: $bg-main;
+          border: 1px solid $border-color;
+          border-radius: $radius-md;
           padding: 10px;
           display: flex;
           flex-direction: column;
@@ -3969,7 +4101,7 @@ kbd {
           transition: border-color 0.15s ease;
 
           &:hover {
-            border-color: #3b425f;
+            border-color: $border-light;
           }
 
           .char-header {
@@ -3987,26 +4119,27 @@ kbd {
               .char-name-input {
                 background: transparent;
                 border: 1px solid transparent;
-                color: #38bdf8;
+                color: $text-light;
                 font-size: 13px;
                 font-weight: 700;
                 padding: 2px 4px;
-                border-radius: 4px;
+                border-radius: $radius-sm;
                 outline: none;
                 flex: 1;
 
                 &:focus {
-                  background-color: $bg-main;
-                  border-color: #38bdf8;
+                  background-color: $bg-panel;
+                  border-color: $accent-color;
                 }
               }
 
               .dialogue-pill {
                 font-size: 10px;
-                background-color: #262a3e;
-                color: #94a3b8;
+                background-color: $bg-panel;
+                color: $text-muted;
+                border: 1px solid $border-color;
                 padding: 1px 6px;
-                border-radius: 4px;
+                border-radius: $radius-sm;
                 white-space: nowrap;
               }
             }
@@ -4021,23 +4154,23 @@ kbd {
                 align-items: center;
                 gap: 3px;
                 padding: 2px 6px;
-                background-color: #24283b;
-                border: 1px solid #363c58;
-                color: #94a3b8;
+                background-color: $bg-panel;
+                border: 1px solid $border-color;
+                color: $text-muted;
                 font-size: 10px;
                 font-weight: 600;
-                border-radius: 4px;
+                border-radius: $radius-sm;
                 cursor: pointer;
 
                 &:hover {
-                  background-color: #333954;
+                  background-color: $bg-hover;
                   color: $text-light;
                 }
 
                 &.active {
-                  background-color: rgba(34, 211, 238, 0.15);
-                  border-color: #22d3ee;
-                  color: #22d3ee;
+                  background-color: rgba(14, 99, 156, 0.15);
+                  border-color: $accent-color;
+                  color: #58a6ff;
                 }
               }
 
@@ -4047,22 +4180,22 @@ kbd {
                 color: $text-muted;
                 cursor: pointer;
                 padding: 3px;
-                border-radius: 4px;
+                border-radius: $radius-sm;
                 display: flex;
                 align-items: center;
 
                 &:hover {
-                  color: #f87171;
-                  background-color: rgba(248, 113, 113, 0.1);
+                  color: $error-color;
+                  background-color: $error-bg;
                 }
               }
             }
           }
 
           .inline-action-box {
-            background-color: #10121b;
-            border: 1px dashed #3a4160;
-            border-radius: 4px;
+            background-color: $bg-panel;
+            border: 1px dashed $border-color;
+            border-radius: $radius-sm;
             padding: 8px;
             display: flex;
             flex-direction: column;
@@ -4074,7 +4207,7 @@ kbd {
               gap: 4px;
               font-size: 10px;
               font-weight: 700;
-              color: #22d3ee;
+              color: #58a6ff;
               text-transform: uppercase;
             }
 
@@ -4090,13 +4223,13 @@ kbd {
                 padding: 4px 6px;
                 background-color: $bg-main;
                 border: 1px solid $border-color;
-                border-radius: 4px;
+                border-radius: $radius-sm;
                 color: $text-bright;
                 font-size: 11px;
                 outline: none;
 
                 &:focus {
-                  border-color: #22d3ee;
+                  border-color: $accent-color;
                 }
               }
 
@@ -4105,16 +4238,16 @@ kbd {
                 align-items: center;
                 gap: 3px;
                 padding: 4px 8px;
-                background-color: rgba(34, 211, 238, 0.2);
-                border: 1px solid #22d3ee;
-                color: #22d3ee;
+                background-color: $accent-color;
+                border: 1px solid $accent-hover;
+                color: #ffffff;
                 font-size: 10px;
                 font-weight: 700;
-                border-radius: 4px;
+                border-radius: $radius-sm;
                 cursor: pointer;
 
                 &:hover:not(:disabled) {
-                  background-color: rgba(34, 211, 238, 0.3);
+                  background-color: $accent-hover;
                 }
 
                 &:disabled {
@@ -4156,15 +4289,15 @@ kbd {
 
               .char-select {
                 padding: 4px 6px;
-                background-color: $bg-main;
-                border: 1px solid #2a2e42;
-                border-radius: 4px;
+                background-color: $bg-panel;
+                border: 1px solid $border-color;
+                border-radius: $radius-sm;
                 color: $text-bright;
                 font-size: 11px;
                 outline: none;
 
                 &:focus {
-                  border-color: #22d3ee;
+                  border-color: $accent-color;
                 }
               }
             }
@@ -4179,25 +4312,25 @@ kbd {
               align-items: center;
               gap: 4px;
               padding: 4px 8px;
-              background-color: #23273a;
-              border: 1px solid #353b58;
-              color: #cbd5e1;
-              border-radius: 4px;
+              background-color: $bg-panel;
+              border: 1px solid $border-color;
+              color: $text-bright;
+              border-radius: $radius-sm;
               font-size: 10px;
               font-weight: 600;
               cursor: pointer;
               transition: all 0.15s ease;
 
               &:hover {
-                background-color: #313752;
+                background-color: $bg-hover;
                 color: #ffffff;
-                border-color: #22d3ee;
+                border-color: $accent-color;
               }
             }
           }
 
           .char-quotes-section {
-            border-top: 1px solid #23273a;
+            border-top: 1px solid $border-color;
             padding-top: 6px;
             display: flex;
             flex-direction: column;
@@ -4213,7 +4346,7 @@ kbd {
 
               .locate-tip {
                 font-size: 9px;
-                color: #38bdf8;
+                color: #58a6ff;
                 opacity: 0.8;
               }
             }
@@ -4227,19 +4360,19 @@ kbd {
                 display: flex;
                 align-items: center;
                 gap: 6px;
-                padding: 3px 6px;
-                background-color: #12141e;
-                border: 1px solid #1f2334;
-                border-radius: 4px;
+                padding: 4px 6px;
+                background-color: $bg-panel;
+                border: 1px solid $border-color;
+                border-radius: $radius-sm;
                 cursor: pointer;
                 transition: all 0.15s ease;
 
                 &:hover {
-                  background-color: #1c2030;
-                  border-color: #3b4363;
+                  background-color: $bg-hover;
+                  border-color: $accent-color;
 
                   .quote-locate-btn {
-                    color: #38bdf8;
+                    color: #58a6ff;
                   }
                 }
 
@@ -4253,17 +4386,17 @@ kbd {
                   align-items: center;
 
                   &:hover {
-                    color: #22d3ee;
+                    color: $accent-hover;
                   }
 
                   .active-play {
-                    color: #22d3ee;
+                    color: #58a6ff;
                   }
                 }
 
                 .quote-text {
                   flex: 1;
-                  font-size: 10px;
+                  font-size: 10.5px;
                   font-style: italic;
                   color: $text-bright;
                   white-space: nowrap;
@@ -4281,7 +4414,7 @@ kbd {
                   align-items: center;
 
                   &:hover {
-                    color: #38bdf8;
+                    color: #58a6ff;
                   }
                 }
               }
@@ -4302,7 +4435,7 @@ kbd {
         justify-content: space-between;
         align-items: center;
         padding: 8px 12px;
-        background-color: #181b2a;
+        background-color: $bg-main;
         border-bottom: 1px solid $border-color;
         font-size: 11px;
         color: $text-muted;
@@ -4315,7 +4448,7 @@ kbd {
           .quick-link {
             background: none;
             border: none;
-            color: #38bdf8;
+            color: #58a6ff;
             cursor: pointer;
             font-size: 11px;
             padding: 0;
@@ -4339,6 +4472,35 @@ kbd {
         flex-direction: column;
         gap: 2px;
 
+        .empty-tree-box {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          padding: 30px 16px;
+          color: $text-muted;
+          gap: 6px;
+
+          .empty-icon {
+            color: $text-muted;
+            opacity: 0.6;
+          }
+
+          .empty-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: $text-bright;
+            margin: 0;
+          }
+
+          .empty-sub {
+            font-size: 11px;
+            color: $text-muted;
+            margin: 0;
+          }
+        }
+
         .studio-tree-folder {
           display: flex;
           flex-direction: column;
@@ -4349,7 +4511,7 @@ kbd {
           align-items: center;
           gap: 5px;
           padding: 4px 6px;
-          border-radius: 4px;
+          border-radius: $radius-sm;
           cursor: pointer;
           font-size: 11px;
           user-select: none;
@@ -4361,12 +4523,12 @@ kbd {
           }
 
           &.selected {
-            background-color: rgba(34, 211, 238, 0.08);
-            color: #38bdf8;
+            background-color: rgba(14, 99, 156, 0.12);
+            color: $text-light;
           }
 
           &.active-editor-file {
-            border-left: 2px solid #22d3ee;
+            border-left: 2px solid $accent-color;
           }
 
           .chevron-btn {
@@ -4392,11 +4554,11 @@ kbd {
               color: $text-muted;
 
               &.checked {
-                color: #22d3ee;
+                color: #58a6ff;
               }
 
               &.indeterminate {
-                color: #38bdf8;
+                color: #58a6ff;
               }
             }
           }
@@ -4419,15 +4581,16 @@ kbd {
           .dir-count-badge {
             font-size: 9px;
             color: $text-muted;
-            background-color: #24283b;
+            background-color: $bg-main;
+            border: 1px solid $border-color;
             padding: 1px 4px;
             border-radius: 3px;
           }
 
           .active-tag {
             font-size: 9px;
-            background-color: rgba(34, 211, 238, 0.2);
-            color: #22d3ee;
+            background-color: rgba(14, 99, 156, 0.2);
+            color: #58a6ff;
             padding: 1px 4px;
             border-radius: 3px;
           }
@@ -4436,7 +4599,7 @@ kbd {
 
       .files-tab-footer {
         padding: 10px 12px;
-        background-color: #181b2a;
+        background-color: $bg-main;
         border-top: 1px solid $border-color;
 
         .scan-tree-btn {
@@ -4446,16 +4609,16 @@ kbd {
           justify-content: center;
           gap: 6px;
           padding: 7px 12px;
-          background-color: rgba(34, 211, 238, 0.15);
-          border: 1px solid rgba(34, 211, 238, 0.4);
-          color: #22d3ee;
+          background-color: $accent-color;
+          border: 1px solid $accent-hover;
+          color: #ffffff;
           font-size: 11px;
           font-weight: 700;
-          border-radius: 4px;
+          border-radius: $radius-sm;
           cursor: pointer;
 
           &:hover:not(:disabled) {
-            background-color: rgba(34, 211, 238, 0.25);
+            background-color: $accent-hover;
           }
 
           &:disabled {
@@ -4491,13 +4654,13 @@ kbd {
             padding: 6px 8px;
             background-color: $bg-main;
             border: 1px solid $border-color;
-            border-radius: 4px;
+            border-radius: $radius-sm;
             color: $text-bright;
             font-size: 11px;
             outline: none;
 
             &:focus {
-              border-color: #22d3ee;
+              border-color: $accent-color;
             }
           }
 
@@ -4508,18 +4671,23 @@ kbd {
             .format-choice {
               flex: 1;
               padding: 6px 8px;
-              background-color: #222638;
-              border: 1px solid #363c56;
+              background-color: $bg-main;
+              border: 1px solid $border-color;
               color: $text-bright;
               font-size: 11px;
               font-weight: 600;
-              border-radius: 4px;
+              border-radius: $radius-sm;
               cursor: pointer;
 
+              &:hover {
+                background-color: $bg-hover;
+                border-color: $border-light;
+              }
+
               &.active {
-                background-color: rgba(34, 211, 238, 0.15);
-                border-color: #22d3ee;
-                color: #22d3ee;
+                background-color: rgba(14, 99, 156, 0.15);
+                border-color: $accent-color;
+                color: #58a6ff;
               }
             }
           }
@@ -4532,20 +4700,20 @@ kbd {
             .speed-val {
               font-size: 11px;
               font-weight: 700;
-              color: #22d3ee;
+              color: #58a6ff;
             }
           }
 
           .speed-range {
             width: 100%;
-            accent-color: #22d3ee;
+            accent-color: $accent-color;
           }
         }
 
         .export-specs-box {
-          background-color: #141724;
-          border: 1px solid #23273b;
-          border-radius: 6px;
+          background-color: $bg-main;
+          border: 1px solid $border-color;
+          border-radius: $radius-md;
           padding: 10px;
           display: flex;
           flex-direction: column;
@@ -4561,7 +4729,7 @@ kbd {
             }
 
             .spec-val {
-              color: #4ade80;
+              color: #2da44e;
               font-weight: 600;
             }
           }
@@ -4577,18 +4745,17 @@ kbd {
             justify-content: center;
             gap: 6px;
             padding: 8px 12px;
-            background: linear-gradient(135deg, #0284c7, #0369a1);
-            border: 1px solid #38bdf8;
+            background-color: $accent-color;
+            border: 1px solid $accent-hover;
             color: #ffffff;
             font-size: 12px;
             font-weight: 700;
-            border-radius: 4px;
+            border-radius: $radius-sm;
             cursor: pointer;
             transition: all 0.15s ease;
 
             &:hover:not(:disabled) {
-              background: linear-gradient(135deg, #0369a1, #075985);
-              box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+              background-color: $accent-hover;
             }
 
             &:disabled {
@@ -4601,4 +4768,5 @@ kbd {
     }
   }
 }
+
 

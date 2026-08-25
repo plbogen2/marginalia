@@ -257,15 +257,22 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSavingCast, setIsSavingCast] = useState(false);
 
-  const fileTree = useMemo(() => {
-    return buildFileTree(files.filter(f => f.endsWith('.md')));
+  const markdownFiles = useMemo(() => {
+    return files.filter(f => f.toLowerCase().endsWith('.md') || f.toLowerCase().endsWith('.markdown'));
   }, [files]);
 
+  const fileTree = useMemo(() => {
+    return buildFileTree(markdownFiles);
+  }, [markdownFiles]);
+
   useEffect(() => {
-    if (activeFile && files.includes(activeFile)) {
-      setSelectedFiles(prev => prev.length > 0 ? prev : [activeFile]);
-    } else {
-      setSelectedFiles(prev => prev.length > 0 ? prev : files.filter(f => f.endsWith('.md')));
+    if (markdownFiles.length > 0) {
+      setSelectedFiles(prev => {
+        const valid = prev.filter(p => markdownFiles.includes(p));
+        if (valid.length > 0) return valid;
+        if (activeFile && markdownFiles.includes(activeFile)) return [activeFile];
+        return markdownFiles;
+      });
     }
 
     const allDirs = new Set<string>();
@@ -287,7 +294,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
         auditionAudio.pause();
       }
     };
-  }, [activeFile, files, fileTree]);
+  }, [activeFile, files, markdownFiles, fileTree]);
 
   const loadSavedCast = async () => {
     try {
@@ -648,6 +655,66 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
         {/* TAB 1: CASTING */}
         {activeTab === 'cast' && (
           <div className="cast-tab-view">
+            {/* Chapter Scope Bar */}
+            <div className="cast-scope-section">
+              <div className="scope-header">
+                <span className="scope-title">
+                  Files in Scope: <strong>{selectedFiles.length}</strong> / {markdownFiles.length}
+                </span>
+                <div className="scope-actions">
+                  <button 
+                    type="button" 
+                    className="scope-btn"
+                    onClick={handleSelectAllFiles}
+                    title="Select all markdown files in workspace"
+                  >
+                    Select All
+                  </button>
+                  {activeFile && (
+                    <button 
+                      type="button" 
+                      className="scope-btn"
+                      onClick={() => setSelectedFiles([activeFile])}
+                      title="Select only the active file"
+                    >
+                      Active Only
+                    </button>
+                  )}
+                  <button 
+                    type="button" 
+                    className="scope-btn tree-btn"
+                    onClick={() => setActiveTab('files')}
+                    title="Open full directory tree"
+                  >
+                    Tree View
+                  </button>
+                </div>
+              </div>
+              <div className="scope-chips-list">
+                {markdownFiles.length === 0 ? (
+                  <span className="no-files-hint">No markdown files found in workspace</span>
+                ) : (
+                  markdownFiles.map(f => {
+                    const isSel = selectedFiles.includes(f);
+                    const isAct = f === activeFile;
+                    return (
+                      <button
+                        key={f}
+                        type="button"
+                        className={`scope-chip ${isSel ? 'selected' : ''} ${isAct ? 'active-file' : ''}`}
+                        onClick={() => handleToggleFile(f)}
+                        title={isSel ? `Click to exclude ${f}` : `Click to include ${f}`}
+                      >
+                        {isSel ? <CheckSquare size={11} className="chip-check" /> : <Square size={11} className="chip-check" />}
+                        <span className="chip-label">{f.split('/').pop()}</span>
+                        {isAct && <span className="chip-tag">Active</span>}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
             {/* Action Bar */}
             <div className="cast-action-bar">
               <div className="narrator-row">
@@ -973,30 +1040,44 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
           <div className="files-tab-view">
             <div className="files-tree-toolbar">
               <div className="tree-summary">
-                <span>Selected: <strong>{selectedFiles.length}</strong> / {files.filter(f => f.endsWith('.md')).length} files</span>
+                <span>Selected: <strong>{selectedFiles.length}</strong> / {markdownFiles.length} files</span>
               </div>
               <div className="tree-quick-links">
                 <button type="button" onClick={handleSelectAllFiles} className="quick-link">Select All</button>
+                {activeFile && (
+                  <>
+                    <span className="sep">•</span>
+                    <button type="button" onClick={() => setSelectedFiles([activeFile])} className="quick-link">Active Only</button>
+                  </>
+                )}
                 <span className="sep">•</span>
                 <button type="button" onClick={handleClearAllFiles} className="quick-link">Clear</button>
               </div>
             </div>
 
             <div className="files-tree-pane">
-              {fileTree.map(node => (
-                <StudioTreeItem
-                  key={node.path}
-                  node={node}
-                  selectedFiles={selectedFiles}
-                  onToggleFile={handleToggleFile}
-                  onToggleDirectory={handleToggleDirectory}
-                  expandedDirs={expandedDirs}
-                  onToggleExpand={handleToggleExpand}
-                  depth={0}
-                  activeFile={activeFile}
-                  onSelectFile={onSelectFile}
-                />
-              ))}
+              {fileTree.length === 0 ? (
+                <div className="empty-tree-box">
+                  <FileText size={24} className="empty-icon" />
+                  <p className="empty-title">No markdown files found</p>
+                  <p className="empty-sub">Create or select a workspace with .md chapters to begin audio casting.</p>
+                </div>
+              ) : (
+                fileTree.map(node => (
+                  <StudioTreeItem
+                    key={node.path}
+                    node={node}
+                    selectedFiles={selectedFiles}
+                    onToggleFile={handleToggleFile}
+                    onToggleDirectory={handleToggleDirectory}
+                    expandedDirs={expandedDirs}
+                    onToggleExpand={handleToggleExpand}
+                    depth={0}
+                    activeFile={activeFile}
+                    onSelectFile={onSelectFile}
+                  />
+                ))
+              )}
             </div>
 
             <div className="files-tab-footer">
