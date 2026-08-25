@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 
 const DEFAULT_DIR = path.resolve(__dirname, '../../');
 
-export const IGNORED_DIRS = ['.git', 'node_modules', 'backend', 'frontend', 'dist'];
+export const IGNORED_DIRS = ['.git', '.marginalia', 'node_modules', 'backend', 'frontend', 'dist'];
 
 import fs from 'fs';
 

@@ -1,7 +1,12 @@
 # Changelog
 
 ## v1.11.0 (August 2026)
-- feat: show workspace files in Audio Studio scope and align palette with VS Code theme
+- **Repo-Level `.marginalia/casting.json` Persistence**: Automatically saves and loads cast assignments directly to/from the repository's `.marginalia/casting.json` file for portability and version control across machines.
+- **Safe Character Renaming**: Added draft buffering to prevent keystroke churn and orphan blank characters during character name editing.
+- **Dialogue Deduplication & Scrollable Quotes**: Deduplicated dialogue quotes and added scrollable quotes container with real-time locator jump and per-line voice audition.
+- **Native VS Code Theme Alignment**: Restyled Audio Studio panel and all sub-components to strictly conform to Marginalia's VS Code dark aesthetic.
+- **Workspace Scope & File Tree**: Full recursive directory hierarchy with multi-file checkbox selection for targeted character extraction.
+
 
 ## v1.10.0 (August 2026)
 - feat: add Audio Studio sidebar with dialogue locator, voice casting, and anti-hallucination TTS

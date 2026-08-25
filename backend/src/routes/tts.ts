@@ -57,31 +57,51 @@ ttsRouter.get('/api/tts/voices', async (req: AuthenticatedRequest, res: Response
   }
 });
 
-// GET saved cast settings
+// GET saved cast settings from .marginalia/casting.json in repo, falling back to DB
 ttsRouter.get('/api/tts/cast', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const targetDir = getTargetDir(req);
+    const repoCastingPath = path.join(targetDir, '.marginalia', 'casting.json');
+    
+    try {
+      const fileContent = await fs.readFile(repoCastingPath, 'utf-8');
+      if (fileContent.trim()) {
+        const castData = JSON.parse(fileContent);
+        return res.json({ cast: castData, source: 'repo', path: '.marginalia/casting.json' });
+      }
+    } catch {
+      // file does not exist or invalid, try DB fallback
+    }
+
     const key = req.user ? `tts_cast:${req.user}` : 'tts_cast';
     const row = db.prepare("SELECT value FROM settings WHERE key = ?;").get(key) as { value: string } | undefined;
     if (row && row.value) {
-      return res.json({ cast: JSON.parse(row.value) });
+      return res.json({ cast: JSON.parse(row.value), source: 'db' });
     }
-    res.json({ cast: {} });
+    res.json({ cast: {}, source: 'empty' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
 });
 
-// POST save cast settings
+// POST save cast settings to .marginalia/casting.json in repo and cache in DB
 ttsRouter.post('/api/tts/cast', async (req: AuthenticatedRequest, res: Response) => {
   const { cast } = req.body;
   if (!cast || typeof cast !== 'object') {
     return res.status(400).json({ error: 'Missing cast payload' });
   }
   try {
+    const targetDir = getTargetDir(req);
+    const marginaliaDir = path.join(targetDir, '.marginalia');
+    const repoCastingPath = path.join(marginaliaDir, 'casting.json');
+
+    await fs.mkdir(marginaliaDir, { recursive: true });
+    await fs.writeFile(repoCastingPath, JSON.stringify(cast, null, 2), 'utf-8');
+
     const key = req.user ? `tts_cast:${req.user}` : 'tts_cast';
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);").run(key, JSON.stringify(cast));
-    recordEvent(req.user, 'save', 'tts_cast', { characterCount: Object.keys(cast).length });
-    res.json({ success: true, cast });
+    recordEvent(req.user, 'save', 'tts_cast', { characterCount: Object.keys(cast).length, path: '.marginalia/casting.json' });
+    res.json({ success: true, cast, path: '.marginalia/casting.json' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -159,9 +179,11 @@ ttsRouter.post('/api/tts/extract-characters', async (req: AuthenticatedRequest, 
             };
           }
           charStats[speakerName].count += 1;
-          const quote = dMatches[0][1] || dMatches[0][2];
-          if (quote && charStats[speakerName].samples.length < 3) {
-            charStats[speakerName].samples.push(quote);
+          for (const match of dMatches) {
+            const quote = (match[1] || match[2] || '').trim();
+            if (quote && !charStats[speakerName].samples.includes(quote)) {
+              charStats[speakerName].samples.push(quote);
+            }
           }
         }
       }

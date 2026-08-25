@@ -223,6 +223,317 @@ const StudioTreeItem: React.FC<TreeItemProps> = ({
   );
 };
 
+interface CharacterCardItemProps {
+  char: CharacterCast;
+  allCharacters: CharacterCast[];
+  isMergingThis: boolean;
+  isSplittingThis: boolean;
+  mergeTargetChar: string;
+  splitNewName: string;
+  isAuditioning: string | null;
+  onAuditionVoice: (charName: string, voiceName: string, sampleText?: string) => void;
+  onUpdateCharacter: (name: string, updates: Partial<CharacterCast>) => void;
+  onRenameCharacter: (oldName: string, newName: string) => void;
+  onRemoveCharacter: (name: string) => void;
+  onSetMergingSourceChar: (name: string | null) => void;
+  onSetMergeTargetChar: (name: string) => void;
+  onExecuteMerge: (source: string, target: string) => void;
+  onSetSplittingChar: (name: string | null) => void;
+  onSetSplitNewName: (name: string) => void;
+  onExecuteSplit: (source: string, newName: string) => void;
+  onLocateText?: (text: string) => void;
+}
+
+const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
+  char,
+  allCharacters,
+  isMergingThis,
+  isSplittingThis,
+  mergeTargetChar,
+  splitNewName,
+  isAuditioning,
+  onAuditionVoice,
+  onUpdateCharacter,
+  onRenameCharacter,
+  onRemoveCharacter,
+  onSetMergingSourceChar,
+  onSetMergeTargetChar,
+  onExecuteMerge,
+  onSetSplittingChar,
+  onSetSplitNewName,
+  onExecuteSplit,
+  onLocateText,
+}) => {
+  const [nameDraft, setNameDraft] = useState(char.name);
+
+  useEffect(() => {
+    setNameDraft(char.name);
+  }, [char.name]);
+
+  const handleCommitName = () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      setNameDraft(char.name);
+      return;
+    }
+    if (trimmed !== char.name) {
+      onRenameCharacter(char.name, trimmed);
+    }
+  };
+
+  const uniqueQuotes = useMemo(() => {
+    const lines = char.sampleLines || [];
+    return Array.from(new Set(lines.map(l => l.trim()).filter(Boolean)));
+  }, [char.sampleLines]);
+
+  const isIntroAuditioning = isAuditioning === `${char.name}_intro`;
+
+  return (
+    <div className="char-card">
+      <div className="char-header">
+        <div className="char-name-container">
+          <input
+            type="text"
+            className="char-name-input"
+            value={nameDraft}
+            onChange={e => setNameDraft(e.target.value)}
+            onBlur={handleCommitName}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                (e.target as HTMLInputElement).blur();
+              } else if (e.key === 'Escape') {
+                setNameDraft(char.name);
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            placeholder="Character Name"
+            title="Click to rename character (press Enter or click away to save)"
+          />
+          {char.dialogueCount !== undefined && char.dialogueCount > 0 && (
+            <span className="dialogue-pill" title={`${char.dialogueCount} lines detected`}>
+              {char.dialogueCount} {char.dialogueCount === 1 ? 'line' : 'lines'}
+            </span>
+          )}
+        </div>
+
+        <div className="char-header-buttons">
+          <button
+            type="button"
+            className={`tool-pill-btn ${isMergingThis ? 'active' : ''}`}
+            onClick={() => onSetMergingSourceChar(isMergingThis ? null : char.name)}
+            title="Merge this character into another"
+          >
+            <GitMerge size={11} />
+            <span>Merge</span>
+          </button>
+          <button
+            type="button"
+            className={`tool-pill-btn ${isSplittingThis ? 'active' : ''}`}
+            onClick={() => onSetSplittingChar(isSplittingThis ? null : char.name)}
+            title="Split character lines into a new character"
+          >
+            <Scissors size={11} />
+            <span>Split</span>
+          </button>
+          <button
+            type="button"
+            className="delete-char-btn"
+            onClick={() => onRemoveCharacter(char.name)}
+            title="Remove character from cast"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* Inline Merge Box */}
+      {isMergingThis && (
+        <div className="inline-action-box">
+          <div className="box-title">
+            <GitMerge size={12} />
+            <span>Merge "{char.name}" into:</span>
+          </div>
+          <div className="box-inputs">
+            <select
+              className="box-select"
+              value={mergeTargetChar}
+              onChange={e => onSetMergeTargetChar(e.target.value)}
+            >
+              <option value="">-- Select Target Character --</option>
+              {allCharacters
+                .filter(c => c.name !== char.name)
+                .map(c => (
+                  <option key={c.name} value={c.name}>
+                    {c.name} ({c.voice})
+                  </option>
+                ))}
+            </select>
+            <button
+              type="button"
+              className="box-confirm-btn"
+              disabled={!mergeTargetChar}
+              onClick={() => onExecuteMerge(char.name, mergeTargetChar)}
+            >
+              <Check size={11} />
+              <span>Confirm</span>
+            </button>
+            <button
+              type="button"
+              className="box-cancel-btn"
+              onClick={() => {
+                onSetMergingSourceChar(null);
+                onSetMergeTargetChar('');
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Inline Split Box */}
+      {isSplittingThis && (
+        <div className="inline-action-box">
+          <div className="box-title">
+            <Scissors size={12} />
+            <span>Split lines from "{char.name}":</span>
+          </div>
+          <div className="box-inputs">
+            <input
+              type="text"
+              className="box-text-input"
+              placeholder="New character name..."
+              value={splitNewName}
+              onChange={e => onSetSplitNewName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && splitNewName.trim()) {
+                  onExecuteSplit(char.name, splitNewName.trim());
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="box-confirm-btn"
+              disabled={!splitNewName.trim()}
+              onClick={() => onExecuteSplit(char.name, splitNewName.trim())}
+            >
+              <Check size={11} />
+              <span>Create Split</span>
+            </button>
+            <button
+              type="button"
+              className="box-cancel-btn"
+              onClick={() => {
+                onSetSplittingChar(null);
+                onSetSplitNewName('');
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Voice and Gender selection */}
+      <div className="char-voice-row">
+        <div className="select-col">
+          <span className="sub-lbl">Voice:</span>
+          <select
+            className="char-select"
+            value={char.voice}
+            onChange={e => onUpdateCharacter(char.name, { voice: e.target.value })}
+          >
+            {CANONICAL_GEMINI_VOICES.map(v => (
+              <option key={v.name} value={v.name}>
+                {v.name} ({v.desc.split('(')[0].trim()})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="select-col">
+          <span className="sub-lbl">Accent / Language:</span>
+          <select
+            className="char-select"
+            value={char.language || 'en-US'}
+            onChange={e => onUpdateCharacter(char.name, { language: e.target.value })}
+          >
+            {LANGUAGE_ACCENTS.map(l => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Audition Button */}
+      <div className="audition-sample-row">
+        <button
+          type="button"
+          className="audition-btn"
+          onClick={() => onAuditionVoice(char.name, char.voice)}
+          title="Audition character voice"
+        >
+          {isIntroAuditioning ? <Loader2 size={11} className="spin" /> : <Play size={11} />}
+          <span>{isIntroAuditioning ? 'Playing Sample...' : `Audition ${char.voice}`}</span>
+        </button>
+      </div>
+
+      {/* Deduplicated and scrollable quotes section */}
+      {uniqueQuotes.length > 0 && (
+        <div className="char-quotes-section">
+          <div className="quotes-heading">
+            <span>Dialogue Lines ({uniqueQuotes.length})</span>
+            <span className="locate-tip">Click line to locate in text</span>
+          </div>
+          <div className="quotes-list">
+            {uniqueQuotes.map((quote, idx) => {
+              const isQuoteAuditioning = isAuditioning === `${char.name}_${quote.slice(0, 15)}`;
+              return (
+                <div
+                  key={idx}
+                  className="quote-entry"
+                  onClick={() => onLocateText?.(quote)}
+                  title="Click to jump to this quote in editor"
+                >
+                  <button
+                    type="button"
+                    className="quote-play-btn"
+                    onClick={e => {
+                      e.stopPropagation();
+                      onAuditionVoice(char.name, char.voice, quote);
+                    }}
+                    title="Play voice reading this line"
+                  >
+                    {isQuoteAuditioning ? (
+                      <Loader2 size={11} className="spin active-play" />
+                    ) : (
+                      <Volume2 size={11} />
+                    )}
+                  </button>
+                  <span className="quote-text">"{quote}"</span>
+                  <button
+                    type="button"
+                    className="quote-locate-btn"
+                    onClick={e => {
+                      e.stopPropagation();
+                      onLocateText?.(quote);
+                    }}
+                    title="Locate line in editor"
+                  >
+                    <Search size={11} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
   files,
   activeFile,
@@ -418,6 +729,22 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
     }));
   };
 
+  const handleRenameCharacter = (oldName: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === oldName) return;
+    setCast(prev => {
+      if (!prev[oldName]) return prev;
+      const charData = prev[oldName];
+      const next = { ...prev };
+      delete next[oldName];
+      next[trimmed] = {
+        ...charData,
+        name: trimmed,
+      };
+      return next;
+    });
+  };
+
   const handleRemoveCharacter = (name: string) => {
     setCast(prev => {
       const next = { ...prev };
@@ -448,7 +775,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
       const target = prev[targetName];
       if (!source || !target) return prev;
 
-      const combinedSamples = Array.from(new Set([...(target.sampleLines || []), ...(source.sampleLines || [])])).slice(0, 6);
+      const combinedSamples = Array.from(new Set([...(target.sampleLines || []), ...(source.sampleLines || [])]));
       const combinedCount = (target.dialogueCount || 0) + (source.dialogueCount || 0);
 
       const next = { ...prev };
@@ -797,239 +1124,29 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
                   </p>
                 </div>
               ) : (
-                filteredCharacters.map(char => {
-                  const isMergingThis = mergingSourceChar === char.name;
-                  const isSplittingThis = splittingChar === char.name;
-                  const otherCharacters = allCharacters.filter(c => c.name !== char.name);
-
-                  return (
-                    <div key={char.name} className="char-card">
-                      {/* Card Header */}
-                      <div className="char-header">
-                        <div className="char-name-container">
-                          <input 
-                            type="text" 
-                            className="char-name-input"
-                            value={char.name}
-                            onChange={e => handleUpdateCharacter(char.name, { name: e.target.value })}
-                            title="Edit character name"
-                          />
-                          {char.dialogueCount !== undefined && (
-                            <span className="dialogue-pill" title={`${char.dialogueCount} spoken dialogue lines detected`}>
-                              {char.dialogueCount} lines
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="char-header-buttons">
-                          <button
-                            type="button"
-                            className={`tool-pill-btn ${isMergingThis ? 'active' : ''}`}
-                            onClick={() => {
-                              setMergingSourceChar(isMergingThis ? null : char.name);
-                              setSplittingChar(null);
-                            }}
-                            title="Combine / Merge into another character"
-                          >
-                            <GitMerge size={12} />
-                            <span>Merge</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            className={`tool-pill-btn ${isSplittingThis ? 'active' : ''}`}
-                            onClick={() => {
-                              setSplittingChar(isSplittingThis ? null : char.name);
-                              setMergingSourceChar(null);
-                              setSplitNewName(`${char.name}_2`);
-                            }}
-                            title="Split mistaken lines into separate character"
-                          >
-                            <Scissors size={12} />
-                            <span>Split</span>
-                          </button>
-
-                          <button 
-                            type="button" 
-                            className="delete-char-btn"
-                            onClick={() => handleRemoveCharacter(char.name)}
-                            title="Remove character"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Merge Sub-Panel */}
-                      {isMergingThis && (
-                        <div className="inline-action-box merge-box">
-                          <div className="box-title">
-                            <GitMerge size={12} />
-                            <span>Merge "{char.name}" into:</span>
-                          </div>
-                          <div className="box-inputs">
-                            <select 
-                              value={mergeTargetChar}
-                              onChange={e => setMergeTargetChar(e.target.value)}
-                              className="box-select"
-                            >
-                              <option value="">-- Choose target character --</option>
-                              {otherCharacters.map(c => (
-                                <option key={c.name} value={c.name}>{c.name} ({c.voice})</option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              className="box-confirm-btn"
-                              disabled={!mergeTargetChar}
-                              onClick={() => handleExecuteMerge(char.name, mergeTargetChar)}
-                            >
-                              <Check size={12} />
-                              <span>Apply Merge</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="box-cancel-btn"
-                              onClick={() => setMergingSourceChar(null)}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Split Sub-Panel */}
-                      {isSplittingThis && (
-                        <div className="inline-action-box split-box">
-                          <div className="box-title">
-                            <Scissors size={12} />
-                            <span>Split "{char.name}" into new character:</span>
-                          </div>
-                          <div className="box-inputs">
-                            <input 
-                              type="text" 
-                              value={splitNewName}
-                              onChange={e => setSplitNewName(e.target.value)}
-                              placeholder="New character name"
-                              className="box-text-input"
-                            />
-                            <button
-                              type="button"
-                              className="box-confirm-btn"
-                              disabled={!splitNewName.trim() || splitNewName.trim() === char.name}
-                              onClick={() => handleExecuteSplit(char.name, splitNewName)}
-                            >
-                              <Check size={12} />
-                              <span>Apply Split</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="box-cancel-btn"
-                              onClick={() => setSplittingChar(null)}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Voice & Accent Controls */}
-                      <div className="char-voice-row">
-                        <div className="select-col">
-                          <span className="sub-lbl">Voice:</span>
-                          <select 
-                            value={char.voice}
-                            onChange={e => handleUpdateCharacter(char.name, { voice: e.target.value })}
-                            className="char-select"
-                          >
-                            {CANONICAL_GEMINI_VOICES.map(v => (
-                              <option key={v.name} value={v.name}>
-                                {v.name} ({v.desc.split('(')[0].trim()})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="select-col">
-                          <span className="sub-lbl">Accent / Dialect:</span>
-                          <select 
-                            value={char.language}
-                            onChange={e => handleUpdateCharacter(char.name, { language: e.target.value })}
-                            className="char-select"
-                          >
-                            {LANGUAGE_ACCENTS.map(l => (
-                              <option key={l.code} value={l.code}>{l.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Audition Button */}
-                      <div className="audition-sample-row">
-                        <button 
-                          type="button" 
-                          className="audition-btn"
-                          onClick={() => handleAuditionVoice(char.name, char.voice)}
-                          disabled={isAuditioning !== null && isAuditioning !== `${char.name}_intro`}
-                        >
-                          <Volume2 size={12} className={isAuditioning === `${char.name}_intro` ? 'spin' : ''} />
-                          <span>{isAuditioning === `${char.name}_intro` ? 'Auditioning Voice...' : `Audition ${char.voice}`}</span>
-                        </button>
-                      </div>
-
-                      {/* Dialogue Samples & Manuscript Locator */}
-                      {char.sampleLines && char.sampleLines.length > 0 && (
-                        <div className="char-quotes-section">
-                          <div className="quotes-heading">
-                            <span>Spoken Dialogue in Manuscript:</span>
-                            <span className="locate-tip">Click quote or locate icon to jump to line</span>
-                          </div>
-                          <div className="quotes-list">
-                            {char.sampleLines.map((line, idx) => {
-                              const lineAuditionKey = `${char.name}_${line.slice(0, 15)}`;
-                              const isPlayingLine = isAuditioning === lineAuditionKey;
-
-                              return (
-                                <div 
-                                  key={idx} 
-                                  className="quote-entry"
-                                  onClick={() => onLocateText?.(line)}
-                                  title="Click to locate and highlight this quote in the manuscript"
-                                >
-                                  <button
-                                    type="button"
-                                    className="quote-play-btn"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleAuditionVoice(char.name, char.voice, line);
-                                    }}
-                                    title="Play this line with character's voice"
-                                  >
-                                    <Play size={10} className={isPlayingLine ? 'active-play' : ''} />
-                                  </button>
-
-                                  <span className="quote-text">"{line}"</span>
-
-                                  <button
-                                    type="button"
-                                    className="quote-locate-btn"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onLocateText?.(line);
-                                    }}
-                                    title="Find in document"
-                                  >
-                                    <Search size={11} />
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
+                filteredCharacters.map(char => (
+                  <CharacterCardItem
+                    key={char.name}
+                    char={char}
+                    allCharacters={allCharacters}
+                    isMergingThis={mergingSourceChar === char.name}
+                    isSplittingThis={splittingChar === char.name}
+                    mergeTargetChar={mergeTargetChar}
+                    splitNewName={splitNewName}
+                    isAuditioning={isAuditioning}
+                    onAuditionVoice={handleAuditionVoice}
+                    onUpdateCharacter={handleUpdateCharacter}
+                    onRenameCharacter={handleRenameCharacter}
+                    onRemoveCharacter={handleRemoveCharacter}
+                    onSetMergingSourceChar={setMergingSourceChar}
+                    onSetMergeTargetChar={setMergeTargetChar}
+                    onExecuteMerge={handleExecuteMerge}
+                    onSetSplittingChar={setSplittingChar}
+                    onSetSplitNewName={setSplitNewName}
+                    onExecuteSplit={handleExecuteSplit}
+                    onLocateText={onLocateText}
+                  />
+                ))
               )}
             </div>
           </div>
