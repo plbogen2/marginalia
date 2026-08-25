@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Upload, GitCommit, RefreshCw, GitBranch, Folder, Sparkles, ArrowLeft, ArrowRight, Settings, LogOut, Info, Activity } from 'lucide-react';
+import { Download, Upload, GitCommit, RefreshCw, GitBranch, Folder, Sparkles, ArrowLeft, ArrowRight, Settings, LogOut, Info, Activity, Layers } from 'lucide-react';
 
 interface GitBarProps {
   status: string;
@@ -16,6 +16,7 @@ interface GitBarProps {
   onOpenSettings: () => void;
   onOpenAbout: () => void;
   onOpenAdmin?: () => void;
+  onOpenAudioStudio?: () => void;
   authInfo: { loggedIn: boolean, user: string | null, isOAuthMode: boolean, isAdmin?: boolean } | null;
   onLogout: () => void;
   onShowDiff: () => void;
@@ -36,6 +37,7 @@ export const GitBar: React.FC<GitBarProps> = ({
   onOpenSettings,
   onOpenAbout,
   onOpenAdmin,
+  onOpenAudioStudio,
   authInfo,
   onLogout,
   onShowDiff
@@ -152,6 +154,11 @@ export const GitBar: React.FC<GitBarProps> = ({
       </form>
 
       <div className="git-options">
+        {onOpenAudioStudio && (
+          <button onClick={onOpenAudioStudio} title="Audio Studio & Voice Casting" className="studio-btn-nav" style={{ color: '#22d3ee' }}>
+            <Layers size={14} />
+          </button>
+        )}
         <button onClick={onOpenAbout} title="About Marginalia" className="about-btn">
           <Info size={14} />
         </button>

@@ -173,6 +173,7 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
   const utteranceRef = useRef<any>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const speechSessionRef = useRef<number>(0);
+  const playbackGenRef = useRef<number>(0);
 
   // Active session references for dynamic jumping/seeking
   const activeChunksRef = useRef<string[]>([]);
@@ -181,8 +182,9 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
   const prefetchCacheRef = useRef<Map<number, Promise<string | null>>>(new Map());
 
   const stopSpeech = useCallback(() => {
-    // Increment monotonic session ID to immediately invalidate all in-flight requests & callbacks
+    // Increment monotonic session ID and playback gen to immediately invalidate all in-flight requests & callbacks
     speechSessionRef.current += 1;
+    playbackGenRef.current += 1;
 
     if (utteranceRef.current) {
       utteranceRef.current.onend = null;
@@ -436,12 +438,13 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
             return;
           }
 
+          const currentPlayGen = ++playbackGenRef.current;
           currentChunkIdxRef.current = targetIdx;
           setCurrentChunkIndex(targetIdx);
           setCurrentChunkText(chunks[targetIdx]);
           setIsTtsLoading(true);
 
-          // Stop previous audio instance if still active
+          // Stop and cleanly unload previous audio instance immediately
           if (audioPlayerRef.current) {
             try {
               audioPlayerRef.current.pause();
@@ -466,7 +469,10 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
             ? await audioPromise 
             : await fetchParlandoChunk(chunks[targetIdx], voice, pacing, speed, sessionId, customCast, dialogueVoice);
 
-          if (speechSessionRef.current !== sessionId) return;
+          // Invalidate if session changed or user skipped/seeked to another chunk while fetching
+          if (speechSessionRef.current !== sessionId || playbackGenRef.current !== currentPlayGen) {
+            return;
+          }
 
           if (!audioData) {
             stopSpeech();
@@ -478,7 +484,7 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
           audioPlayerRef.current = audio;
 
           audio.onplay = () => {
-            if (speechSessionRef.current === sessionId) {
+            if (speechSessionRef.current === sessionId && playbackGenRef.current === currentPlayGen) {
               setIsSpeaking(true);
               setIsPaused(false);
               setIsTtsLoading(false);
@@ -489,7 +495,7 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
           };
 
           audio.onpause = () => {
-            if (speechSessionRef.current === sessionId && !audio.ended) {
+            if (speechSessionRef.current === sessionId && playbackGenRef.current === currentPlayGen && !audio.ended) {
               setIsPaused(true);
               if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'paused';
@@ -498,7 +504,9 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
           };
 
           audio.onended = async () => {
-            if (speechSessionRef.current !== sessionId) return;
+            if (speechSessionRef.current !== sessionId || playbackGenRef.current !== currentPlayGen) {
+              return;
+            }
             const nextIdx = targetIdx + 1;
             if (nextIdx < chunks.length) {
               await playTargetChunk(nextIdx);
@@ -508,7 +516,7 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
           };
 
           audio.onerror = (e) => {
-            if (speechSessionRef.current === sessionId) {
+            if (speechSessionRef.current === sessionId && playbackGenRef.current === currentPlayGen) {
               console.error('Parlando audio playback error:', e);
               stopSpeech();
             }
@@ -530,7 +538,9 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
           setIsTtsLoading(false);
           setIsSpeaking(true);
           setIsPaused(false);
-          await audio.play();
+          if (speechSessionRef.current === sessionId && playbackGenRef.current === currentPlayGen) {
+            await audio.play();
+          }
         };
 
         playTargetChunkRef.current = playTargetChunk;

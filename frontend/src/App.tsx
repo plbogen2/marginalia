@@ -24,6 +24,7 @@ const AdminDashboardModal = lazy(() => import('./components/AdminDashboardModal'
 const MarkdownGuideModal = lazy(() => import('./components/MarkdownGuideModal').then(m => ({ default: m.MarkdownGuideModal })));
 const AboutModal = lazy(() => import('./components/AboutModal').then(m => ({ default: m.AboutModal })));
 const GitDiffModal = lazy(() => import('./components/GitDiffModal').then(m => ({ default: m.GitDiffModal })));
+const AudioStudioModal = lazy(() => import('./components/AudioStudioModal').then(m => ({ default: m.AudioStudioModal })));
 const AiPanel = lazy(() => import('./components/AiPanel').then(m => ({ default: m.AiPanel })));
 
 function App() {
@@ -42,6 +43,7 @@ function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
+  const [audioStudioOpen, setAudioStudioOpen] = useState(false);
 
   // Editor Session & Document Lifecycle
   const editorSession = useEditorSession({
@@ -216,6 +218,7 @@ function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenAbout={() => setAboutOpen(true)}
         onOpenAdmin={() => setAdminOpen(true)}
+        onOpenAudioStudio={() => setAudioStudioOpen(true)}
         authInfo={authInfo}
         onLogout={handleLogout}
         onShowDiff={() => setDiffOpen(true)}
@@ -430,6 +433,15 @@ function App() {
             onRefreshStatus={handleRefresh}
             onCommit={handleCommit}
             hasGemini={hasGemini}
+          />
+        )}
+        {audioStudioOpen && (
+          <AudioStudioModal
+            isOpen={audioStudioOpen}
+            onClose={() => setAudioStudioOpen(false)}
+            files={files}
+            activeFile={activeFile}
+            hasGeminiKey={hasGemini}
           />
         )}
       </Suspense>
