@@ -380,7 +380,12 @@ function App() {
                   activeFile={activeFile}
                   hasGeminiKey={hasGemini}
                   onClose={() => setAudioStudioOpen(false)}
-                  onLocateText={(text) => setLocateText({ text, timestamp: Date.now() })}
+                  onLocateText={(text, filePath) => {
+                    if (filePath && filePath !== activeFile) {
+                      selectFile(filePath);
+                    }
+                    setLocateText({ text, timestamp: Date.now() });
+                  }}
                   onSelectFile={selectFile}
                 />
               </Suspense>

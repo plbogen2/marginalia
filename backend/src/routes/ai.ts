@@ -6,6 +6,7 @@ import { db, recordTokenUsage } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { getTargetDir } from '../config.js';
 import { isPathSafe } from '../utils/pathSafety.js';
+import { resolveGeminiApiKey, resolveGeminiModelName } from '../utils/gemini.js';
 
 export const aiRouter = Router();
 
@@ -45,43 +46,12 @@ aiRouter.post('/api/ai/analyze', async (req: AuthenticatedRequest, res: Response
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    let apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      try {
-        const key = req.user ? `gemini_api_key:${req.user}` : 'gemini_api_key';
-        const row = db.prepare("SELECT value FROM settings WHERE key = ?;").get(key) as { value: string } | undefined;
-        if (row && row.value) {
-          apiKey = row.value;
-        } else if (req.user) {
-          const globalRow = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key';").get() as { value: string } | undefined;
-          if (globalRow && globalRow.value) {
-            apiKey = globalRow.value;
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-
+    const apiKey = resolveGeminiApiKey(req);
     if (!apiKey) {
       return res.status(400).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
     }
 
-    let modelName = 'gemini-1.5-flash';
-    try {
-      const modelKey = req.user ? `gemini_model:${req.user}` : 'gemini_model';
-      let row = db.prepare("SELECT value FROM settings WHERE key = ?;").get(modelKey) as { value: string } | undefined;
-      if ((!row || !row.value) && req.user) {
-        row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_model';").get() as { value: string } | undefined;
-      }
-      if (row && row.value) {
-        modelName = row.value;
-      }
-    } catch {
-      // ignore
-    }
-
-    const cleanModelName = modelName.replace(/^models\//, '');
+    const cleanModelName = resolveGeminiModelName(req, 'gemini-1.5-flash');
 
     let systemInstruction = '';
     switch (persona) {

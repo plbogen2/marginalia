@@ -3651,20 +3651,44 @@ kbd {
 
 /* Audio Studio & Voice Casting Sidebar Panel */
 .audio-studio-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
-  width: 420px;
+  width: 440px;
   min-width: 360px;
   border-left: 1px solid $border-color;
   background-color: $bg-panel;
   overflow: hidden;
   height: 100%;
+  user-select: auto;
+
+  &.resizing {
+    user-select: none;
+    border-left-color: $accent-color;
+  }
+
+  .audio-studio-resizer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: col-resize;
+    z-index: 20;
+    background: transparent;
+    transition: background-color 0.15s ease;
+
+    &:hover,
+    &:active {
+      background-color: $accent-color;
+    }
+  }
 
   .studio-panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 14px;
+    padding: 12px 16px;
     background-color: $bg-panel;
     border-bottom: 1px solid $border-color;
 
@@ -3678,30 +3702,30 @@ kbd {
       }
 
       .panel-title {
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 700;
         color: $text-light;
       }
 
       .gemini-pill {
-        font-size: 9px;
+        font-size: 9.5px;
         font-weight: 700;
-        background: rgba(14, 99, 156, 0.2);
-        border: 1px solid rgba(14, 99, 156, 0.5);
+        background: rgba(14, 99, 156, 0.25);
+        border: 1px solid rgba(14, 99, 156, 0.6);
         color: #58a6ff;
-        padding: 1px 6px;
+        padding: 2px 7px;
         border-radius: 999px;
         text-transform: uppercase;
         letter-spacing: 0.5px;
       }
 
       .edge-pill {
-        font-size: 9px;
+        font-size: 9.5px;
         font-weight: 700;
         background: rgba(255, 255, 255, 0.08);
         border: 1px solid rgba(255, 255, 255, 0.15);
         color: $text-muted;
-        padding: 1px 6px;
+        padding: 2px 7px;
         border-radius: 999px;
         text-transform: uppercase;
       }
@@ -3710,6 +3734,24 @@ kbd {
     .header-actions {
       display: flex;
       align-items: center;
+      gap: 6px;
+
+      .save-status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #7ee787;
+        background: rgba(46, 160, 67, 0.15);
+        border: 1px solid rgba(46, 160, 67, 0.35);
+        padding: 2px 6px;
+        border-radius: $radius-sm;
+
+        .saved-icon {
+          color: #7ee787;
+        }
+      }
 
       .close-panel-btn {
         background: none;
@@ -4113,16 +4155,16 @@ kbd {
             .char-name-container {
               display: flex;
               align-items: center;
-              gap: 6px;
+              gap: 8px;
               flex: 1;
 
               .char-name-input {
                 background: transparent;
                 border: 1px solid transparent;
                 color: $text-light;
-                font-size: 13px;
+                font-size: 14px;
                 font-weight: 700;
-                padding: 2px 4px;
+                padding: 3px 6px;
                 border-radius: $radius-sm;
                 outline: none;
                 flex: 1;
@@ -4134,11 +4176,12 @@ kbd {
               }
 
               .dialogue-pill {
-                font-size: 10px;
+                font-size: 11px;
+                font-weight: 600;
                 background-color: $bg-panel;
                 color: $text-muted;
                 border: 1px solid $border-color;
-                padding: 1px 6px;
+                padding: 2px 7px;
                 border-radius: $radius-sm;
                 white-space: nowrap;
               }
@@ -4147,17 +4190,17 @@ kbd {
             .char-header-buttons {
               display: flex;
               align-items: center;
-              gap: 4px;
+              gap: 5px;
 
               .tool-pill-btn {
                 display: flex;
                 align-items: center;
-                gap: 3px;
-                padding: 2px 6px;
+                gap: 4px;
+                padding: 3px 7px;
                 background-color: $bg-panel;
                 border: 1px solid $border-color;
                 color: $text-muted;
-                font-size: 10px;
+                font-size: 11px;
                 font-weight: 600;
                 border-radius: $radius-sm;
                 cursor: pointer;
@@ -4179,7 +4222,7 @@ kbd {
                 border: none;
                 color: $text-muted;
                 cursor: pointer;
-                padding: 3px;
+                padding: 4px;
                 border-radius: $radius-sm;
                 display: flex;
                 align-items: center;
@@ -4196,16 +4239,16 @@ kbd {
             background-color: $bg-panel;
             border: 1px dashed $border-color;
             border-radius: $radius-sm;
-            padding: 8px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 8px;
 
             .box-title {
               display: flex;
               align-items: center;
-              gap: 4px;
-              font-size: 10px;
+              gap: 5px;
+              font-size: 11px;
               font-weight: 700;
               color: #58a6ff;
               text-transform: uppercase;
@@ -4213,19 +4256,19 @@ kbd {
 
             .box-inputs {
               display: flex;
-              gap: 6px;
+              gap: 8px;
               align-items: center;
               flex-wrap: wrap;
 
               .box-select, .box-text-input {
                 flex: 1;
                 min-width: 140px;
-                padding: 4px 6px;
+                padding: 5px 8px;
                 background-color: $bg-main;
                 border: 1px solid $border-color;
                 border-radius: $radius-sm;
                 color: $text-bright;
-                font-size: 11px;
+                font-size: 12px;
                 outline: none;
 
                 &:focus {
@@ -4236,12 +4279,12 @@ kbd {
               .box-confirm-btn {
                 display: flex;
                 align-items: center;
-                gap: 3px;
-                padding: 4px 8px;
+                gap: 4px;
+                padding: 5px 10px;
                 background-color: $accent-color;
                 border: 1px solid $accent-hover;
                 color: #ffffff;
-                font-size: 10px;
+                font-size: 11px;
                 font-weight: 700;
                 border-radius: $radius-sm;
                 cursor: pointer;
@@ -4260,7 +4303,7 @@ kbd {
                 background: none;
                 border: none;
                 color: $text-muted;
-                font-size: 10px;
+                font-size: 11px;
                 cursor: pointer;
                 padding: 4px;
 
@@ -4279,21 +4322,35 @@ kbd {
             .select-col {
               display: flex;
               flex-direction: column;
-              gap: 3px;
+              gap: 4px;
 
               .sub-lbl {
-                font-size: 10px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 11px;
                 font-weight: 600;
                 color: $text-muted;
+
+                .voice-timbre-badge {
+                  font-size: 10px;
+                  font-weight: 700;
+                  background-color: rgba(14, 99, 156, 0.2);
+                  border: 1px solid rgba(14, 99, 156, 0.45);
+                  color: #58a6ff;
+                  padding: 1px 5px;
+                  border-radius: $radius-sm;
+                  text-transform: capitalize;
+                }
               }
 
               .char-select {
-                padding: 4px 6px;
+                padding: 5px 8px;
                 background-color: $bg-panel;
                 border: 1px solid $border-color;
                 border-radius: $radius-sm;
                 color: $text-bright;
-                font-size: 11px;
+                font-size: 12px;
                 outline: none;
 
                 &:focus {
@@ -4310,13 +4367,13 @@ kbd {
             .audition-btn {
               display: flex;
               align-items: center;
-              gap: 4px;
-              padding: 4px 8px;
+              gap: 5px;
+              padding: 5px 10px;
               background-color: $bg-panel;
               border: 1px solid $border-color;
               color: $text-bright;
               border-radius: $radius-sm;
-              font-size: 10px;
+              font-size: 11px;
               font-weight: 600;
               cursor: pointer;
               transition: all 0.15s ease;
@@ -4331,39 +4388,39 @@ kbd {
 
           .char-quotes-section {
             border-top: 1px solid $border-color;
-            padding-top: 6px;
+            padding-top: 8px;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
 
             .quotes-heading {
               display: flex;
               justify-content: space-between;
               align-items: center;
-              font-size: 10px;
+              font-size: 11px;
               font-weight: 600;
               color: $text-muted;
 
               .locate-tip {
-                font-size: 9px;
+                font-size: 10px;
                 color: #58a6ff;
-                opacity: 0.8;
+                opacity: 0.9;
               }
             }
 
             .quotes-list {
               display: flex;
               flex-direction: column;
-              gap: 3px;
-              max-height: 180px;
+              gap: 4px;
+              max-height: 200px;
               overflow-y: auto;
               padding-right: 2px;
 
               .quote-entry {
                 display: flex;
                 align-items: center;
-                gap: 6px;
-                padding: 4px 6px;
+                gap: 8px;
+                padding: 5px 8px;
                 background-color: $bg-panel;
                 border: 1px solid $border-color;
                 border-radius: $radius-sm;
@@ -4384,7 +4441,7 @@ kbd {
                   border: none;
                   color: $text-muted;
                   cursor: pointer;
-                  padding: 2px;
+                  padding: 3px;
                   display: flex;
                   align-items: center;
 
@@ -4399,7 +4456,8 @@ kbd {
 
                 .quote-text {
                   flex: 1;
-                  font-size: 10.5px;
+                  font-size: 12px;
+                  line-height: 1.4;
                   font-style: italic;
                   color: $text-bright;
                   white-space: nowrap;
@@ -4412,7 +4470,7 @@ kbd {
                   border: none;
                   color: $text-muted;
                   cursor: pointer;
-                  padding: 2px;
+                  padding: 3px;
                   display: flex;
                   align-items: center;
 

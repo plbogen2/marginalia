@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   X, 
   Users, 
@@ -22,7 +22,8 @@ import {
   Play, 
   Search,
   Save,
-  Check
+  Check,
+  Wand2
 } from 'lucide-react';
 import { buildFileTree, type FileNode } from '../utils/treeBuilder';
 
@@ -33,6 +34,9 @@ export interface CharacterCast {
   voice: string;
   dialogueCount?: number;
   sampleLines?: string[];
+  description?: string;
+  stylePrompt?: string;
+  sourceFile?: string;
 }
 
 export interface AudioStudioPanelProps {
@@ -40,7 +44,7 @@ export interface AudioStudioPanelProps {
   activeFile: string | null;
   hasGeminiKey: boolean;
   onClose: () => void;
-  onLocateText?: (text: string) => void;
+  onLocateText?: (text: string, filePath?: string) => void;
   onSelectFile?: (path: string) => void;
 }
 
@@ -76,6 +80,10 @@ export const CANONICAL_GEMINI_VOICES = [
   { name: 'Sadaltager', desc: 'Knowledgeable', gender: 'male', accent: 'en-US' },
   { name: 'Sulafat', desc: 'Warm', gender: 'neutral', accent: 'en-US' },
 ];
+
+export const CANONICAL_FEMALE_VOICES = ['Kore', 'Aoede', 'Leda', 'Callirrhoe', 'Autonoe', 'Despina', 'Erinome', 'Laomedeia', 'Pulcherrima', 'Vindemiatrix'];
+export const CANONICAL_MALE_VOICES = ['Algenib', 'Charon', 'Fenrir', 'Puck', 'Orus', 'Enceladus', 'Iapetus', 'Umbriel', 'Rasalgethi', 'Alnilam', 'Gacrux', 'Achird', 'Zubenelgenubi', 'Sadaltager'];
+export const CANONICAL_NEUTRAL_VOICES = ['Zephyr', 'Algieba', 'Achernar', 'Schedar', 'Sadachbia', 'Sulafat'];
 
 export const LANGUAGE_ACCENTS = [
   { code: 'en-US', label: 'English (United States)' },
@@ -144,7 +152,7 @@ const StudioTreeItem: React.FC<TreeItemProps> = ({
       <div className="studio-tree-folder">
         <div 
           className="studio-tree-row dir-row"
-          style={{ paddingLeft: `${depth * 12 + 4}px` }}
+          style={{ paddingLeft: `${depth * 14 + 6}px` }}
           onClick={() => onToggleExpand(node.path)}
         >
           <button 
@@ -155,7 +163,7 @@ const StudioTreeItem: React.FC<TreeItemProps> = ({
               onToggleExpand(node.path);
             }}
           >
-            {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
           
           <button 
@@ -165,15 +173,15 @@ const StudioTreeItem: React.FC<TreeItemProps> = ({
             title={isAllSelected ? "Deselect directory" : "Select all in directory"}
           >
             {isAllSelected ? (
-              <CheckSquare size={13} className="checkbox-icon checked" />
+              <CheckSquare size={14} className="checkbox-icon checked" />
             ) : isSomeSelected ? (
-              <MinusSquare size={13} className="checkbox-icon indeterminate" />
+              <MinusSquare size={14} className="checkbox-icon indeterminate" />
             ) : (
-              <Square size={13} className="checkbox-icon" />
+              <Square size={14} className="checkbox-icon" />
             )}
           </button>
 
-          {isExpanded ? <FolderOpen size={14} className="folder-icon open" /> : <Folder size={14} className="folder-icon" />}
+          {isExpanded ? <FolderOpen size={15} className="folder-icon open" /> : <Folder size={15} className="folder-icon" />}
           <span className="tree-node-name dir-name">{node.name}</span>
           <span className="dir-count-badge">{selectedChildCount}/{childFilePaths.length}</span>
         </div>
@@ -207,7 +215,7 @@ const StudioTreeItem: React.FC<TreeItemProps> = ({
   return (
     <div 
       className={`studio-tree-row file-row ${isSelected ? 'selected' : ''} ${isActive ? 'active-editor-file' : ''}`}
-      style={{ paddingLeft: `${depth * 12 + 20}px` }}
+      style={{ paddingLeft: `${depth * 14 + 22}px` }}
       onClick={() => {
         onToggleFile(node.path);
         onSelectFile?.(node.path);
@@ -222,13 +230,13 @@ const StudioTreeItem: React.FC<TreeItemProps> = ({
         }}
       >
         {isSelected ? (
-          <CheckSquare size={13} className="checkbox-icon checked" />
+          <CheckSquare size={14} className="checkbox-icon checked" />
         ) : (
-          <Square size={13} className="checkbox-icon" />
+          <Square size={14} className="checkbox-icon" />
         )}
       </button>
 
-      <FileText size={13} className="file-icon" />
+      <FileText size={14} className="file-icon" />
       <span className="tree-node-name file-name">{node.name}</span>
       {isActive && <span className="active-tag">Active</span>}
     </div>
@@ -243,7 +251,7 @@ interface CharacterCardItemProps {
   mergeTargetChar: string;
   splitNewName: string;
   isAuditioning: string | null;
-  onAuditionVoice: (charName: string, voiceName: string, sampleText?: string) => void;
+  onAuditionVoice: (charName: string, voiceName: string, sampleText?: string, stylePrompt?: string) => void;
   onUpdateCharacter: (name: string, updates: Partial<CharacterCast>) => void;
   onRenameCharacter: (oldName: string, newName: string) => void;
   onRemoveCharacter: (name: string) => void;
@@ -253,7 +261,7 @@ interface CharacterCardItemProps {
   onSetSplittingChar: (name: string | null) => void;
   onSetSplitNewName: (name: string) => void;
   onExecuteSplit: (source: string, newName: string) => void;
-  onLocateText?: (text: string) => void;
+  onLocateText?: (text: string, filePath?: string) => void;
 }
 
 const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
@@ -277,10 +285,21 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
   onLocateText,
 }) => {
   const [nameDraft, setNameDraft] = useState(char.name);
+  const [descDraft, setDescDraft] = useState(char.description || '');
+  const [styleDraft, setStyleDraft] = useState(char.stylePrompt || '');
+  const [isRefining, setIsRefining] = useState(false);
 
   useEffect(() => {
     setNameDraft(char.name);
   }, [char.name]);
+
+  useEffect(() => {
+    setDescDraft(char.description || '');
+  }, [char.description]);
+
+  useEffect(() => {
+    setStyleDraft(char.stylePrompt || '');
+  }, [char.stylePrompt]);
 
   const handleCommitName = () => {
     const trimmed = nameDraft.trim();
@@ -293,12 +312,62 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
     }
   };
 
+  const handleCommitDesc = () => {
+    const trimmed = descDraft.trim();
+    if (trimmed !== (char.description || '')) {
+      onUpdateCharacter(char.name, { description: trimmed });
+    }
+  };
+
+  const handleCommitStyle = () => {
+    const trimmed = styleDraft.trim();
+    if (trimmed !== (char.stylePrompt || '')) {
+      onUpdateCharacter(char.name, { stylePrompt: trimmed });
+    }
+  };
+
+  const handleAiRefine = async () => {
+    setIsRefining(true);
+    try {
+      const otherVoices = allCharacters.filter(c => c.name !== char.name).map(c => c.voice);
+      const res = await fetch('/api/tts/refine-character', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: char.name,
+          samples: (char.sampleLines || []).slice(0, 5),
+          currentDescription: descDraft,
+          currentStylePrompt: styleDraft,
+          usedVoices: otherVoices,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.description) {
+          setDescDraft(data.description);
+          if (data.stylePrompt) setStyleDraft(data.stylePrompt);
+          onUpdateCharacter(char.name, {
+            description: data.description,
+            stylePrompt: data.stylePrompt || styleDraft,
+            gender: data.gender || char.gender,
+            voice: data.suggestedVoice || char.voice,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('AI Refine failed:', err);
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
   const uniqueQuotes = useMemo(() => {
     const lines = char.sampleLines || [];
     return Array.from(new Set(lines.map(l => l.trim()).filter(Boolean)));
   }, [char.sampleLines]);
 
   const isIntroAuditioning = isAuditioning === `${char.name}_intro`;
+  const voiceObj = CANONICAL_GEMINI_VOICES.find(v => v.name === char.voice);
 
   return (
     <div className="char-card">
@@ -326,6 +395,11 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
               {char.dialogueCount} {char.dialogueCount === 1 ? 'line' : 'lines'}
             </span>
           )}
+          {char.gender && (
+            <span className={`gender-tag ${char.gender}`} title={`Gender: ${char.gender}`}>
+              {char.gender}
+            </span>
+          )}
         </div>
 
         <div className="char-header-buttons">
@@ -335,7 +409,7 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
             onClick={() => onSetMergingSourceChar(isMergingThis ? null : char.name)}
             title="Merge this character into another"
           >
-            <GitMerge size={11} />
+            <GitMerge size={12} />
             <span>Merge</span>
           </button>
           <button
@@ -344,7 +418,7 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
             onClick={() => onSetSplittingChar(isSplittingThis ? null : char.name)}
             title="Split character lines into a new character"
           >
-            <Scissors size={11} />
+            <Scissors size={12} />
             <span>Split</span>
           </button>
           <button
@@ -353,7 +427,7 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
             onClick={() => onRemoveCharacter(char.name)}
             title="Remove character from cast"
           >
-            <Trash2 size={13} />
+            <Trash2 size={14} />
           </button>
         </div>
       </div>
@@ -362,7 +436,7 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
       {isMergingThis && (
         <div className="inline-action-box">
           <div className="box-title">
-            <GitMerge size={12} />
+            <GitMerge size={13} />
             <span>Merge "{char.name}" into:</span>
           </div>
           <div className="box-inputs">
@@ -386,7 +460,7 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
               disabled={!mergeTargetChar}
               onClick={() => onExecuteMerge(char.name, mergeTargetChar)}
             >
-              <Check size={11} />
+              <Check size={12} />
               <span>Confirm</span>
             </button>
             <button
@@ -407,7 +481,7 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
       {isSplittingThis && (
         <div className="inline-action-box">
           <div className="box-title">
-            <Scissors size={12} />
+            <Scissors size={13} />
             <span>Split lines from "{char.name}":</span>
           </div>
           <div className="box-inputs">
@@ -429,7 +503,7 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
               disabled={!splitNewName.trim()}
               onClick={() => onExecuteSplit(char.name, splitNewName.trim())}
             >
-              <Check size={11} />
+              <Check size={12} />
               <span>Create Split</span>
             </button>
             <button
@@ -446,10 +520,54 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
         </div>
       )}
 
+      {/* Persona & Vocal Acting Direction */}
+      <div className="char-persona-section">
+        <div className="persona-header">
+          <span className="persona-heading">Persona & Acting Direction</span>
+          <button
+            type="button"
+            className="ai-refine-btn"
+            onClick={handleAiRefine}
+            disabled={isRefining}
+            title="Use Gemini to infer character persona and neural acting style from dialogue quotes"
+          >
+            {isRefining ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}
+            <span>{isRefining ? 'Refining...' : 'AI Refine'}</span>
+          </button>
+        </div>
+        <div className="persona-field">
+          <label className="field-lbl">Persona & Role:</label>
+          <input
+            type="text"
+            className="persona-input"
+            value={descDraft}
+            onChange={e => setDescDraft(e.target.value)}
+            onBlur={handleCommitDesc}
+            onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            placeholder="e.g. Cynical console cowboy or grumpy street fixer"
+          />
+        </div>
+        <div className="persona-field">
+          <label className="field-lbl">Vocal Style & Delivery Prompt:</label>
+          <input
+            type="text"
+            className="persona-input style-prompt-input"
+            value={styleDraft}
+            onChange={e => setStyleDraft(e.target.value)}
+            onBlur={handleCommitStyle}
+            onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            placeholder="e.g. In an aggressive, thick New York Brooklyn accent, fast-paced:"
+          />
+        </div>
+      </div>
+
       {/* Voice and Gender selection */}
       <div className="char-voice-row">
         <div className="select-col">
-          <span className="sub-lbl">Voice:</span>
+          <div className="col-header-row">
+            <span className="sub-lbl">Assigned Voice:</span>
+            {voiceObj && <span className="voice-timbre-badge">{voiceObj.desc}</span>}
+          </div>
           <select
             className="char-select"
             value={char.voice}
@@ -457,7 +575,7 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
           >
             {CANONICAL_GEMINI_VOICES.map(v => (
               <option key={v.name} value={v.name}>
-                {v.name} ({v.desc.split('(')[0].trim()})
+                {v.name} — {v.desc} ({v.gender})
               </option>
             ))}
           </select>
@@ -484,11 +602,11 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
         <button
           type="button"
           className="audition-btn"
-          onClick={() => onAuditionVoice(char.name, char.voice)}
+          onClick={() => onAuditionVoice(char.name, char.voice, undefined, styleDraft)}
           title="Audition character voice"
         >
-          {isIntroAuditioning ? <Loader2 size={11} className="spin" /> : <Play size={11} />}
-          <span>{isIntroAuditioning ? 'Playing Sample...' : `Audition ${char.voice}`}</span>
+          {isIntroAuditioning ? <Loader2 size={13} className="spin" /> : <Play size={13} />}
+          <span>{isIntroAuditioning ? 'Playing Sample...' : `Audition ${char.voice} (${voiceObj?.desc || 'Neural'})`}</span>
         </button>
       </div>
 
@@ -497,7 +615,7 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
         <div className="char-quotes-section">
           <div className="quotes-heading">
             <span>Dialogue Lines ({uniqueQuotes.length})</span>
-            <span className="locate-tip">Click line to locate in text</span>
+            <span className="locate-tip">Click line to jump in editor</span>
           </div>
           <div className="quotes-list">
             {uniqueQuotes.map((quote, idx) => {
@@ -506,7 +624,7 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
                 <div
                   key={idx}
                   className="quote-entry"
-                  onClick={() => onLocateText?.(quote)}
+                  onClick={() => onLocateText?.(quote, char.sourceFile)}
                   title="Click to jump to this quote in editor"
                 >
                   <button
@@ -514,14 +632,14 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
                     className="quote-play-btn"
                     onClick={e => {
                       e.stopPropagation();
-                      onAuditionVoice(char.name, char.voice, quote);
+                      onAuditionVoice(char.name, char.voice, quote, styleDraft);
                     }}
                     title="Play voice reading this line"
                   >
                     {isQuoteAuditioning ? (
-                      <Loader2 size={11} className="spin active-play" />
+                      <Loader2 size={13} className="spin active-play" />
                     ) : (
-                      <Volume2 size={11} />
+                      <Volume2 size={13} />
                     )}
                   </button>
                   <span className="quote-text">"{quote}"</span>
@@ -530,11 +648,11 @@ const CharacterCardItem: React.FC<CharacterCardItemProps> = ({
                     className="quote-locate-btn"
                     onClick={e => {
                       e.stopPropagation();
-                      onLocateText?.(quote);
+                      onLocateText?.(quote, char.sourceFile);
                     }}
                     title="Locate line in editor"
                   >
-                    <Search size={11} />
+                    <Search size={13} />
                   </button>
                 </div>
               );
@@ -554,6 +672,12 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
   onLocateText,
   onSelectFile
 }) => {
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('marginalia_audio_studio_width');
+    return saved ? Math.max(360, Math.min(850, parseInt(saved, 10))) : 460;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
   const [activeTab, setActiveTab] = useState<'cast' | 'files' | 'export'>('cast');
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
@@ -579,6 +703,28 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
   const [exportSpeed, setExportSpeed] = useState(1.0);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSavingCast, setIsSavingCast] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+
+  const isInitialLoad = useRef(true);
+
+  // Resizing logic
+  useEffect(() => {
+    if (!isResizing) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.max(360, Math.min(850, window.innerWidth - e.clientX));
+      setPanelWidth(newWidth);
+    };
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      localStorage.setItem('marginalia_audio_studio_width', String(panelWidth));
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, panelWidth]);
 
   const markdownFiles = useMemo(() => {
     return files.filter(f => f.toLowerCase().endsWith('.md') || f.toLowerCase().endsWith('.markdown'));
@@ -589,14 +735,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
   }, [markdownFiles]);
 
   useEffect(() => {
-    if (markdownFiles.length > 0) {
-      setSelectedFiles(prev => {
-        const valid = prev.filter(p => markdownFiles.includes(p));
-        if (valid.length > 0) return valid;
-        if (activeFile && markdownFiles.includes(activeFile)) return [activeFile];
-        return markdownFiles;
-      });
-    }
+    loadSavedCast();
 
     const allDirs = new Set<string>();
     const gatherDirs = (nodes: FileNode[]) => {
@@ -610,14 +749,12 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
     gatherDirs(fileTree);
     setExpandedDirs(allDirs);
 
-    loadSavedCast();
-
     return () => {
       if (auditionAudio) {
         auditionAudio.pause();
       }
     };
-  }, [activeFile, files, markdownFiles, fileTree]);
+  }, [fileTree]);
 
   const loadSavedCast = async () => {
     try {
@@ -627,11 +764,64 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
         if (data.cast && Object.keys(data.cast).length > 0) {
           setCast(data.cast);
         }
+        if (Array.isArray(data.selectedFiles) && data.selectedFiles.length > 0) {
+          setSelectedFiles(data.selectedFiles);
+        } else if (markdownFiles.length > 0) {
+          setSelectedFiles(markdownFiles);
+        }
+        if (data.narratorVoice) setNarratorVoice(data.narratorVoice);
+        if (data.exportTitle) setExportTitle(data.exportTitle);
+        if (data.exportAuthor) setExportAuthor(data.exportAuthor);
+        if (data.exportFormat) setExportFormat(data.exportFormat);
+        if (data.exportPacing) setExportPacing(data.exportPacing);
+        if (data.exportSpeed) setExportSpeed(data.exportSpeed);
+        setLastSavedTime('Loaded from .marginalia/casting.json');
       }
     } catch {
       // ignore
+    } finally {
+      setTimeout(() => {
+        isInitialLoad.current = false;
+      }, 500);
     }
   };
+
+  const persistSettings = useCallback(async (currentCast: Record<string, CharacterCast>, currentFiles: string[], narrator: string) => {
+    setIsSavingCast(true);
+    try {
+      const res = await fetch('/api/tts/cast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cast: currentCast,
+          selectedFiles: currentFiles,
+          narratorVoice: narrator,
+          exportTitle,
+          exportAuthor,
+          exportFormat,
+          exportPacing,
+          exportSpeed,
+        }),
+      });
+      if (res.ok) {
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastSavedTime(`Saved to .marginalia/casting.json (${timeStr})`);
+      }
+    } catch (err) {
+      console.warn('Auto-save cast failed:', err);
+    } finally {
+      setIsSavingCast(false);
+    }
+  }, [exportTitle, exportAuthor, exportFormat, exportPacing, exportSpeed]);
+
+  // Debounced auto-save effect
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+    const timer = setTimeout(() => {
+      persistSettings(cast, selectedFiles, narratorVoice);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [cast, selectedFiles, narratorVoice, exportTitle, exportAuthor, exportFormat, exportPacing, exportSpeed, persistSettings]);
 
   const handleToggleExpand = (path: string) => {
     setExpandedDirs(prev => {
@@ -677,12 +867,12 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
       return;
     }
     setIsExtracting(true);
-    setStatusMessage(`Scanning ${selectedFiles.length} file(s) for character dialogue...`);
+    setStatusMessage(`Scanning ${selectedFiles.length} file(s) for speaking characters...`);
     try {
       const res = await fetch('/api/tts/extract-characters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: selectedFiles }),
+        body: JSON.stringify({ files: selectedFiles, narratorVoice }),
       });
       if (!res.ok) {
         const err = await res.text();
@@ -696,16 +886,23 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
             name: char.name,
             gender: char.gender || 'neutral',
             language: char.suggestedLanguage || 'en-US',
-            voice: char.suggestedVoice || (char.gender === 'female' ? 'Callirrhoe' : 'Iapetus'),
+            voice: char.suggestedVoice || 'Puck',
             dialogueCount: char.dialogueCount,
             sampleLines: char.sampleLines,
+            description: char.description,
+            stylePrompt: char.stylePrompt,
+            sourceFile: char.sourceFile,
           };
         } else {
           newCast[char.name].dialogueCount = char.dialogueCount;
           newCast[char.name].sampleLines = char.sampleLines;
+          if (char.description && !newCast[char.name].description) newCast[char.name].description = char.description;
+          if (char.stylePrompt && !newCast[char.name].stylePrompt) newCast[char.name].stylePrompt = char.stylePrompt;
+          if (char.sourceFile) newCast[char.name].sourceFile = char.sourceFile;
         }
       }
       setCast(newCast);
+      persistSettings(newCast, selectedFiles, narratorVoice);
       setStatusMessage(`Extracted ${data.characters.length} character(s) from ${data.totalFilesScanned} file(s)!`);
       setActiveTab('cast');
     } catch (err) {
@@ -715,23 +912,29 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
     }
   };
 
-  const handleSaveCast = async () => {
-    setIsSavingCast(true);
-    try {
-      const res = await fetch('/api/tts/cast', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cast }),
-      });
-      if (res.ok) {
-        setStatusMessage('Cast definitions saved successfully.');
-        setTimeout(() => setStatusMessage(null), 3000);
-      }
-    } catch (err) {
-      setStatusMessage(`Failed to save cast: ${(err as Error).message}`);
-    } finally {
-      setIsSavingCast(false);
+  const handleAutoAssignVoices = () => {
+    const used = new Set<string>([narratorVoice]);
+    const updatedCast: Record<string, CharacterCast> = { ...cast };
+    const charList = Object.values(updatedCast).sort((a, b) => (b.dialogueCount || 0) - (a.dialogueCount || 0));
+
+    for (const c of charList) {
+      const pool = c.gender === 'female' ? CANONICAL_FEMALE_VOICES : (c.gender === 'male' ? CANONICAL_MALE_VOICES : CANONICAL_NEUTRAL_VOICES);
+      let voice = pool.find(v => !used.has(v));
+      if (!voice) voice = CANONICAL_NEUTRAL_VOICES.find(v => !used.has(v));
+      if (!voice) voice = [...CANONICAL_MALE_VOICES, ...CANONICAL_FEMALE_VOICES, ...CANONICAL_NEUTRAL_VOICES].find(v => !used.has(v)) || pool[0];
+      updatedCast[c.name] = { ...c, voice };
+      used.add(voice);
     }
+
+    setCast(updatedCast);
+    persistSettings(updatedCast, selectedFiles, narratorVoice);
+    setStatusMessage('Auto-assigned distinct, non-colliding voices across all characters.');
+  };
+
+  const handleSaveCast = () => {
+    persistSettings(cast, selectedFiles, narratorVoice);
+    setStatusMessage('Saved casting configuration to .marginalia/casting.json.');
+    setTimeout(() => setStatusMessage(null), 3000);
   };
 
   const handleUpdateCharacter = (name: string, updates: Partial<CharacterCast>) => {
@@ -837,7 +1040,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
     setStatusMessage(`Split "${sourceName}" into new character "${cleanName}".`);
   };
 
-  const handleAuditionVoice = async (charName: string, voiceName: string, sampleText?: string) => {
+  const handleAuditionVoice = async (charName: string, voiceName: string, sampleText?: string, stylePrompt?: string) => {
     if (auditionAudio) {
       auditionAudio.pause();
       setAuditionAudio(null);
@@ -850,6 +1053,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
 
     setIsAuditioning(auditionKey);
     const textToSpeak = sampleText || `Hello, my name is ${charName}. I am auditioning with Google Gemini neural voice synthesis.`;
+    const promptToSend = stylePrompt || cast[charName]?.stylePrompt;
     
     try {
       const res = await fetch('/api/tts/synthesize', {
@@ -859,6 +1063,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
           text: textToSpeak,
           voice: voiceName,
           backend: hasGeminiKey ? 'gemini' : 'edge',
+          stylePrompt: promptToSend,
         }),
       });
       if (!res.ok) throw new Error('Audition synthesis failed');
@@ -937,11 +1142,21 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
   }, [allCharacters, searchFilter]);
 
   return (
-    <div className="audio-studio-panel">
+    <div 
+      className={`audio-studio-panel ${isResizing ? 'resizing' : ''}`}
+      style={{ width: `${panelWidth}px` }}
+    >
+      {/* Draggable Resizer Handle on the Left Border */}
+      <div 
+        className="audio-studio-resizer" 
+        onMouseDown={() => setIsResizing(true)}
+        title="Drag to resize Audio Studio panel width"
+      />
+
       {/* Panel Header */}
       <div className="studio-panel-header">
         <div className="header-left">
-          <Layers size={16} className="panel-icon" />
+          <Layers size={18} className="panel-icon" />
           <span className="panel-title">Audio Studio</span>
           {hasGeminiKey ? (
             <span className="gemini-pill" title="Google Gemini 24kHz Studio HD Engine">HD</span>
@@ -950,8 +1165,14 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
           )}
         </div>
         <div className="header-actions">
+          {lastSavedTime && (
+            <span className="save-status-indicator" title={lastSavedTime}>
+              <Check size={12} className="saved-icon" />
+              <span>Synced</span>
+            </span>
+          )}
           <button type="button" className="close-panel-btn" onClick={onClose} title="Close Studio Sidebar">
-            <X size={15} />
+            <X size={16} />
           </button>
         </div>
       </div>
@@ -962,21 +1183,21 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
           className={`nav-tab-btn ${activeTab === 'cast' ? 'active' : ''}`}
           onClick={() => setActiveTab('cast')}
         >
-          <Users size={13} />
+          <Users size={14} />
           <span>Cast ({allCharacters.length})</span>
         </button>
         <button 
           className={`nav-tab-btn ${activeTab === 'files' ? 'active' : ''}`}
           onClick={() => setActiveTab('files')}
         >
-          <Folder size={13} />
+          <Folder size={14} />
           <span>Files ({selectedFiles.length})</span>
         </button>
         <button 
           className={`nav-tab-btn ${activeTab === 'export' ? 'active' : ''}`}
           onClick={() => setActiveTab('export')}
         >
-          <Download size={13} />
+          <Download size={14} />
           <span>Export</span>
         </button>
       </div>
@@ -1044,7 +1265,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
                         onClick={() => handleToggleFile(f)}
                         title={isSel ? `Click to exclude ${f}` : `Click to include ${f}`}
                       >
-                        {isSel ? <CheckSquare size={11} className="chip-check" /> : <Square size={11} className="chip-check" />}
+                        {isSel ? <CheckSquare size={13} className="chip-check" /> : <Square size={13} className="chip-check" />}
                         <span className="chip-label">{f.split('/').pop()}</span>
                         {isAct && <span className="chip-tag">Active</span>}
                       </button>
@@ -1065,7 +1286,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
                 >
                   {CANONICAL_GEMINI_VOICES.map(v => (
                     <option key={v.name} value={v.name}>
-                      {v.name} — {v.desc}
+                      {v.name} — {v.desc} ({v.gender})
                     </option>
                   ))}
                 </select>
@@ -1079,8 +1300,18 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
                   disabled={isExtracting || selectedFiles.length === 0}
                   title="Scan selected files in tree for characters and dialogue"
                 >
-                  {isExtracting ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
-                  <span>{isExtracting ? 'Scanning...' : 'Extract'}</span>
+                  {isExtracting ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
+                  <span>{isExtracting ? 'Extracting...' : 'Extract Cast'}</span>
+                </button>
+                <button 
+                  type="button" 
+                  className="quick-btn"
+                  onClick={handleAutoAssignVoices}
+                  disabled={allCharacters.length === 0}
+                  title="Auto-assign unique, distinct voices across all characters to avoid collisions"
+                >
+                  <Wand2 size={13} />
+                  <span>Auto-Voice</span>
                 </button>
                 <button 
                   type="button" 
@@ -1088,7 +1319,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
                   onClick={handleAddCharacter}
                   title="Add custom character"
                 >
-                  <Plus size={13} />
+                  <Plus size={14} />
                   <span>Add</span>
                 </button>
                 <button 
@@ -1098,14 +1329,14 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
                   disabled={isSavingCast}
                   title="Save character voice assignments"
                 >
-                  <Save size={13} />
+                  <Save size={14} />
                   <span>Save</span>
                 </button>
               </div>
 
               {/* Dialogue Search / Quick Filter */}
               <div className="dialogue-search-box">
-                <Search size={13} className="search-icon" />
+                <Search size={14} className="search-icon" />
                 <input 
                   type="text" 
                   placeholder="Filter characters or search dialogue lines..."
@@ -1123,13 +1354,13 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
             <div className="character-cards-scroll">
               {filteredCharacters.length === 0 ? (
                 <div className="empty-cast-box">
-                  <Users size={24} className="empty-icon" />
+                  <Users size={28} className="empty-icon" />
                   <p className="empty-title">
                     {allCharacters.length === 0 ? 'No characters extracted yet' : 'No matching characters found'}
                   </p>
                   <p className="empty-sub">
                     {allCharacters.length === 0 ? (
-                      <>Select chapter files in the <strong>Files</strong> tab and click <strong>Extract</strong> to auto-detect speakers.</>
+                      <>Select chapter files in the <strong>Files</strong> tab and click <strong>Extract Cast</strong> to auto-detect speakers.</>
                     ) : (
                       'Try clearing the search filter.'
                     )}
@@ -1187,7 +1418,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
             <div className="files-tree-pane">
               {fileTree.length === 0 ? (
                 <div className="empty-tree-box">
-                  <FileText size={24} className="empty-icon" />
+                  <FileText size={28} className="empty-icon" />
                   <p className="empty-title">No markdown files found</p>
                   <p className="empty-sub">Create or select a workspace with .md chapters to begin audio casting.</p>
                 </div>
@@ -1216,7 +1447,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
                 onClick={handleExtractCharacters}
                 disabled={isExtracting || selectedFiles.length === 0}
               >
-                {isExtracting ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+                {isExtracting ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
                 <span>Scan {selectedFiles.length} File(s) for Dialogue</span>
               </button>
             </div>
@@ -1324,7 +1555,7 @@ export const AudioStudioPanel: React.FC<AudioStudioPanelProps> = ({
                   onClick={handleExportAudio}
                   disabled={isExporting || selectedFiles.length === 0}
                 >
-                  {isExporting ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+                  {isExporting ? <Loader2 size={15} className="spin" /> : <Download size={15} />}
                   <span>{isExporting ? 'Synthesizing & Mastering...' : `Export & Download ${exportFormat.toUpperCase()}`}</span>
                 </button>
               </div>
