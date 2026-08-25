@@ -15,7 +15,7 @@ import { useAiCoWriter } from './hooks/useAiCoWriter';
 import { useAudio } from './hooks/useAudio';
 import { useScrollSync } from './hooks/useScrollSync';
 
-import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX, Pen, PenOff } from 'lucide-react';
+import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX, Pen, PenOff, Layers } from 'lucide-react';
 
 // Lazy-loaded secondary modals and panels to enable code-splitting
 const WorkspaceManager = lazy(() => import('./components/WorkspaceManager').then(m => ({ default: m.WorkspaceManager })));
@@ -24,7 +24,7 @@ const AdminDashboardModal = lazy(() => import('./components/AdminDashboardModal'
 const MarkdownGuideModal = lazy(() => import('./components/MarkdownGuideModal').then(m => ({ default: m.MarkdownGuideModal })));
 const AboutModal = lazy(() => import('./components/AboutModal').then(m => ({ default: m.AboutModal })));
 const GitDiffModal = lazy(() => import('./components/GitDiffModal').then(m => ({ default: m.GitDiffModal })));
-const AudioStudioModal = lazy(() => import('./components/AudioStudioModal').then(m => ({ default: m.AudioStudioModal })));
+const AudioStudioPanel = lazy(() => import('./components/AudioStudioPanel').then(m => ({ default: m.AudioStudioPanel })));
 const AiPanel = lazy(() => import('./components/AiPanel').then(m => ({ default: m.AiPanel })));
 
 function App() {
@@ -44,6 +44,7 @@ function App() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
   const [audioStudioOpen, setAudioStudioOpen] = useState(false);
+  const [locateText, setLocateText] = useState<{ text: string; timestamp: number } | null>(null);
 
   // Editor Session & Document Lifecycle
   const editorSession = useEditorSession({
@@ -218,7 +219,7 @@ function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenAbout={() => setAboutOpen(true)}
         onOpenAdmin={() => setAdminOpen(true)}
-        onOpenAudioStudio={() => setAudioStudioOpen(true)}
+        onOpenAudioStudio={() => setAudioStudioOpen(prev => !prev)}
         authInfo={authInfo}
         onLogout={handleLogout}
         onShowDiff={() => setDiffOpen(true)}
@@ -295,6 +296,14 @@ function App() {
                 </button>
                 <button
                   type="button"
+                  className={`audio-studio-toggle-btn ${audioStudioOpen ? 'active' : ''}`}
+                  onClick={() => setAudioStudioOpen(!audioStudioOpen)}
+                  title={audioStudioOpen ? "Hide Audio Studio & Casting" : "Show Audio Studio & Casting"}
+                >
+                  <Layers size={14} />
+                </button>
+                <button
+                  type="button"
                   className="format-doc-btn"
                   onClick={handleFormatDocument}
                   title="Auto-format trailing spaces and clean up Markdown style warnings"
@@ -337,6 +346,7 @@ function App() {
               value={editorValue}
               onChange={setEditorValue}
               activeFile={activeFile}
+              locateText={locateText}
               onCheckStatusChange={setCheckingGrammar}
               onCursorChange={setCursorOffset}
               onSelectionChange={setSelectedText}
@@ -360,6 +370,18 @@ function App() {
                   onPersonaChange={setSelectedPersona}
                   selectedContextFiles={selectedContextFiles}
                   onSelectedContextFilesChange={setSelectedContextFiles}
+                />
+              </Suspense>
+            )}
+            {audioStudioOpen && (
+              <Suspense fallback={<div className="ai-panel-loading">Loading Audio Studio...</div>}>
+                <AudioStudioPanel
+                  files={files}
+                  activeFile={activeFile}
+                  hasGeminiKey={hasGemini}
+                  onClose={() => setAudioStudioOpen(false)}
+                  onLocateText={(text) => setLocateText({ text, timestamp: Date.now() })}
+                  onSelectFile={selectFile}
                 />
               </Suspense>
             )}
@@ -433,15 +455,6 @@ function App() {
             onRefreshStatus={handleRefresh}
             onCommit={handleCommit}
             hasGemini={hasGemini}
-          />
-        )}
-        {audioStudioOpen && (
-          <AudioStudioModal
-            isOpen={audioStudioOpen}
-            onClose={() => setAudioStudioOpen(false)}
-            files={files}
-            activeFile={activeFile}
-            hasGeminiKey={hasGemini}
           />
         )}
       </Suspense>

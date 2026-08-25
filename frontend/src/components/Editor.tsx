@@ -14,6 +14,7 @@ interface EditorProps {
   value: string;
   onChange: (val: string) => void;
   activeFile: string | null;
+  locateText?: { text: string; timestamp: number } | null;
   onCheckStatusChange?: (checking: boolean) => void;
   onCursorChange?: (offset: number) => void;
   onSelectionChange?: (selectedText: string | null) => void;
@@ -103,8 +104,9 @@ export const Editor: React.FC<EditorProps> = ({
   value, 
   onChange, 
   activeFile, 
+  locateText,
   onCheckStatusChange, 
-  onCursorChange,
+  onCursorChange, 
   onSelectionChange,
   writeWithMeActive = false,
   writeWithMeMessages = [],
@@ -316,6 +318,53 @@ export const Editor: React.FC<EditorProps> = ({
       console.error('Failed to scroll to line:', e);
     }
   };
+
+  useEffect(() => {
+    if (!locateText?.text || !editorRef.current) return;
+    const view = editorRef.current;
+    const docText = view.state.doc.toString();
+    const rawTarget = locateText.text.trim();
+    if (!rawTarget) return;
+
+    // Search directly, or stripped of surrounding smart/straight quotes
+    let idx = docText.indexOf(rawTarget);
+    let matchedLength = rawTarget.length;
+
+    if (idx === -1) {
+      const cleanTarget = rawTarget.replace(/^["'“‘]+|["'”’]+$/g, '').trim();
+      if (cleanTarget) {
+        idx = docText.indexOf(cleanTarget);
+        matchedLength = cleanTarget.length;
+      }
+    }
+
+    // Try case-insensitive fallback if exact match wasn't found
+    if (idx === -1) {
+      const lowerDoc = docText.toLowerCase();
+      const lowerTarget = rawTarget.toLowerCase();
+      idx = lowerDoc.indexOf(lowerTarget);
+      if (idx === -1) {
+        const cleanLower = rawTarget.replace(/^["'“‘]+|["'”’]+$/g, '').trim().toLowerCase();
+        if (cleanLower) {
+          idx = lowerDoc.indexOf(cleanLower);
+          matchedLength = cleanLower.length;
+        }
+      }
+    }
+
+    if (idx !== -1) {
+      try {
+        view.dispatch({
+          selection: { anchor: idx, head: idx + matchedLength },
+          effects: EditorView.scrollIntoView(idx, { y: 'center' }),
+          scrollIntoView: true
+        });
+        view.focus();
+      } catch (err) {
+        console.error('Failed to jump to quote in editor:', err);
+      }
+    }
+  }, [locateText]);
 
   const handleGutterClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();

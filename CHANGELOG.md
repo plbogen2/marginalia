@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.9.0 (August 2026)
+- **Audio Studio & Voice Casting Sidebar**: Dockable multi-tab sidebar panel (`AudioStudioPanel`) embedded in the primary editor workspace layout for real-time manuscript writing, character auditioning, and directory tree scanning.
+- **Real-Time Dialogue Locator**: Clickable quotes and interactive locate buttons that jump to and highlight dialogue lines in CodeMirror with centered viewport scrolling.
+- **Character Merge & Split Controls**: Interactive tools to combine misidentified entities or split grouped dialogue lines into separate characters.
+- **Multi-File Character Extraction & Tree Hierarchy**: Recursive directory selection to scan and cast characters across entire manuscripts.
+- **Gemini TTS Verbatim Framing**: Explicit anti-hallucination prompting in Parlando to eliminate conversational response drift during neural text synthesis.
+- **Master Audiobook Multi-Format Export**: Direct MP3 and M4B compilation with pacing presets and browser download.
+
 ## v1.8.0 (August 2026)
 - feat: serve Parlando audio samples and web player publicly on live instance
 
