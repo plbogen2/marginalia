@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.11.0 (August 2026)
+- feat: show workspace files in Audio Studio scope and align palette with VS Code theme
+
 ## v1.10.0 (August 2026)
 - feat: add Audio Studio sidebar with dialogue locator, voice casting, and anti-hallucination TTS
 
