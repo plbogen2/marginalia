@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.10.0 (August 2026)
+- feat: add Audio Studio sidebar with dialogue locator, voice casting, and anti-hallucination TTS
+
 ## v1.9.0 (August 2026)
 - **Audio Studio & Voice Casting Sidebar**: Dockable multi-tab sidebar panel (`AudioStudioPanel`) embedded in the primary editor workspace layout for real-time manuscript writing, character auditioning, and directory tree scanning.
 - **Real-Time Dialogue Locator**: Clickable quotes and interactive locate buttons that jump to and highlight dialogue lines in CodeMirror with centered viewport scrolling.
