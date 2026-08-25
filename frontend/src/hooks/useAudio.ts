@@ -425,11 +425,9 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
           }
         };
 
-        // Immediately kick off parallel prefetching for initial chunks
+        // Immediately prefetch initial chunk and next chunk
         ensurePrefetched(0);
         ensurePrefetched(1);
-        ensurePrefetched(2);
-        ensurePrefetched(3);
 
         const playTargetChunk = async (targetIdx: number) => {
           if (speechSessionRef.current !== sessionId) return;
@@ -459,11 +457,9 @@ export function useAudio({ editorValue, setEditorValue, selectedText, activeFile
             audioPlayerRef.current = null;
           }
 
-          // Aggressively prefetch a 3-chunk sliding window in the background queue
+          // Prefetch next chunk in background for gapless continuity
           ensurePrefetched(targetIdx);
           ensurePrefetched(targetIdx + 1);
-          ensurePrefetched(targetIdx + 2);
-          ensurePrefetched(targetIdx + 3);
 
           const audioPromise = prefetchCache.get(targetIdx);
           const audioData = audioPromise 
