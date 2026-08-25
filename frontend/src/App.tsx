@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
 import { Preview } from './components/Preview';
 import { GitBar } from './components/GitBar';
+import { TtsPlayerBar } from './components/TtsPlayerBar';
 import './App.scss';
 
 import { useAuth } from './hooks/useAuth';
@@ -136,9 +137,22 @@ function App() {
     isDictating,
     toggleDictation,
     isSpeaking,
+    isPaused,
     isTtsLoading,
+    currentChunkIndex,
+    totalChunks,
+    currentChunkText,
+    playbackSpeed,
     setCursorOffset,
-    toggleReadAloud
+    toggleReadAloud,
+    togglePause,
+    skipNext,
+    skipPrevious,
+    skipForwardSeconds,
+    skipBackwardSeconds,
+    seekToChunk,
+    setPlaybackSpeed,
+    stopSpeech
   } = useAudio({
     editorValue,
     setEditorValue,
@@ -347,6 +361,24 @@ function App() {
               </Suspense>
             )}
           </div>
+          <TtsPlayerBar
+            isSpeaking={isSpeaking}
+            isPaused={isPaused}
+            isTtsLoading={isTtsLoading}
+            currentChunkIndex={currentChunkIndex}
+            totalChunks={totalChunks}
+            currentChunkText={currentChunkText}
+            playbackSpeed={playbackSpeed}
+            activeFile={activeFile}
+            onTogglePause={togglePause}
+            onSkipNext={skipNext}
+            onSkipPrevious={skipPrevious}
+            onSkipForward={skipForwardSeconds}
+            onSkipBackward={skipBackwardSeconds}
+            onSeekToChunk={seekToChunk}
+            onChangeSpeed={setPlaybackSpeed}
+            onStop={stopSpeech}
+          />
         </div>
       </div>
       <Suspense fallback={null}>

@@ -3331,3 +3331,298 @@ kbd {
     }
   }
 }
+
+/* Floating TTS Audio Player Bar */
+.tts-player-floating-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: 90%;
+  max-width: 680px;
+  background: rgba(30, 30, 30, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideUpTts 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+  &.collapsed {
+    max-width: 480px;
+  }
+
+  .tts-progress-track {
+    position: relative;
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+
+    &:hover {
+      height: 6px;
+    }
+
+    .tts-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0e639c, #1177bb, #4fc1ff);
+      transition: width 0.15s ease-out;
+      border-radius: 0 2px 2px 0;
+    }
+
+    .tts-progress-slider {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      margin: 0;
+      padding: 0;
+    }
+  }
+
+  .tts-player-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    gap: 12px;
+  }
+
+  .tts-info-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+
+    .tts-status-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      flex-shrink: 0;
+
+      .tts-spin {
+        color: #4fc1ff;
+        animation: spin 1s linear infinite;
+      }
+
+      .tts-paused-icon {
+        color: #e5c07b;
+      }
+
+      .tts-playing-icon {
+        color: #98c379;
+
+        &.pulse {
+          animation: pulseAudio 1.5s ease-in-out infinite;
+        }
+      }
+    }
+
+    .tts-meta {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+
+      .tts-title-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .tts-file-label {
+          font-size: 11px;
+          font-weight: 600;
+          color: #e6edf3;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tts-chunk-badge {
+          font-size: 9px;
+          font-weight: 700;
+          padding: 1px 5px;
+          border-radius: 4px;
+          background: rgba(14, 99, 156, 0.35);
+          color: #79c0ff;
+          border: 1px solid rgba(14, 99, 156, 0.6);
+          white-space: nowrap;
+        }
+      }
+
+      .tts-text-snippet {
+        font-size: 10.5px;
+        color: #8b949e;
+        font-style: italic;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 260px;
+        margin-top: 1px;
+      }
+    }
+  }
+
+  .tts-controls-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+
+    .tts-ctrl-btn {
+      position: relative;
+      background: none;
+      border: none;
+      color: #c9d1d9;
+      padding: 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+
+      &:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.1);
+        color: #ffffff;
+      }
+
+      &:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+
+      .tts-sub-label {
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        font-size: 7px;
+        font-weight: 800;
+        font-family: $font-mono;
+        line-height: 1;
+      }
+    }
+
+    .tts-play-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background: #0e639c;
+      color: #ffffff;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 8px rgba(14, 99, 156, 0.4);
+
+      &:hover {
+        background: #1177bb;
+        transform: scale(1.06);
+      }
+
+      &.paused {
+        background: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+        box-shadow: none;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.25);
+        }
+      }
+
+      &.loading {
+        background: rgba(14, 99, 156, 0.6);
+      }
+
+      .tts-spin {
+        animation: spin 1s linear infinite;
+      }
+    }
+  }
+
+  .tts-right-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+
+    .tts-speed-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #c9d1d9;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.16);
+        color: #ffffff;
+      }
+    }
+
+    .tts-expand-btn,
+    .tts-stop-btn {
+      background: none;
+      border: none;
+      color: #8b949e;
+      padding: 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #c9d1d9;
+      }
+    }
+
+    .tts-stop-btn:hover {
+      background: rgba(241, 112, 112, 0.2);
+      color: #f17070;
+    }
+  }
+}
+
+@keyframes slideUpTts {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes pulseAudio {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+}
+
