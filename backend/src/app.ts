@@ -24,12 +24,29 @@ const app = express();
 
 app.use(express.json());
 
+// Serve Frontend Static Build assets first so JS/CSS/icons can load without 401
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const publicDir = path.join(__dirname, '../public');
+
+if (existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+}
+
 // Global Auth & Gatekeeper Interceptor
 app.use((req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   if (
     req.path.startsWith('/api/auth/') ||
     req.path === '/api/health' ||
-    req.path.startsWith('/samples/')
+    req.path === '/api/version' ||
+    req.path.startsWith('/samples/') ||
+    req.path.startsWith('/assets/') ||
+    req.path.endsWith('.js') ||
+    req.path.endsWith('.css') ||
+    req.path.endsWith('.png') ||
+    req.path.endsWith('.jpg') ||
+    req.path.endsWith('.svg') ||
+    req.path.endsWith('.json') ||
+    req.path === '/favicon.ico'
   ) {
     return next();
   }
@@ -58,12 +75,8 @@ app.use(grammarRouter);
 app.use(ttsRouter);
 app.use(adminRouter);
 
-// Serve Frontend Static Build
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const publicDir = path.join(__dirname, '../public');
-
+// SPA Fallback for client-side routing
 if (existsSync(publicDir)) {
-  app.use(express.static(publicDir));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) {
       return next();
