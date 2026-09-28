@@ -32,6 +32,15 @@ async function getFiles(dir: string, baseDir = dir): Promise<string[]> {
 filesRouter.get('/api/files', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const targetDir = getTargetDir(req);
+    try {
+      await fs.access(targetDir);
+    } catch {
+      try {
+        await fs.mkdir(targetDir, { recursive: true });
+      } catch {
+        return res.json([]);
+      }
+    }
     const files = await getFiles(targetDir);
     res.json(files);
   } catch (err) {

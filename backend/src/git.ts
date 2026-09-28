@@ -9,7 +9,19 @@ function getGitClient(req?: any): SimpleGit {
   });
 }
 
+async function isGitRepo(req?: any): Promise<boolean> {
+  const dir = getTargetDir(req);
+  try {
+    await fs.access(dir);
+    await fs.access(path.join(dir, '.git'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function ensureGitRepoConfig(req?: any): Promise<void> {
+  if (!await isGitRepo(req)) return;
   const git = getGitClient(req);
   try {
     let systemUserRaw = '';
@@ -70,12 +82,16 @@ async function ensureGitRepoConfig(req?: any): Promise<void> {
 }
 
 export async function getGitStatus(req?: any): Promise<string> {
+  if (!await isGitRepo(req)) return '';
   await ensureGitRepoConfig(req);
   const git = getGitClient(req);
   return git.raw(['status', '--porcelain']);
 }
 
 export async function gitCommit(message: string, req?: any): Promise<string> {
+  if (!await isGitRepo(req)) {
+    throw new Error(`Git repository not initialized in: ${getTargetDir(req)}. Please initialize or clone a repository first.`);
+  }
   await ensureGitRepoConfig(req);
   const inConflict = await isRepoInConflict(req);
   if (inConflict) {
@@ -89,6 +105,9 @@ export async function gitCommit(message: string, req?: any): Promise<string> {
 }
 
 export async function gitPush(req?: any): Promise<string> {
+  if (!await isGitRepo(req)) {
+    throw new Error(`Git repository not initialized in: ${getTargetDir(req)}. Please initialize or clone a repository first.`);
+  }
   await ensureGitRepoConfig(req);
   const git = getGitClient(req);
   const result = await git.push();
@@ -96,6 +115,9 @@ export async function gitPush(req?: any): Promise<string> {
 }
 
 export async function gitPull(req?: any): Promise<string> {
+  if (!await isGitRepo(req)) {
+    throw new Error(`Git repository not initialized in: ${getTargetDir(req)}. Please initialize or clone a repository first.`);
+  }
   await ensureGitRepoConfig(req);
   const git = getGitClient(req);
   const result = await git.pull(['--no-rebase']);
@@ -104,6 +126,7 @@ export async function gitPull(req?: any): Promise<string> {
 }
 
 export async function getGitBranch(req?: any): Promise<string> {
+  if (!await isGitRepo(req)) return '';
   await ensureGitRepoConfig(req);
   const git = getGitClient(req);
   const branch = await git.branchLocal();
@@ -164,6 +187,7 @@ export async function cloneRepo(url: string, targetPath: string, accessToken?: s
 }
 
 export async function hasGitRemote(req?: any): Promise<boolean> {
+  if (!await isGitRepo(req)) return false;
   const git = getGitClient(req);
   try {
     const remotes = await git.getRemotes();
@@ -174,6 +198,7 @@ export async function hasGitRemote(req?: any): Promise<boolean> {
 }
 
 export async function getGitAheadCount(req?: any): Promise<number> {
+  if (!await isGitRepo(req)) return 0;
   const git = getGitClient(req);
   try {
     await git.revparse(['--abbrev-ref', '@{u}']);
@@ -185,12 +210,14 @@ export async function getGitAheadCount(req?: any): Promise<number> {
 }
 
 export async function getCommitDiff(req?: any): Promise<string> {
+  if (!await isGitRepo(req)) return '';
   const git = getGitClient(req);
   await git.add('.');
   return git.diff(['--cached']);
 }
 
 export async function gitShowHead(filePath: string, req?: any): Promise<string> {
+  if (!await isGitRepo(req)) return '';
   const git = getGitClient(req);
   try {
     return await git.show([`HEAD:${filePath}`]);
@@ -200,6 +227,7 @@ export async function gitShowHead(filePath: string, req?: any): Promise<string> 
 }
 
 export async function gitShowStage(filePath: string, stage: 1 | 2 | 3, req?: any): Promise<string> {
+  if (!await isGitRepo(req)) return '';
   const git = getGitClient(req);
   try {
     return await git.show([`:${stage}:${filePath}`]);
@@ -209,6 +237,7 @@ export async function gitShowStage(filePath: string, stage: 1 | 2 | 3, req?: any
 }
 
 export async function isRepoInConflict(req?: any): Promise<boolean> {
+  if (!await isGitRepo(req)) return false;
   const git = getGitClient(req);
   try {
     const status = await git.raw(['status', '--porcelain']);
@@ -227,6 +256,7 @@ export async function isRepoInConflict(req?: any): Promise<boolean> {
 }
 
 export async function getConflictedFiles(req?: any): Promise<string[]> {
+  if (!await isGitRepo(req)) return [];
   const git = getGitClient(req);
   try {
     const status = await git.raw(['status', '--porcelain']);
@@ -247,11 +277,15 @@ export async function getConflictedFiles(req?: any): Promise<string[]> {
 }
 
 export async function gitMarkResolved(filePath: string, req?: any): Promise<void> {
+  if (!await isGitRepo(req)) return;
   const git = getGitClient(req);
   await git.add(filePath);
 }
 
 export async function gitAbortMerge(req?: any): Promise<string> {
+  if (!await isGitRepo(req)) {
+    throw new Error('Not a git repository.');
+  }
   const git = getGitClient(req);
   try {
     await git.raw(['merge', '--abort']);
