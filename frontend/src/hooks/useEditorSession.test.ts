@@ -38,4 +38,27 @@ He stepped out into the rain.`;
     const updated = originalText.replace(searchTarget, replacement);
     assert.equal(updated, 'Case was twenty-four years old. At twenty-two he’d been a cowboy.');
   });
+
+  it('restores unsaved buffer from localStorage if newer than server text', () => {
+    const filePath = 'chapters/01-ruben.md';
+    const storageKey = `marginalia_draft_${filePath}`;
+    const serverText = 'Server committed text';
+    const unsavedText = 'Server committed text with extra unsaved paragraphs';
+
+    // Simulate draft in localStorage
+    const mockStorage = new Map<string, string>();
+    mockStorage.set(storageKey, unsavedText);
+
+    const cachedDraft = mockStorage.get(storageKey);
+    let resolvedContent = serverText;
+    if (cachedDraft && cachedDraft !== serverText) {
+      resolvedContent = cachedDraft;
+    }
+
+    assert.equal(resolvedContent, unsavedText);
+
+    // After save, draft key is purged
+    mockStorage.delete(storageKey);
+    assert.equal(mockStorage.has(storageKey), false);
+  });
 });

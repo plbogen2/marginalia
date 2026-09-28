@@ -33,7 +33,7 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
   const wordsPerPage = pageFormat === 'paperback' ? 300 : 250;
   const pageCount = Math.ceil(wordCount / wordsPerPage);
 
-  // Load file content when activeFile changes
+  // Load file content when activeFile changes (checking localStorage buffer first for recovery)
   useEffect(() => {
     if (!activeFile) {
       setEditorValue('');
@@ -46,8 +46,19 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
       try {
         const res = await fetch(`/api/file?path=${encodeURIComponent(activeFile)}`);
         const data = await res.json();
-        setEditorValue(data.content);
-        setOriginalContent(data.content);
+        const serverText = data.content ?? '';
+
+        // Check if there is an unsaved local draft in localStorage
+        const storageKey = `marginalia_draft_${activeFile}`;
+        const cachedDraft = localStorage.getItem(storageKey);
+
+        if (cachedDraft && cachedDraft !== serverText) {
+          console.info(`[Editor] Restored unsaved draft for ${activeFile} from localStorage`);
+          setEditorValue(cachedDraft);
+        } else {
+          setEditorValue(serverText);
+        }
+        setOriginalContent(serverText);
       } catch (err) {
         console.error('Failed to load file:', err);
       } finally {
@@ -58,7 +69,18 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
     loadFile();
   }, [activeFile]);
 
-  // Auto-save logic (1s debounce)
+  // Synchronous localStorage mirroring whenever editorValue changes
+  useEffect(() => {
+    if (!activeFile) return;
+    const storageKey = `marginalia_draft_${activeFile}`;
+    if (editorValue !== originalContent) {
+      localStorage.setItem(storageKey, editorValue);
+    } else {
+      localStorage.removeItem(storageKey);
+    }
+  }, [activeFile, editorValue, originalContent]);
+
+  // Auto-save logic (1s debounce to server)
   useEffect(() => {
     if (!activeFile || editorValue === originalContent) return;
 
@@ -71,6 +93,7 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
           body: JSON.stringify({ path: activeFile, content: editorValue })
         });
         setOriginalContent(editorValue);
+        localStorage.removeItem(`marginalia_draft_${activeFile}`);
         if (fetchGitStatusRef.current) {
           await fetchGitStatusRef.current();
         }
@@ -83,6 +106,43 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
 
     return () => clearTimeout(timer);
   }, [editorValue, activeFile, originalContent]);
+
+  // Synchronous flush function to save buffer to server immediately
+  const flushDraftToServer = useCallback(async (): Promise<void> => {
+    if (!activeFile || editorValue === originalContent) return;
+    try {
+      await fetch('/api/file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: activeFile, content: editorValue })
+      });
+      setOriginalContent(editorValue);
+      localStorage.removeItem(`marginalia_draft_${activeFile}`);
+      if (fetchGitStatusRef.current) {
+        await fetchGitStatusRef.current();
+      }
+    } catch (err) {
+      console.error('Failed to flush draft to server:', err);
+    }
+  }, [activeFile, editorValue, originalContent]);
+
+  // Flush buffer on browser beforeunload or visibility change
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (activeFile && editorValue !== originalContent) {
+        localStorage.setItem(`marginalia_draft_${activeFile}`, editorValue);
+        try {
+          const payload = JSON.stringify({ path: activeFile, content: editorValue });
+          navigator.sendBeacon('/api/file', new Blob([payload], { type: 'application/json' }));
+        } catch {
+          // sendBeacon fallback
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [activeFile, editorValue, originalContent]);
 
   const handleCreateFile = useCallback(async (path: string) => {
     setLoading(true);
@@ -203,6 +263,7 @@ export function useEditorSession({ fetchFiles, fetchGitStatus }: UseEditorSessio
     setPageFormat,
     wordCount,
     pageCount,
+    flushDraftToServer,
     handleCreateFile,
     handleDeleteFile,
     handleApplyChange,

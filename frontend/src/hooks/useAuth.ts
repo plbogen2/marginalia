@@ -7,7 +7,7 @@ export interface AuthInfo {
   isAdmin?: boolean;
 }
 
-export function useAuth() {
+export function useAuth(onBeforeReload?: () => Promise<void> | void) {
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(null);
 
   const fetchAuthStatus = useCallback(async () => {
@@ -47,8 +47,18 @@ export function useAuth() {
           if (initialBuildTimeRef.current === null) {
             initialBuildTimeRef.current = data.buildTime;
           } else if (data.buildTime !== initialBuildTimeRef.current) {
-            console.log('New server deployment detected. Reloading application...');
+            console.log('New server deployment detected. Flushing active buffer before reload...');
             initialBuildTimeRef.current = data.buildTime;
+
+            // Trigger any registered buffer flush callbacks before reload
+            if (onBeforeReload) {
+              try {
+                await onBeforeReload();
+              } catch (e) {
+                console.warn('Failed to flush buffer before reload:', e);
+              }
+            }
+
             window.location.reload();
           }
         }
@@ -60,7 +70,7 @@ export function useAuth() {
     checkServerVersion();
     const interval = setInterval(checkServerVersion, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [onBeforeReload]);
 
   return {
     authInfo,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import CodeMirror, { EditorView } from '@uiw/react-codemirror';
+import CodeMirror, { EditorView, keymap } from '@uiw/react-codemirror';
+import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
 import { showPanel } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { linter, type Diagnostic, forEachDiagnostic, setDiagnostics, setDiagnosticsEffect } from '@codemirror/lint';
@@ -589,15 +590,13 @@ export const Editor: React.FC<EditorProps> = ({
                 setDiagnosticsList(list);
                 setTotalLines(update.state.doc.lines);
               }
-            })
+            }),
+            history(),
+            keymap.of([...historyKeymap, ...defaultKeymap])
           ]}
           onChange={(val) => onChange(val)}
           theme="dark"
-          basicSetup={{
-            lineNumbers: false,
-            foldGutter: false,
-            highlightActiveLine: false
-          }}
+          basicSetup={false}
         />
 
         {dedupedDiagnostics.length > 0 && (

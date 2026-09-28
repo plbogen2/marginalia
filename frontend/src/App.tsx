@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
 import { Preview } from './components/Preview';
@@ -28,8 +28,14 @@ const AudioStudioPanel = lazy(() => import('./components/AudioStudioPanel').then
 const AiPanel = lazy(() => import('./components/AiPanel').then(m => ({ default: m.AiPanel })));
 
 function App() {
+  const flushDraftRef = useRef<() => Promise<void> | void>(() => {});
+
   // Authentication & Server Lifecycle
-  const { authInfo, handleLogout } = useAuth();
+  const { authInfo, handleLogout } = useAuth(async () => {
+    if (flushDraftRef.current) {
+      await flushDraftRef.current();
+    }
+  });
 
   // Layout & Resizing
   const { sidebarWidth, startResizing } = useSidebarResize(250);
@@ -55,6 +61,8 @@ function App() {
       await git.fetchGitStatus();
     }
   });
+
+  flushDraftRef.current = editorSession.flushDraftToServer;
 
   const {
     activeFile,
