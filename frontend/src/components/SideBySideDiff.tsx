@@ -4,9 +4,16 @@ import { diffLines } from 'diff';
 interface SideBySideDiffProps {
   oldText: string;
   newText: string;
+  leftHeader?: string;
+  rightHeader?: string;
 }
 
-export const SideBySideDiff: React.FC<SideBySideDiffProps> = ({ oldText, newText }) => {
+export const SideBySideDiff: React.FC<SideBySideDiffProps> = ({
+  oldText,
+  newText,
+  leftHeader = 'Original',
+  rightHeader = 'Modified'
+}) => {
   const changes = diffLines(oldText, newText);
 
   const leftLines: { text: string; type: 'removed' | 'empty' | 'normal' }[] = [];
@@ -79,7 +86,7 @@ export const SideBySideDiff: React.FC<SideBySideDiffProps> = ({ oldText, newText
   return (
     <div className="sbs-diff-container">
       <div className="sbs-diff-pane left-pane">
-        <div className="pane-header">Original</div>
+        <div className="pane-header">{leftHeader}</div>
         <pre className="pane-content" ref={leftRef} onScroll={handleScroll}>
           {leftLines.map((line, idx) => (
             <div key={idx} className={`diff-line-row diff-${line.type}`}>
@@ -90,7 +97,7 @@ export const SideBySideDiff: React.FC<SideBySideDiffProps> = ({ oldText, newText
         </pre>
       </div>
       <div className="sbs-diff-pane right-pane">
-        <div className="pane-header">Modified</div>
+        <div className="pane-header">{rightHeader}</div>
         <pre className="pane-content" ref={rightRef} onScroll={handleScroll}>
           {rightLines.map((line, idx) => (
             <div key={idx} className={`diff-line-row diff-${line.type}`}>

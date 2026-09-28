@@ -20,6 +20,8 @@ export function useGit({
   const [hasRemote, setHasRemote] = useState(false);
   const [gitAhead, setGitAhead] = useState(0);
   const [hasGemini, setHasGemini] = useState(false);
+  const [inConflict, setInConflict] = useState(false);
+  const [conflictedFiles, setConflictedFiles] = useState<string[]>([]);
 
   const setLoadingRef = useRef(setLoading);
   setLoadingRef.current = setLoading;
@@ -49,12 +51,16 @@ export function useGit({
       setHasRemote(!!data.hasRemote);
       setGitAhead(data.ahead || 0);
       setHasGemini(!!data.hasGemini);
+      setInConflict(!!data.inConflict);
+      setConflictedFiles(data.conflictedFiles || []);
     } catch (err) {
       console.error('Failed to fetch git status:', err);
       setGitStatus('');
       setHasRemote(false);
       setGitAhead(0);
       setHasGemini(false);
+      setInConflict(false);
+      setConflictedFiles([]);
     }
   }, []);
 
@@ -150,6 +156,77 @@ export function useGit({
         msg = 'You have unstaged changes that would be overwritten by pull. Please commit or stash them first.';
       }
       alert(`Pull failed: ${msg}`);
+      await fetchGitStatus();
+    } finally {
+      setLoadingRef.current(false);
+    }
+  }, [activeFile, fetchGitStatus]);
+
+  const handleAbortMerge = useCallback(async () => {
+    setLoadingRef.current(true);
+    try {
+      const res = await fetch('/api/git/abort-merge', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to abort merge');
+      }
+      alert('Merge aborted. Repository restored to clean state.');
+      if (fetchFilesRef.current) {
+        await fetchFilesRef.current();
+      }
+      await fetchGitStatus();
+      if (activeFile) {
+        const activeRes = await fetch(`/api/file?path=${encodeURIComponent(activeFile)}`);
+        if (activeRes.ok) {
+          const activeData = await activeRes.json();
+          setEditorValueRef.current(activeData.content);
+          setOriginalContentRef.current(activeData.content);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to abort merge:', err);
+      alert(`Abort merge failed: ${(err as Error).message}`);
+    } finally {
+      setLoadingRef.current(false);
+    }
+  }, [activeFile, fetchGitStatus]);
+
+  const handleResolveFile = useCallback(async (filePath: string, resolvedContent?: string) => {
+    setLoadingRef.current(true);
+    try {
+      if (resolvedContent !== undefined) {
+        const saveRes = await fetch('/api/file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: filePath, content: resolvedContent })
+        });
+        if (!saveRes.ok) {
+          const errData = await saveRes.json();
+          throw new Error(errData.error || 'Failed to save resolved content');
+        }
+        if (activeFile === filePath) {
+          setEditorValueRef.current(resolvedContent);
+          setOriginalContentRef.current(resolvedContent);
+        }
+      }
+
+      const res = await fetch('/api/git/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to mark file as resolved');
+      }
+
+      if (fetchFilesRef.current) {
+        await fetchFilesRef.current();
+      }
+      await fetchGitStatus();
+    } catch (err) {
+      console.error('Failed to resolve file:', err);
+      alert(`Resolution failed: ${(err as Error).message}`);
     } finally {
       setLoadingRef.current(false);
     }
@@ -161,11 +238,15 @@ export function useGit({
     hasRemote,
     gitAhead,
     hasGemini,
+    inConflict,
+    conflictedFiles,
     fetchGitStatus,
     fetchGitBranch,
     handleRefresh,
     handleCommit,
     handlePush,
-    handlePull
+    handlePull,
+    handleAbortMerge,
+    handleResolveFile
   };
 }

@@ -11,6 +11,10 @@ import {
   hasGitRemote,
   getGitAheadCount,
   getCommitDiff,
+  isRepoInConflict,
+  getConflictedFiles,
+  gitAbortMerge,
+  gitMarkResolved,
 } from '../git.js';
 
 export const gitRouter = Router();
@@ -20,6 +24,8 @@ gitRouter.get('/api/git/status', async (req: AuthenticatedRequest, res: Response
     const status = await getGitStatus(req);
     const hasRemote = await hasGitRemote(req);
     const ahead = await getGitAheadCount(req);
+    const inConflict = await isRepoInConflict(req);
+    const conflictedFiles = inConflict ? await getConflictedFiles(req) : [];
     let hasGemini = !!process.env.GEMINI_API_KEY;
     if (!hasGemini) {
       try {
@@ -33,7 +39,29 @@ gitRouter.get('/api/git/status', async (req: AuthenticatedRequest, res: Response
         // ignore
       }
     }
-    res.json({ status, hasRemote, ahead, hasGemini });
+    res.json({ status, hasRemote, ahead, hasGemini, inConflict, conflictedFiles });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+gitRouter.post('/api/git/abort-merge', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await gitAbortMerge(req);
+    res.json({ result });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+gitRouter.post('/api/git/resolve', async (req: AuthenticatedRequest, res: Response) => {
+  const { path: filePath } = req.body as { path: string };
+  if (!filePath) {
+    return res.status(400).json({ error: 'Missing path parameter' });
+  }
+  try {
+    await gitMarkResolved(filePath, req);
+    res.json({ status: 'ok' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

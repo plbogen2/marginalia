@@ -39,7 +39,9 @@ describe('useGit Hook Logic & Resilience', () => {
         status: ' M src/App.tsx\n?? newfile.md',
         hasRemote: true,
         ahead: 2,
-        hasGemini: true
+        hasGemini: true,
+        inConflict: true,
+        conflictedFiles: ['conflict_test.md']
       })
     };
 
@@ -48,6 +50,8 @@ describe('useGit Hook Logic & Resilience', () => {
     assert.equal(data.hasRemote, true);
     assert.equal(data.ahead, 2);
     assert.equal(data.hasGemini, true);
+    assert.equal(data.inConflict, true);
+    assert.deepEqual(data.conflictedFiles, ['conflict_test.md']);
   });
 
   it('handles non-200 HTTP error responses from git status API', async () => {

@@ -6,7 +6,7 @@ import { lint as markdownLint } from 'markdownlint/sync';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { getTargetDir, IGNORED_DIRS, getUserStorageRoot } from '../config.js';
 import { isPathSafe, isWorkspacePathAllowed, isAllowedFileType } from '../utils/pathSafety.js';
-import { gitShowHead } from '../git.js';
+import { gitShowHead, gitShowStage } from '../git.js';
 
 export const filesRouter = Router();
 
@@ -57,6 +57,12 @@ filesRouter.get('/api/file', async (req: AuthenticatedRequest, res: Response) =>
 
     if (version === 'HEAD') {
       const content = await gitShowHead(filePath, req);
+      return res.json({ content });
+    }
+
+    if (version === 'stage:1' || version === 'stage:2' || version === 'stage:3') {
+      const stageNum = parseInt(version.split(':')[1], 10) as 1 | 2 | 3;
+      const content = await gitShowStage(filePath, stageNum, req);
       return res.json({ content });
     }
 

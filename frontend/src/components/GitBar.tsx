@@ -13,6 +13,8 @@ interface GitBarProps {
   loading: boolean;
   ahead: number;
   hasGemini: boolean;
+  inConflict?: boolean;
+  conflictedFiles?: string[];
   onOpenSettings: () => void;
   onOpenAbout: () => void;
   onOpenAdmin?: () => void;
@@ -34,6 +36,8 @@ export const GitBar: React.FC<GitBarProps> = ({
   loading,
   ahead,
   hasGemini,
+  inConflict = false,
+  conflictedFiles = [],
   onOpenSettings,
   onOpenAbout,
   onOpenAdmin,
@@ -92,11 +96,17 @@ export const GitBar: React.FC<GitBarProps> = ({
         <GitBranch size={16} />
         <span className="branch-name">{branch || 'unknown'}</span>
         <span 
-          className={`status-badge ${hasChanges ? 'modified clickable' : 'clean'}`}
-          onClick={hasChanges ? onShowDiff : undefined}
-          title={hasChanges ? "Click to view uncommitted changes diff" : undefined}
+          className={`status-badge ${inConflict ? 'conflict' : hasChanges ? 'modified clickable' : 'clean'}`}
+          onClick={hasChanges || inConflict ? onShowDiff : undefined}
+          title={
+            inConflict
+              ? `Merge conflict detected in ${conflictedFiles.length || 1} file(s)! Click to resolve`
+              : hasChanges
+                ? "Click to view uncommitted changes diff"
+                : undefined
+          }
         >
-          {hasChanges ? 'Uncommitted Changes' : 'Clean'}
+          {inConflict ? `Merge Conflict (${conflictedFiles.length || 1})` : hasChanges ? 'Uncommitted Changes' : 'Clean'}
         </span>
         <button onClick={onRefresh} disabled={loading} title="Refresh Status">
           <RefreshCw size={14} className={loading ? 'spin' : ''} />
@@ -106,10 +116,10 @@ export const GitBar: React.FC<GitBarProps> = ({
       <form onSubmit={handleCommit} className="git-actions">
         <input
           type="text"
-          placeholder="Commit message..."
+          placeholder={inConflict ? "Resolve conflicts before committing..." : "Commit message..."}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          disabled={!hasChanges || loading || generating}
+          disabled={!hasChanges || inConflict || loading || generating}
           required
         />
         {hasGemini && (
@@ -117,13 +127,13 @@ export const GitBar: React.FC<GitBarProps> = ({
             type="button"
             className="suggest-message-btn"
             onClick={handleSuggestMessage}
-            disabled={!hasChanges || loading || generating}
+            disabled={!hasChanges || inConflict || loading || generating}
             title="Suggest commit message (Gemini)"
           >
             <Sparkles size={16} className={generating ? 'spin' : ''} />
           </button>
         )}
-        <button type="submit" disabled={!hasChanges || loading || generating} title="Commit">
+        <button type="submit" disabled={!hasChanges || inConflict || loading || generating} title={inConflict ? "Cannot commit with merge conflicts" : "Commit"}>
           <GitCommit size={16} />
           <span>Commit</span>
         </button>

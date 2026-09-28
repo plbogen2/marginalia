@@ -61,6 +61,11 @@ export async function getGitStatus(req?: any): Promise<string> {
 }
 
 export async function gitCommit(message: string, req?: any): Promise<string> {
+  const inConflict = await isRepoInConflict(req);
+  if (inConflict) {
+    const conflicted = await getConflictedFiles(req);
+    throw new Error(`Cannot commit with unresolved merge conflicts in: ${conflicted.join(', ')}. Please resolve conflicts first.`);
+  }
   await ensureGitUserConfig(req);
   const git = getGitClient(req);
   await git.add('.');
@@ -76,7 +81,7 @@ export async function gitPush(req?: any): Promise<string> {
 
 export async function gitPull(req?: any): Promise<string> {
   const git = getGitClient(req);
-  const result = await git.pull();
+  const result = await git.pull(['--no-rebase']);
   const files = result.files || [];
   return `Pulled changes. Files: ${files.join(', ')}`;
 }
@@ -172,5 +177,73 @@ export async function gitShowHead(filePath: string, req?: any): Promise<string> 
     return await git.show([`HEAD:${filePath}`]);
   } catch (err) {
     return '';
+  }
+}
+
+export async function gitShowStage(filePath: string, stage: 1 | 2 | 3, req?: any): Promise<string> {
+  const git = getGitClient(req);
+  try {
+    return await git.show([`:${stage}:${filePath}`]);
+  } catch (err) {
+    return '';
+  }
+}
+
+export async function isRepoInConflict(req?: any): Promise<boolean> {
+  const git = getGitClient(req);
+  try {
+    const status = await git.raw(['status', '--porcelain']);
+    const lines = status.split('\n');
+    for (const line of lines) {
+      if (!line) continue;
+      const code = line.slice(0, 2);
+      if (['UU', 'AA', 'UD', 'DU', 'DD', 'AU', 'UA'].includes(code)) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export async function getConflictedFiles(req?: any): Promise<string[]> {
+  const git = getGitClient(req);
+  try {
+    const status = await git.raw(['status', '--porcelain']);
+    const files: string[] = [];
+    const lines = status.split('\n');
+    for (const line of lines) {
+      if (!line) continue;
+      const code = line.slice(0, 2);
+      if (['UU', 'AA', 'UD', 'DU', 'DD', 'AU', 'UA'].includes(code)) {
+        const filePath = line.slice(3).trim();
+        if (filePath) files.push(filePath);
+      }
+    }
+    return files;
+  } catch {
+    return [];
+  }
+}
+
+export async function gitMarkResolved(filePath: string, req?: any): Promise<void> {
+  const git = getGitClient(req);
+  await git.add(filePath);
+}
+
+export async function gitAbortMerge(req?: any): Promise<string> {
+  const git = getGitClient(req);
+  try {
+    await git.raw(['merge', '--abort']);
+    return 'Merge successfully aborted.';
+  } catch (err) {
+    // If not in a merge, try rebase --abort just in case
+    try {
+      await git.raw(['rebase', '--abort']);
+      return 'Rebase successfully aborted.';
+    } catch {
+      throw err;
+    }
   }
 }

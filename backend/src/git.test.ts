@@ -141,4 +141,58 @@ test('Git Helpers', async (t) => {
     const fileExists = await fs.access(path.join(TEST_TARGET_DIR, 'remote_change.txt')).then(() => true).catch(() => false);
     assert.ok(fileExists);
   });
+
+  await t.test('detects conflict status and supports abortMerge and markResolved', async () => {
+    const { isRepoInConflict, getConflictedFiles, gitMarkResolved, gitAbortMerge } = await import('./git.js');
+
+    // 1. Create a common base in both branches
+    await fs.writeFile(path.join(TEST_TARGET_DIR, 'conflict_test.md'), 'Base line\n');
+    await execAsync('git add conflict_test.md', { cwd: TEST_TARGET_DIR });
+    await execAsync('git commit -m "base for conflict"', { cwd: TEST_TARGET_DIR });
+    await execAsync('git push origin main || git push origin master', { cwd: TEST_TARGET_DIR });
+
+    // 2. Clone to temp remote clone and commit remote edits
+    const tempClone = '/tmp/marginalia_git_conflict_clone';
+    await fs.rm(tempClone, { recursive: true, force: true });
+    await execAsync(`git clone ${TEST_REMOTE_DIR} ${tempClone}`);
+    await execAsync('git config user.name "Test User"', { cwd: tempClone });
+    await execAsync('git config user.email "test@example.com"', { cwd: tempClone });
+    await fs.writeFile(path.join(tempClone, 'conflict_test.md'), 'Remote edits\n');
+    await execAsync('git add conflict_test.md', { cwd: tempClone });
+    await execAsync('git commit -m "remote conflicting edit"', { cwd: tempClone });
+    await execAsync('git push', { cwd: tempClone });
+    await fs.rm(tempClone, { recursive: true, force: true });
+
+    // 3. Make conflicting edit in local repo
+    await fs.writeFile(path.join(TEST_TARGET_DIR, 'conflict_test.md'), 'Local edits\n');
+    await execAsync('git add conflict_test.md', { cwd: TEST_TARGET_DIR });
+    await execAsync('git commit -m "local conflicting edit"', { cwd: TEST_TARGET_DIR });
+
+    // 4. Pull should fail and trigger conflict
+    try {
+      await gitPull();
+    } catch (e) {
+      // Expected git pull to throw on merge conflict
+    }
+
+    // 5. Verify repository is in conflict
+    const inConflict = await isRepoInConflict();
+    assert.strictEqual(inConflict, true);
+
+    const conflictedFiles = await getConflictedFiles();
+    assert.ok(conflictedFiles.includes('conflict_test.md'));
+
+    // 6. Test resolving the file
+    await fs.writeFile(path.join(TEST_TARGET_DIR, 'conflict_test.md'), 'Resolved edit\n');
+    await gitMarkResolved('conflict_test.md');
+
+    // After adding/resolving, repo shouldn't have UU on that file anymore
+    const filesAfterResolve = await getConflictedFiles();
+    assert.strictEqual(filesAfterResolve.length, 0);
+
+    // Commit merge
+    await execAsync('git commit -m "Merge resolved"', { cwd: TEST_TARGET_DIR });
+    const inConflictAfterCommit = await isRepoInConflict();
+    assert.strictEqual(inConflictAfterCommit, false);
+  });
 });

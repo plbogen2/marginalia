@@ -110,11 +110,15 @@ function App() {
     hasRemote,
     gitAhead,
     hasGemini,
+    inConflict,
+    conflictedFiles,
     fetchGitStatus,
     handleRefresh,
     handleCommit,
     handlePush,
-    handlePull
+    handlePull,
+    handleAbortMerge,
+    handleResolveFile
   } = git;
 
   // AI Co-Writer & Editorial Assistant
@@ -216,6 +220,8 @@ function App() {
         loading={loading}
         ahead={gitAhead}
         hasGemini={hasGemini}
+        inConflict={inConflict}
+        conflictedFiles={conflictedFiles}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenAbout={() => setAboutOpen(true)}
         onOpenAdmin={() => setAdminOpen(true)}
@@ -460,6 +466,10 @@ function App() {
             onRefreshStatus={handleRefresh}
             onCommit={handleCommit}
             hasGemini={hasGemini}
+            inConflict={inConflict}
+            conflictedFiles={conflictedFiles}
+            onAbortMerge={handleAbortMerge}
+            onResolveFile={handleResolveFile}
           />
         )}
       </Suspense>
