@@ -36,6 +36,8 @@ export function useAuth(onBeforeReload?: () => Promise<void> | void) {
 
   // Server Update Auto-Reload Detection
   const initialBuildTimeRef = useRef<number | null>(null);
+  const onBeforeReloadRef = useRef(onBeforeReload);
+  onBeforeReloadRef.current = onBeforeReload;
 
   useEffect(() => {
     const checkServerVersion = async () => {
@@ -51,9 +53,9 @@ export function useAuth(onBeforeReload?: () => Promise<void> | void) {
             initialBuildTimeRef.current = data.buildTime;
 
             // Trigger any registered buffer flush callbacks before reload
-            if (onBeforeReload) {
+            if (onBeforeReloadRef.current) {
               try {
-                await onBeforeReload();
+                await onBeforeReloadRef.current();
               } catch (e) {
                 console.warn('Failed to flush buffer before reload:', e);
               }
@@ -70,7 +72,7 @@ export function useAuth(onBeforeReload?: () => Promise<void> | void) {
     checkServerVersion();
     const interval = setInterval(checkServerVersion, 30000);
     return () => clearInterval(interval);
-  }, [onBeforeReload]);
+  }, []);
 
   return {
     authInfo,

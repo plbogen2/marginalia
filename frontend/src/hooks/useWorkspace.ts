@@ -55,6 +55,9 @@ export function useWorkspace({
     }
   }, []);
 
+  const fetchFilesRef = useRef(fetchFiles);
+  fetchFilesRef.current = fetchFiles;
+
   const loadDefaultWorkspace = useCallback(async () => {
     try {
       const res = await fetch('/api/workspaces');
@@ -62,7 +65,7 @@ export function useWorkspace({
       if (data.activeName) {
         setActiveWorkspaceName(data.activeName);
         window.history.replaceState(null, '', `/${encodeURIComponent(data.activeName)}/`);
-        await fetchFiles();
+        await fetchFilesRef.current();
         if (onRefreshedRef.current) {
           await onRefreshedRef.current();
         }
@@ -71,7 +74,10 @@ export function useWorkspace({
     } catch (err) {
       console.error('Failed to load default workspace:', err);
     }
-  }, [fetchFiles]);
+  }, []);
+
+  const loadDefaultWorkspaceRef = useRef(loadDefaultWorkspace);
+  loadDefaultWorkspaceRef.current = loadDefaultWorkspace;
 
   const initWorkspaceAndLoad = useCallback(async () => {
     setLoadingRef.current(true);
@@ -97,7 +103,7 @@ export function useWorkspace({
         if (res.ok) {
           const data = await res.json();
           setActiveWorkspaceName(data.name);
-          await fetchFiles();
+          await fetchFilesRef.current();
           if (onRefreshedRef.current) {
             await onRefreshedRef.current();
           }
@@ -106,23 +112,25 @@ export function useWorkspace({
           }
         } else {
           console.warn(`Workspace not found: ${workspaceName}, falling back to default`);
-          await loadDefaultWorkspace();
+          await loadDefaultWorkspaceRef.current();
         }
       } else {
-        await loadDefaultWorkspace();
+        await loadDefaultWorkspaceRef.current();
       }
     } catch (err) {
       console.error('Initialization failed:', err);
     } finally {
       setLoadingRef.current(false);
     }
-  }, [fetchFiles, loadDefaultWorkspace]);
+  }, []);
 
   useEffect(() => {
-    if (authInfo && authInfo.loggedIn && !initializedRef.current) {
-      initializedRef.current = true;
-      initWorkspaceAndLoad();
-    } else if (!authInfo || !authInfo.loggedIn) {
+    if (authInfo && authInfo.loggedIn) {
+      if (!initializedRef.current) {
+        initializedRef.current = true;
+        initWorkspaceAndLoad();
+      }
+    } else {
       initializedRef.current = false;
     }
   }, [authInfo?.loggedIn, initWorkspaceAndLoad]);
