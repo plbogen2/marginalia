@@ -63,16 +63,21 @@ async function ensureGitRepoConfig(req?: any): Promise<void> {
       await git.addConfig('user.email', systemEmail, false, 'local');
     }
 
-    // Cone mode expects directories only. Marginalia uses non-cone sparse checkout glob exclusions (!*.exe, !*.dll).
-    // If cone mode is true, git emits 'warning: unrecognized pattern: ...' and simple-git throws during pull/merge.
+    // Disable sparse checkout and remove any leftover sparse-checkout exclusion files
+    // to prevent 'unrecognized pattern' warnings from interfering with simple-git operations.
     try {
-      const isSparse = await git.getConfig('core.sparseCheckout', 'local');
-      if (isSparse.value === 'true') {
-        const isCone = await git.getConfig('core.sparseCheckoutCone', 'local');
-        if (isCone.value === 'true') {
-          await git.addConfig('core.sparseCheckoutCone', 'false', false, 'local');
-        }
-      }
+      await git.raw(['config', '--unset', 'core.sparseCheckoutCone']);
+    } catch {
+      // ignore
+    }
+    try {
+      await git.raw(['config', 'core.sparseCheckout', 'false']);
+    } catch {
+      // ignore
+    }
+    try {
+      const gitInfoSparse = path.join(getTargetDir(req), '.git', 'info', 'sparse-checkout');
+      await fs.rm(gitInfoSparse, { force: true });
     } catch {
       // ignore
     }
@@ -149,39 +154,8 @@ export async function cloneRepo(url: string, targetPath: string, accessToken?: s
   }
 
   const result = await simpleGit().clone(cloneUrl, targetPath, [
-    '--filter=blob:limit=10m',
-    '--sparse'
+    '--filter=blob:limit=10m'
   ]);
-
-  try {
-    const gitInfoDir = path.join(targetPath, '.git', 'info');
-    await fs.mkdir(gitInfoDir, { recursive: true });
-    const sparseRules = [
-      '/*',
-      '!*.exe',
-      '!*.dll',
-      '!*.so',
-      '!*.dylib',
-      '!*.bin',
-      '!*.sh',
-      '!*.bat',
-      '!*.cmd',
-      '!*.wasm',
-      '!*.elf',
-      '!*.zip',
-      '!*.tar',
-      '!*.gz',
-      '!*.7z'
-    ].join('\n');
-    await fs.writeFile(path.join(gitInfoDir, 'sparse-checkout'), sparseRules, 'utf-8');
-
-    const git = simpleGit(targetPath);
-    await git.raw(['config', 'core.sparseCheckout', 'true']);
-    await git.raw(['config', 'core.sparseCheckoutCone', 'false']);
-    await git.raw(['read-tree', '-mu', 'HEAD']);
-  } catch (err) {
-    console.warn('Failed to apply sparse checkout exclusion rules:', err);
-  }
 
   return `Clone successful: ${result}`;
 }
