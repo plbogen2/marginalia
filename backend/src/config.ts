@@ -124,9 +124,35 @@ export function getRecentWorkspaces(username?: string): { path: string, name: st
           // ignore scan errors
         }
       }
-      return db.prepare("SELECT path, name, last_opened FROM workspaces WHERE user = ? ORDER BY last_opened DESC LIMIT 10;").all(username) as any[];
+      const rows = db.prepare("SELECT path, name, last_opened FROM workspaces WHERE user = ? ORDER BY last_opened DESC LIMIT 10;").all(username) as any[];
+      const valid = [];
+      for (const row of rows) {
+        if (fs.existsSync(row.path)) {
+          valid.push(row);
+        } else {
+          try {
+            db.prepare("DELETE FROM workspaces WHERE path = ?;").run(row.path);
+          } catch {
+            // ignore
+          }
+        }
+      }
+      return valid;
     } else {
-      return db.prepare("SELECT path, name, last_opened FROM workspaces WHERE user IS NULL ORDER BY last_opened DESC LIMIT 10;").all() as any[];
+      const rows = db.prepare("SELECT path, name, last_opened FROM workspaces WHERE user IS NULL ORDER BY last_opened DESC LIMIT 10;").all() as any[];
+      const valid = [];
+      for (const row of rows) {
+        if (fs.existsSync(row.path)) {
+          valid.push(row);
+        } else {
+          try {
+            db.prepare("DELETE FROM workspaces WHERE path = ?;").run(row.path);
+          } catch {
+            // ignore
+          }
+        }
+      }
+      return valid;
     }
   } catch (err) {
     console.error('Failed to get recent workspaces:', err);

@@ -15,6 +15,7 @@ import {
 } from '../config.js';
 import { isWorkspacePathAllowed } from '../utils/pathSafety.js';
 import { cloneRepo } from '../git.js';
+import { simpleGit } from 'simple-git';
 
 export const workspacesRouter = Router();
 
@@ -51,8 +52,17 @@ workspacesRouter.post('/api/workspaces/select', async (req: AuthenticatedRequest
     if (!isWorkspacePathAllowed(resolvedPath, req.user)) {
       return res.status(403).json({ error: 'Access denied: Workspace path is outside allowed roots' });
     }
-    await fs.access(resolvedPath);
-    await fs.access(path.join(resolvedPath, '.git'));
+    try {
+      await fs.access(resolvedPath);
+    } catch {
+      await fs.mkdir(resolvedPath, { recursive: true });
+    }
+    try {
+      await fs.access(path.join(resolvedPath, '.git'));
+    } catch {
+      const git = simpleGit(resolvedPath);
+      await git.init();
+    }
     
     setTargetDir(resolvedPath, req.user);
     res.json({ status: 'ok', path: resolvedPath, name: getActiveWorkspaceName(req) });
@@ -69,9 +79,30 @@ workspacesRouter.post('/api/workspaces/select-by-name', async (req: Authenticate
   try {
     const resolvedPath = selectWorkspaceByName(name, req.user);
     if (resolvedPath) {
+      try {
+        await fs.access(resolvedPath);
+      } catch {
+        await fs.mkdir(resolvedPath, { recursive: true });
+      }
+      try {
+        await fs.access(path.join(resolvedPath, '.git'));
+      } catch {
+        const git = simpleGit(resolvedPath);
+        await git.init();
+      }
       res.json({ status: 'ok', path: resolvedPath, name });
     } else {
-      res.status(404).json({ error: `Workspace not found: ${name}` });
+      if (req.user) {
+        const userStorage = getUserStorageRoot(req.user);
+        const targetDir = path.join(userStorage, name);
+        await fs.mkdir(targetDir, { recursive: true });
+        const git = simpleGit(targetDir);
+        await git.init();
+        setTargetDir(targetDir, req.user);
+        res.json({ status: 'ok', path: targetDir, name });
+      } else {
+        res.status(404).json({ error: `Workspace not found: ${name}` });
+      }
     }
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
