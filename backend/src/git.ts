@@ -9,7 +9,7 @@ function getGitClient(req?: any): SimpleGit {
   });
 }
 
-async function ensureGitUserConfig(req?: any): Promise<void> {
+async function ensureGitRepoConfig(req?: any): Promise<void> {
   const git = getGitClient(req);
   try {
     let systemUserRaw = '';
@@ -50,23 +50,38 @@ async function ensureGitUserConfig(req?: any): Promise<void> {
     if (!hasEmail) {
       await git.addConfig('user.email', systemEmail, false, 'local');
     }
+
+    // Cone mode expects directories only. Marginalia uses non-cone sparse checkout glob exclusions (!*.exe, !*.dll).
+    // If cone mode is true, git emits 'warning: unrecognized pattern: ...' and simple-git throws during pull/merge.
+    try {
+      const isSparse = await git.getConfig('core.sparseCheckout', 'local');
+      if (isSparse.value === 'true') {
+        const isCone = await git.getConfig('core.sparseCheckoutCone', 'local');
+        if (isCone.value === 'true') {
+          await git.addConfig('core.sparseCheckoutCone', 'false', false, 'local');
+        }
+      }
+    } catch {
+      // ignore
+    }
   } catch (err) {
-    console.warn('Failed to ensure git user config:', err);
+    console.warn('Failed to ensure git repo config:', err);
   }
 }
 
 export async function getGitStatus(req?: any): Promise<string> {
+  await ensureGitRepoConfig(req);
   const git = getGitClient(req);
   return git.raw(['status', '--porcelain']);
 }
 
 export async function gitCommit(message: string, req?: any): Promise<string> {
+  await ensureGitRepoConfig(req);
   const inConflict = await isRepoInConflict(req);
   if (inConflict) {
     const conflicted = await getConflictedFiles(req);
     throw new Error(`Cannot commit with unresolved merge conflicts in: ${conflicted.join(', ')}. Please resolve conflicts first.`);
   }
-  await ensureGitUserConfig(req);
   const git = getGitClient(req);
   await git.add('.');
   const result = await git.commit(message);
@@ -74,12 +89,14 @@ export async function gitCommit(message: string, req?: any): Promise<string> {
 }
 
 export async function gitPush(req?: any): Promise<string> {
+  await ensureGitRepoConfig(req);
   const git = getGitClient(req);
   const result = await git.push();
   return `Push successful: ${JSON.stringify(result)}`;
 }
 
 export async function gitPull(req?: any): Promise<string> {
+  await ensureGitRepoConfig(req);
   const git = getGitClient(req);
   const result = await git.pull(['--no-rebase']);
   const files = result.files || [];
@@ -87,6 +104,7 @@ export async function gitPull(req?: any): Promise<string> {
 }
 
 export async function getGitBranch(req?: any): Promise<string> {
+  await ensureGitRepoConfig(req);
   const git = getGitClient(req);
   const branch = await git.branchLocal();
   return branch.current;
@@ -136,6 +154,7 @@ export async function cloneRepo(url: string, targetPath: string, accessToken?: s
 
     const git = simpleGit(targetPath);
     await git.raw(['config', 'core.sparseCheckout', 'true']);
+    await git.raw(['config', 'core.sparseCheckoutCone', 'false']);
     await git.raw(['read-tree', '-mu', 'HEAD']);
   } catch (err) {
     console.warn('Failed to apply sparse checkout exclusion rules:', err);
