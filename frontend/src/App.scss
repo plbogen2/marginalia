@@ -1533,6 +1533,45 @@ kbd {
     font-weight: bold;
   }
 
+  .conflict-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .accept-ours-btn,
+    .accept-theirs-btn {
+      background-color: #333333;
+      color: #e0e0e0;
+      border: 1px solid #555555;
+      border-radius: 3px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+
+      &:hover:not(:disabled) {
+        background-color: #444444;
+        color: #ffffff;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .accept-ours-btn:hover:not(:disabled) {
+      border-color: #2e7d32;
+      color: #81c784;
+    }
+
+    .accept-theirs-btn:hover:not(:disabled) {
+      border-color: #1565c0;
+      color: #64b5f6;
+    }
+  }
+
   .resolve-file-btn {
     display: inline-flex;
     align-items: center;
@@ -1553,6 +1592,78 @@ kbd {
     &:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+  }
+}
+
+.diff-modal-merge-footer {
+  padding: 10px 16px;
+  background-color: #1e1e1e;
+  border-top: 1px solid #333333;
+
+  .merge-status-pending {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    background-color: rgba(220, 53, 69, 0.12);
+    border: 1px solid rgba(220, 53, 69, 0.35);
+    border-radius: 4px;
+    color: #ff8585;
+    font-size: 13px;
+
+    .abort-merge-btn-footer {
+      background-color: #7a2020;
+      color: #ffffff;
+      border: 1px solid #dc3545;
+      padding: 4px 10px;
+      font-size: 12px;
+      border-radius: 3px;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background-color: #a71d2a;
+      }
+    }
+  }
+
+  .merge-ready-form {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+
+    input {
+      flex: 1;
+      padding: 6px 10px;
+      background-color: #2a2a2a;
+      border: 1px solid #444444;
+      color: #ffffff;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .complete-merge-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background-color: #28a745;
+      color: #ffffff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background-color: #218838;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
     }
   }
 }

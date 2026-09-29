@@ -225,6 +225,34 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({
     }
   };
 
+  const handleAcceptAllOurs = async () => {
+    if (!selectedFile || !onResolveFile) return;
+    setResolving(true);
+    setError(null);
+    try {
+      await onResolveFile(selectedFile.path, oldText);
+      onRefreshStatus();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const handleAcceptAllTheirs = async () => {
+    if (!selectedFile || !onResolveFile) return;
+    setResolving(true);
+    setError(null);
+    try {
+      await onResolveFile(selectedFile.path, newText);
+      onRefreshStatus();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setResolving(false);
+    }
+  };
+
   const handleApplyResolution = async () => {
     if (!selectedFile || !onResolveFile) return;
     setResolving(true);
@@ -233,6 +261,8 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({
       let resolvedText: string | undefined;
       if (conflictParseResult.hasConflicts) {
         resolvedText = resolveConflictsInContent(diskContent, resolutions);
+      } else {
+        resolvedText = diskContent;
       }
       await onResolveFile(selectedFile.path, resolvedText);
       onRefreshStatus();
@@ -251,6 +281,7 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({
   };
 
   const hasAnyConflicts = inConflict || files.some((f) => f.isConflicted);
+  const unresolvedCount = files.filter((f) => f.isConflicted).length;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -335,16 +366,36 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({
                         )}
                       </div>
                       {selectedFile.isConflicted && onResolveFile && (
-                        <button
-                          type="button"
-                          className="resolve-file-btn"
-                          onClick={handleApplyResolution}
-                          disabled={resolving}
-                          title="Apply resolutions and mark this file as resolved in Git"
-                        >
-                          <Check size={14} />
-                          <span>{resolving ? 'Resolving...' : 'Mark as Resolved'}</span>
-                        </button>
+                        <div className="conflict-action-buttons">
+                          <button
+                            type="button"
+                            className="accept-ours-btn"
+                            onClick={handleAcceptAllOurs}
+                            disabled={resolving}
+                            title="Accept local version for entire file"
+                          >
+                            Accept All Ours
+                          </button>
+                          <button
+                            type="button"
+                            className="accept-theirs-btn"
+                            onClick={handleAcceptAllTheirs}
+                            disabled={resolving}
+                            title="Accept incoming remote version for entire file"
+                          >
+                            Accept All Theirs
+                          </button>
+                          <button
+                            type="button"
+                            className="resolve-file-btn"
+                            onClick={handleApplyResolution}
+                            disabled={resolving}
+                            title="Apply resolutions and mark this file as resolved in Git"
+                          >
+                            <Check size={14} />
+                            <span>{resolving ? 'Resolving...' : 'Mark as Resolved'}</span>
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -439,7 +490,43 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({
           )}
         </div>
 
-        {files.length > 0 && !hasAnyConflicts && (
+        {hasAnyConflicts ? (
+          <div className="diff-modal-merge-footer">
+            {unresolvedCount > 0 ? (
+              <div className="merge-status-pending">
+                <AlertTriangle size={16} />
+                <span>
+                  Merge in progress: <strong>{unresolvedCount} file{unresolvedCount > 1 ? 's' : ''}</strong> still conflicted. Resolve files to complete merge.
+                </span>
+                {onAbortMerge && (
+                  <button
+                    type="button"
+                    className="abort-merge-btn-footer"
+                    onClick={handleAbort}
+                    disabled={aborting}
+                  >
+                    {aborting ? 'Aborting...' : 'Abort Merge'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitCommit} className="diff-modal-commit-form merge-ready-form">
+                <input
+                  type="text"
+                  placeholder="Merge commit message..."
+                  value={commitMessage || "Merge remote-tracking branch 'origin/main'"}
+                  onChange={(e) => setCommitMessage(e.target.value)}
+                  required
+                  disabled={committing || generating}
+                />
+                <button type="submit" className="complete-merge-btn" disabled={committing || generating}>
+                  <Check size={16} />
+                  <span>{committing ? 'Completing Merge...' : 'Complete & Commit Merge'}</span>
+                </button>
+              </form>
+            )}
+          </div>
+        ) : files.length > 0 ? (
           <form onSubmit={handleSubmitCommit} className="diff-modal-commit-form">
             <input
               type="text"
@@ -465,7 +552,7 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({
               <span>{committing ? 'Committing...' : 'Commit Changes'}</span>
             </button>
           </form>
-        )}
+        ) : null}
       </div>
     </div>
   );
