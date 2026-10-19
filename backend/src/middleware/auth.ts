@@ -63,7 +63,7 @@ export function isUserAdmin(username: string | null | undefined): boolean {
   return adminUsers.includes(username.toLowerCase());
 }
 
-export function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export async function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   if (!isHostedModeActive()) {
     return next();
   }
@@ -96,9 +96,11 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
   req.user = sessionData.username;
   if (req.user) {
     const vfsSecret = crypto.createHash('sha256').update(`${req.user}:${secret}`).digest('hex');
-    mountUserVfs(req.user, vfsSecret).catch((err) => {
+    try {
+      await mountUserVfs(req.user, vfsSecret);
+    } catch (err) {
       console.warn(`Failed to auto-mount VFS for ${req.user}:`, err);
-    });
+    }
   }
 
   let accessToken = sessionData.accessToken;

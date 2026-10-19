@@ -43,7 +43,22 @@ export async function isVfsMounted(username: string): Promise<boolean> {
   }
 }
 
+const mountLocks = new Map<string, Promise<void>>();
+
 export async function mountUserVfs(username: string, secretKey: string): Promise<void> {
+  const existingLock = mountLocks.get(username);
+  if (existingLock) {
+    return existingLock;
+  }
+
+  const mountPromise = mountUserVfsInternal(username, secretKey).finally(() => {
+    mountLocks.delete(username);
+  });
+  mountLocks.set(username, mountPromise);
+  return mountPromise;
+}
+
+async function mountUserVfsInternal(username: string, secretKey: string): Promise<void> {
   const available = await isGocryptfsAvailable();
   const mountDir = getUserMountDir(username);
   const encDir = getEncryptedStorageDir(username);
@@ -63,7 +78,20 @@ export async function mountUserVfs(username: string, secretKey: string): Promise
   }
 
   const passfilePath = path.join(os.tmpdir(), `vfs-${username}.pass`);
+  let stagingDir: string | null = null;
   try {
+    // If mountDir contains stray unmounted files/folders (e.g. created while unmounted after a container restart),
+    // evacuate them to a temporary staging directory so gocryptfs never fails with "Invalid mountpoint: directory not empty".
+    const strayEntries = await fs.readdir(mountDir).catch(() => [] as string[]);
+    if (strayEntries.length > 0) {
+      const rootDir = path.dirname(getStorageDir());
+      stagingDir = path.join(rootDir, 'vfs_staging', `${username}-${Date.now()}`);
+      await fs.mkdir(stagingDir, { recursive: true });
+      for (const entry of strayEntries) {
+        await fs.rename(path.join(mountDir, entry), path.join(stagingDir, entry));
+      }
+    }
+
     await fs.writeFile(passfilePath, secretKey, { mode: 0o600 });
 
     // Initialize gocryptfs config if not existing
@@ -75,7 +103,34 @@ export async function mountUserVfs(username: string, secretKey: string): Promise
 
     // Mount encrypted directory to user storage path
     await deps.exec(`gocryptfs -extpass "cat ${passfilePath}" "${encDir}" "${mountDir}"`);
+
+    // Reconcile any evacuated stray entries into the mounted VFS if they don't already exist inside it
+    if (stagingDir) {
+      const stagedEntries = await fs.readdir(stagingDir).catch(() => [] as string[]);
+      for (const entry of stagedEntries) {
+        const srcPath = path.join(stagingDir, entry);
+        const destPath = path.join(mountDir, entry);
+        const destExists = await fs.access(destPath).then(() => true).catch(() => false);
+        if (!destExists) {
+          await fs.cp(srcPath, destPath, { recursive: true });
+        }
+      }
+      await fs.rm(stagingDir, { recursive: true, force: true });
+      stagingDir = null;
+    }
   } catch (err) {
+    if (stagingDir) {
+      // Restore staged entries if mount failed so no unmounted data is lost
+      try {
+        const stagedEntries = await fs.readdir(stagingDir);
+        for (const entry of stagedEntries) {
+          await fs.rename(path.join(stagingDir, entry), path.join(mountDir, entry));
+        }
+        await fs.rm(stagingDir, { recursive: true, force: true });
+      } catch (restoreErr) {
+        console.error(`Failed to restore staged VFS entries for ${username}:`, restoreErr);
+      }
+    }
     console.error(`Failed to mount VFS for user ${username}:`, err);
     throw new Error(`Failed to mount VFS: ${(err as Error).message}`);
   } finally {

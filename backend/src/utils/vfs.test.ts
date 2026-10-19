@@ -113,5 +113,36 @@ describe('VFS Utility Module', () => {
       assert.match(execCalls[1], /gocryptfs -extpass/);
       assert.doesNotMatch(execCalls[1], /-init/);
     });
+
+    it('evacuates stray unmounted entries before mounting and reconciles them after mount', async () => {
+      const username = 'test_user_no_init';
+      const secretKey = 'secret_123';
+
+      const encDir = getEncryptedStorageDir(username);
+      const mountDir = getUserMountDir(username);
+      await fs.mkdir(encDir, { recursive: true });
+      await fs.writeFile(path.join(encDir, 'gocryptfs.conf'), 'mock config');
+
+      // Simulate a stray workspace directory created in mountDir while unmounted
+      const strayWorkspace = path.join(mountDir, 'stray_repo');
+      await fs.mkdir(strayWorkspace, { recursive: true });
+      await fs.writeFile(path.join(strayWorkspace, 'README.md'), '# Stray Repo');
+
+      let mountDirEmptyDuringGocryptfs = false;
+      deps.exec = (async (cmd: string) => {
+        execCalls.push(cmd);
+        if (cmd.startsWith('gocryptfs -extpass')) {
+          const entriesDuringMount = await fs.readdir(mountDir);
+          mountDirEmptyDuringGocryptfs = entriesDuringMount.length === 0;
+        }
+        return { stdout: '', stderr: '' };
+      }) as any;
+
+      await mountUserVfs(username, secretKey);
+
+      assert.strictEqual(mountDirEmptyDuringGocryptfs, true, 'mountDir must be empty when gocryptfs runs');
+      const reconciledContent = await fs.readFile(path.join(mountDir, 'stray_repo', 'README.md'), 'utf-8');
+      assert.strictEqual(reconciledContent, '# Stray Repo');
+    });
   });
 });
