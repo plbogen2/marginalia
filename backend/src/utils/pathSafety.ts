@@ -68,7 +68,8 @@ export function isWorkspacePathAllowed(targetPath: string, username?: string): b
 }
 
 export const ALLOWED_DOC_EXTENSIONS = new Set([
-  '.md', '.markdown', '.mdown', '.mkd', '.txt', '.json', '.yaml', '.yml', '.toml'
+  '.md', '.markdown', '.mdown', '.mkd', '.txt', '.json', '.yaml', '.yml', '.toml',
+  '.html', '.htm', '.css', '.scss', '.py', '.js', '.ts', '.sh', '.csv', '.xml'
 ]);
 
 export const ALLOWED_IMAGE_EXTENSIONS = new Set([

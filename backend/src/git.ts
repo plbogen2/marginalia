@@ -98,9 +98,8 @@ export async function gitCommit(message: string, req?: any): Promise<string> {
     throw new Error(`Git repository not initialized in: ${getTargetDir(req)}. Please initialize or clone a repository first.`);
   }
   await ensureGitRepoConfig(req);
-  const inConflict = await isRepoInConflict(req);
-  if (inConflict) {
-    const conflicted = await getConflictedFiles(req);
+  const conflicted = await getConflictedFiles(req);
+  if (conflicted.length > 0) {
     throw new Error(`Cannot commit with unresolved merge conflicts in: ${conflicted.join(', ')}. Please resolve conflicts first.`);
   }
   const git = getGitClient(req);
@@ -212,6 +211,13 @@ export async function gitShowStage(filePath: string, stage: 1 | 2 | 3, req?: any
 
 export async function isRepoInConflict(req?: any): Promise<boolean> {
   if (!await isGitRepo(req)) return false;
+  const dir = getTargetDir(req);
+  try {
+    await fs.access(path.join(dir, '.git', 'MERGE_HEAD'));
+    return true;
+  } catch {
+    // Not in MERGE_HEAD state; check porcelain status below
+  }
   const git = getGitClient(req);
   try {
     const status = await git.raw(['status', '--porcelain']);

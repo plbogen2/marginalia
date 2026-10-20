@@ -49,12 +49,12 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({
 
   // Parse porcelain status
   const files: ModifiedFile[] = useMemo(() => {
-    return gitStatus
+    const parsed = gitStatus
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .map((line) => {
-        const match = line.match(/^([MADRC?!\s]+)\s+(.+)$/);
+        const match = line.match(/^([MADRCU?!\s]+)\s+(.+)$/);
         if (match) {
           const status = match[1].trim();
           const path = match[2].trim();
@@ -70,6 +70,18 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({
         return null;
       })
       .filter((item): item is ModifiedFile => item !== null);
+
+    for (const conflictPath of conflictedFiles) {
+      if (!parsed.some((f) => f.path === conflictPath)) {
+        parsed.push({
+          status: 'UU',
+          path: conflictPath,
+          isConflicted: true,
+        });
+      }
+    }
+
+    return parsed.sort((a, b) => Number(b.isConflicted) - Number(a.isConflicted));
   }, [gitStatus, conflictedFiles]);
 
   // Select first file on load or prioritize conflicted file
@@ -197,10 +209,15 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({
 
   const handleSubmitCommit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commitMessage.trim()) return;
+    const effectiveMessage =
+      commitMessage.trim() ||
+      (inConflict || files.some((f) => f.isConflicted)
+        ? "Merge remote-tracking branch 'origin/main'"
+        : '');
+    if (!effectiveMessage) return;
     setCommitting(true);
     try {
-      await onCommit(commitMessage);
+      await onCommit(effectiveMessage);
       setCommitMessage('');
       onClose();
     } catch (err) {
