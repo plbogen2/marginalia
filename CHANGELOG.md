@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.13.0 (November 2026)
+- feat: decouple frontend and backend containers for zero-downtime deploy and tie glossary to gh repo
+
 ## v1.12.0 (November 2026)
 - **Tied Glossary & Lore Configuration to GitHub Repositories**: Glossary sources and options are stored directly in `.marginalia/glossary.json` inside the repository and cached in SQLite keyed by GitHub repo slug (`owner/repo`), ensuring settings persist across clones, devices, and workspaces.
 - **Decoupled Frontend & Backend Containers**: Split the monolithic Docker container into independent `frontend` (Caddy SPA file server) and `backend` (Express Node API) containers in `docker-compose.yml` with dedicated Dockerfiles (`Dockerfile.frontend`, `Dockerfile.backend`).
