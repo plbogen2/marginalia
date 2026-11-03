@@ -93,7 +93,8 @@ fi
 
 # 6. Build and Start the application on ports 80 and 443
 echo "--> Launching Marginalia containers on ports 80 and 443..."
-sudo docker-compose down || true
-sudo docker-compose up -d --build --remove-orphans
+sudo docker-compose build backend
+sudo docker-compose build frontend
+sudo docker-compose up -d --remove-orphans
 
 echo "=== Marginalia OCI VM Setup Complete! ==="

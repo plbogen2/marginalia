@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { getTargetDir } from '../config.js';
+import { getGitRepoSlug } from '../git.js';
 import {
   getGlossaryConfig,
   saveGlossaryConfig,
@@ -13,18 +14,20 @@ export const glossaryRouter = Router();
 // GET /api/glossary: returns configuration, candidate files, and all extracted terms
 glossaryRouter.get('/api/glossary', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const workspacePath = getTargetDir(req.user);
+    const workspacePath = getTargetDir(req);
     if (!workspacePath) {
       return res.status(400).json({ error: 'No active workspace selected' });
     }
 
-    const [availableFiles, glossaryData] = await Promise.all([
+    const [availableFiles, glossaryData, repoSlug] = await Promise.all([
       findAvailableGlossaryCandidates(workspacePath),
-      loadWorkspaceGlossary(workspacePath)
+      loadWorkspaceGlossary(workspacePath),
+      getGitRepoSlug(workspacePath)
     ]);
 
     res.json({
       config: glossaryData.config,
+      repoSlug,
       availableFiles,
       resolvedFiles: glossaryData.resolvedFiles,
       terms: glossaryData.terms,
@@ -38,7 +41,7 @@ glossaryRouter.get('/api/glossary', async (req: AuthenticatedRequest, res: Respo
 // POST /api/glossary/config: updates workspace glossary settings
 glossaryRouter.post('/api/glossary/config', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const workspacePath = getTargetDir(req.user);
+    const workspacePath = getTargetDir(req);
     if (!workspacePath) {
       return res.status(400).json({ error: 'No active workspace selected' });
     }
@@ -51,12 +54,16 @@ glossaryRouter.post('/api/glossary/config', async (req: AuthenticatedRequest, re
     };
 
     const updatedConfig = await saveGlossaryConfig(workspacePath, body);
-    const glossaryData = await loadWorkspaceGlossary(workspacePath);
-    const availableFiles = await findAvailableGlossaryCandidates(workspacePath);
+    const [glossaryData, availableFiles, repoSlug] = await Promise.all([
+      loadWorkspaceGlossary(workspacePath),
+      findAvailableGlossaryCandidates(workspacePath),
+      getGitRepoSlug(workspacePath)
+    ]);
 
     res.json({
       status: 'ok',
       config: updatedConfig,
+      repoSlug,
       availableFiles,
       resolvedFiles: glossaryData.resolvedFiles,
       terms: glossaryData.terms,
@@ -70,7 +77,7 @@ glossaryRouter.post('/api/glossary/config', async (req: AuthenticatedRequest, re
 // GET /api/glossary/terms: lightweight autocomplete suggestions
 glossaryRouter.get('/api/glossary/terms', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const workspacePath = getTargetDir(req.user);
+    const workspacePath = getTargetDir(req);
     if (!workspacePath) {
       return res.json({ terms: [] });
     }

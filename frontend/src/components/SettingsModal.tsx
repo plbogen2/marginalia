@@ -144,6 +144,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
     category?: string;
     file: string;
   }[]>([]);
+  const [glossaryRepoSlug, setGlossaryRepoSlug] = useState<string>('');
   const [glossaryResolvedFiles, setGlossaryResolvedFiles] = useState<string[]>([]);
   const [glossaryAvailableFiles, setGlossaryAvailableFiles] = useState<string[]>([]);
   const [loadingGlossary, setLoadingGlossary] = useState(false);
@@ -163,6 +164,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
           enableSpellcheck: true,
           enableAutocomplete: true
         });
+        setGlossaryRepoSlug(data.repoSlug || '');
         setGlossaryTerms(data.terms || []);
         setGlossaryResolvedFiles(data.resolvedFiles || []);
         setGlossaryAvailableFiles(data.availableFiles || []);
@@ -186,6 +188,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
       if (res.ok) {
         const data = await res.json();
         setGlossaryConfig(data.config);
+        setGlossaryRepoSlug(data.repoSlug || '');
         setGlossaryTerms(data.terms || []);
         setGlossaryResolvedFiles(data.resolvedFiles || []);
         setGlossaryAvailableFiles(data.availableFiles || []);
@@ -652,9 +655,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
             {/* Glossary & Lore Integration Section */}
             <div className="form-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, margin: 0 }}>
-                  <BookOpen size={16} /> Glossary & Lore Sources
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, margin: 0 }}>
+                    <BookOpen size={16} /> Glossary & Lore Sources
+                  </label>
+                  {glossaryRepoSlug && (
+                    <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                      Repo: <strong style={{ color: 'var(--text-primary)' }}>{glossaryRepoSlug}</strong>
+                    </span>
+                  )}
+                </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button
                     type="button"
@@ -670,7 +680,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
               </div>
 
               <p className="help-text" style={{ marginTop: 0, marginBottom: '12px' }}>
-                Configure the editor to automatically pull in-world vocabulary, character names, and lore definitions directly from your glossary or lore files into spell check and editor autocomplete.
+                Configure the editor to automatically pull in-world vocabulary and lore definitions directly from your glossary files. Settings are tied to your GitHub repository (stored in <code>.marginalia/glossary.json</code>).
               </p>
 
               {glossaryMsg && (

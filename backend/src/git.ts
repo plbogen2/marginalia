@@ -262,6 +262,30 @@ export async function gitMarkResolved(filePath: string, req?: any): Promise<void
   await git.add(filePath);
 }
 
+export async function getGitRemoteUrl(reqOrPath?: any): Promise<string> {
+  const dir = typeof reqOrPath === 'string' ? reqOrPath : getTargetDir(reqOrPath);
+  try {
+    const git = simpleGit(dir);
+    const url = await git.raw(['config', '--get', 'remote.origin.url']);
+    return url.trim();
+  } catch {
+    return '';
+  }
+}
+
+export async function getGitRepoSlug(reqOrPath?: any): Promise<string> {
+  const remoteUrl = await getGitRemoteUrl(reqOrPath);
+  if (!remoteUrl) {
+    const dir = typeof reqOrPath === 'string' ? reqOrPath : getTargetDir(reqOrPath);
+    return path.basename(dir);
+  }
+  const match = remoteUrl.match(/github\.com[:/]([^/]+\/[^/.]+?)(?:\.git)?$/);
+  if (match) {
+    return match[1];
+  }
+  return path.basename(remoteUrl.replace(/\.git$/, ''));
+}
+
 export async function gitAbortMerge(req?: any): Promise<string> {
   if (!await isGitRepo(req)) {
     throw new Error('Not a git repository.');

@@ -1,5 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { db } from './db.js';
+import { getGitRepoSlug } from './git.js';
 import { isPathSafe } from './utils/pathSafety.js';
 
 export interface GlossaryConfig {
@@ -45,6 +47,29 @@ export async function getGlossaryConfig(workspacePath: string): Promise<Glossary
       enableAutocomplete: typeof parsed.enableAutocomplete === 'boolean' ? parsed.enableAutocomplete : true
     };
   } catch {
+    // If not found in workspace file, check SQLite DB for cached config tied to this GitHub repo
+    try {
+      const repoSlug = await getGitRepoSlug(workspacePath);
+      if (repoSlug) {
+        const row = db.prepare("SELECT value FROM settings WHERE key = ?;").get(`repo_glossary:${repoSlug}`) as { value: string } | undefined;
+        if (row && row.value) {
+          const parsed = JSON.parse(row.value);
+          const config: GlossaryConfig = {
+            paths: Array.isArray(parsed.paths) ? parsed.paths : [],
+            autoDetect: typeof parsed.autoDetect === 'boolean' ? parsed.autoDetect : true,
+            enableSpellcheck: typeof parsed.enableSpellcheck === 'boolean' ? parsed.enableSpellcheck : true,
+            enableAutocomplete: typeof parsed.enableAutocomplete === 'boolean' ? parsed.enableAutocomplete : true
+          };
+          // Persist to workspace repo so it's in the repo filesystem
+          const configDir = path.join(workspacePath, '.marginalia');
+          await fs.mkdir(configDir, { recursive: true });
+          await fs.writeFile(configFile, JSON.stringify(config, null, 2), 'utf-8');
+          return config;
+        }
+      }
+    } catch {
+      // Ignore DB read failure
+    }
     return { ...DEFAULT_GLOSSARY_CONFIG };
   }
 }
@@ -65,6 +90,19 @@ export async function saveGlossaryConfig(workspacePath: string, config: Partial<
     JSON.stringify(updated, null, 2),
     'utf-8'
   );
+
+  // Tie configuration to GitHub repository in DB cache
+  try {
+    const repoSlug = await getGitRepoSlug(workspacePath);
+    if (repoSlug) {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);").run(
+        `repo_glossary:${repoSlug}`,
+        JSON.stringify(updated)
+      );
+    }
+  } catch (err) {
+    console.warn('Failed to cache repo glossary config in DB:', err);
+  }
 
   return updated;
 }

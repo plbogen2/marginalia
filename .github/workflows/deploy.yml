@@ -41,10 +41,12 @@ jobs:
         script: |
           if [ -d "marginalia" ]; then
             cd marginalia
-            echo "--> Pulling latest changes and syncing submodules..."
+            echo "--> Pulling latest changes and inspecting delta..."
+            PREV_REV=$(git rev-parse HEAD 2>/dev/null || echo "")
             git pull origin main
             git submodule sync
             git submodule update --init --recursive
+            NEW_REV=$(git rev-parse HEAD)
             cp scripts/setup_vm.sh $HOME/setup_vm.sh 2>/dev/null && chmod +x $HOME/setup_vm.sh || true
             
             echo "--> Updating environment configuration..."
@@ -80,11 +82,78 @@ jobs:
             fi
             rm -f docker-compose.override.yml 2>/dev/null || true
 
-            echo "--> Rebuilding and starting containers sequentially..."
-            sudo docker-compose down || true
-            sudo docker-compose build parlando
-            sudo docker-compose build marginalia
+            echo "--> Inspecting delta between $PREV_REV and $NEW_REV..."
+            BUILD_BACKEND=false
+            BUILD_FRONTEND=false
+            BUILD_PARLANDO=false
+            RELOAD_CADDY=false
+
+            if [ -z "$PREV_REV" ] || [ "$PREV_REV" = "$NEW_REV" ]; then
+              echo "--> No previous revision or manual dispatch, rebuilding all active components..."
+              BUILD_BACKEND=true
+              BUILD_FRONTEND=true
+              BUILD_PARLANDO=true
+              RELOAD_CADDY=true
+            else
+              CHANGED_FILES=$(git diff --name-only "$PREV_REV" "$NEW_REV" 2>/dev/null || echo "")
+              echo "Changed files:"
+              echo "$CHANGED_FILES"
+
+              if echo "$CHANGED_FILES" | grep -q -E '^backend/|CHANGELOG\.md|Dockerfile\.backend'; then
+                BUILD_BACKEND=true
+              fi
+              if echo "$CHANGED_FILES" | grep -q -E '^frontend/|Dockerfile\.frontend'; then
+                BUILD_FRONTEND=true
+              fi
+              if echo "$CHANGED_FILES" | grep -q -E '^parlando/'; then
+                BUILD_PARLANDO=true
+              fi
+              if echo "$CHANGED_FILES" | grep -q -E 'Caddyfile|docker-compose\.yml'; then
+                RELOAD_CADDY=true
+                BUILD_BACKEND=true
+                BUILD_FRONTEND=true
+              fi
+            fi
+
+            # Check if any container is not running yet
+            if ! sudo docker ps --format '{{.Names}}' | grep -q marginalia_backend; then
+              BUILD_BACKEND=true
+            fi
+            if ! sudo docker ps --format '{{.Names}}' | grep -q marginalia_frontend; then
+              BUILD_FRONTEND=true
+            fi
+            if ! sudo docker ps --format '{{.Names}}' | grep -q marginalia_parlando; then
+              BUILD_PARLANDO=true
+            fi
+
+            echo "--> Build Plan: backend=$BUILD_BACKEND, frontend=$BUILD_FRONTEND, parlando=$BUILD_PARLANDO, reload_caddy=$RELOAD_CADDY"
+
+            # Zero-downtime rolling updates: build while old containers run, then hot-swap
+            if [ "$BUILD_PARLANDO" = true ]; then
+              echo "--> Building Parlando container..."
+              sudo docker-compose build parlando
+              sudo docker-compose up -d --no-deps parlando
+            fi
+
+            if [ "$BUILD_BACKEND" = true ]; then
+              echo "--> Building Backend container..."
+              sudo docker-compose build backend
+              sudo docker-compose up -d --no-deps backend
+            fi
+
+            if [ "$BUILD_FRONTEND" = true ]; then
+              echo "--> Building Frontend container..."
+              sudo docker-compose build frontend
+              sudo docker-compose up -d --no-deps frontend
+            fi
+
+            echo "--> Ensuring all services and reverse proxy are active..."
             sudo docker-compose up -d --remove-orphans
+
+            if [ "$RELOAD_CADDY" = true ]; then
+              echo "--> Reloading Caddy reverse proxy..."
+              sudo docker-compose restart caddy || true
+            fi
             
             echo "--> Container status:"
             sudo docker ps -a

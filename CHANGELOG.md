@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.12.0 (November 2026)
+- **Tied Glossary & Lore Configuration to GitHub Repositories**: Glossary sources and options are stored directly in `.marginalia/glossary.json` inside the repository and cached in SQLite keyed by GitHub repo slug (`owner/repo`), ensuring settings persist across clones, devices, and workspaces.
+- **Decoupled Frontend & Backend Containers**: Split the monolithic Docker container into independent `frontend` (Caddy SPA file server) and `backend` (Express Node API) containers in `docker-compose.yml` with dedicated Dockerfiles (`Dockerfile.frontend`, `Dockerfile.backend`).
+- **Zero-Downtime Selective Deployments**: Eliminated full-server downtime (`docker-compose down`) during deployments; CI/CD inspects git delta to build and rolling-restart only the impacted service (`frontend`, `backend`, or `parlando`) in <1 second while active containers continue serving uninterrupted.
+
 ## v1.11.0 (August 2026)
 - **Repo-Level `.marginalia/casting.json` Persistence**: Automatically saves and loads cast assignments directly to/from the repository's `.marginalia/casting.json` file for portability and version control across machines.
 - **Safe Character Renaming**: Added draft buffering to prevent keystroke churn and orphan blank characters during character name editing.

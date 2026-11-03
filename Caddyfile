@@ -5,5 +5,14 @@
             disable_http_challenge
         }
     }
-    reverse_proxy marginalia:3000
+
+    # Route API and Server-Sent Events / WebSockets to the Express backend container
+    handle /api/* {
+        reverse_proxy backend:3000
+    }
+
+    # All other requests (HTML, JS, CSS, static assets) route to the Frontend container
+    handle {
+        reverse_proxy frontend:80
+    }
 }

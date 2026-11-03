@@ -17,6 +17,7 @@ export interface GlossaryTerm {
 
 export interface UseGlossaryReturn {
   config: GlossaryConfig;
+  repoSlug: string;
   availableFiles: string[];
   resolvedFiles: string[];
   terms: GlossaryTerm[];
@@ -35,6 +36,7 @@ const DEFAULT_CONFIG: GlossaryConfig = {
 
 export function useGlossary(activeWorkspacePath?: string): UseGlossaryReturn {
   const [config, setConfig] = useState<GlossaryConfig>(DEFAULT_CONFIG);
+  const [repoSlug, setRepoSlug] = useState<string>('');
   const [availableFiles, setAvailableFiles] = useState<string[]>([]);
   const [resolvedFiles, setResolvedFiles] = useState<string[]>([]);
   const [terms, setTerms] = useState<GlossaryTerm[]>([]);
@@ -53,11 +55,13 @@ export function useGlossary(activeWorkspacePath?: string): UseGlossaryReturn {
       }
       const data = await res.json() as {
         config: GlossaryConfig;
+        repoSlug?: string;
         availableFiles: string[];
         resolvedFiles: string[];
         terms: GlossaryTerm[];
       };
       setConfig(data.config || DEFAULT_CONFIG);
+      setRepoSlug(data.repoSlug || '');
       setAvailableFiles(data.availableFiles || []);
       setResolvedFiles(data.resolvedFiles || []);
       setTerms(data.terms || []);
@@ -82,11 +86,13 @@ export function useGlossary(activeWorkspacePath?: string): UseGlossaryReturn {
       }
       const data = await res.json() as {
         config: GlossaryConfig;
+        repoSlug?: string;
         availableFiles: string[];
         resolvedFiles: string[];
         terms: GlossaryTerm[];
       };
       setConfig(data.config);
+      setRepoSlug(data.repoSlug || '');
       setAvailableFiles(data.availableFiles || []);
       setResolvedFiles(data.resolvedFiles || []);
       setTerms(data.terms || []);
@@ -106,6 +112,7 @@ export function useGlossary(activeWorkspacePath?: string): UseGlossaryReturn {
 
   return {
     config,
+    repoSlug,
     availableFiles,
     resolvedFiles,
     terms,
