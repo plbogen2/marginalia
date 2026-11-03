@@ -4,12 +4,14 @@ import CodeMirror, { EditorView, keymap } from '@uiw/react-codemirror';
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
 import { showPanel } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { autocompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete';
 import { linter, type Diagnostic, forEachDiagnostic, setDiagnostics, setDiagnosticsEffect } from '@codemirror/lint';
 import { checkGrammar } from '../utils/languagetool';
 import { lintMarkdown } from '../utils/markdownLinter';
 import { Copy, Scissors, Clipboard, EyeOff } from 'lucide-react';
 
 import { type ChatMessage } from '../utils/aiParser';
+import type { GlossaryTerm } from '../hooks/useGlossary';
 
 interface EditorProps {
   value: string;
@@ -24,6 +26,8 @@ interface EditorProps {
   writeWithMeLoading?: boolean;
   onTriggerSuggestion?: (userMessage?: string) => void;
   onDismissSuggestion?: () => void;
+  glossaryTerms?: GlossaryTerm[];
+  enableGlossaryAutocomplete?: boolean;
 }
 
 const markdownStyleLinter = linter(async (view) => {
@@ -113,9 +117,54 @@ export const Editor: React.FC<EditorProps> = ({
   writeWithMeMessages = [],
   writeWithMeLoading = false,
   onTriggerSuggestion,
-  onDismissSuggestion
+  onDismissSuggestion,
+  glossaryTerms = [],
+  enableGlossaryAutocomplete = true
 }) => {
   const [panelContainer] = useState(() => document.createElement("div"));
+
+  const glossaryCompletionExtension = useMemo(() => {
+    if (enableGlossaryAutocomplete === false || !glossaryTerms || glossaryTerms.length === 0) {
+      return [];
+    }
+
+    const glossarySource = (context: CompletionContext): CompletionResult | null => {
+      const word = context.matchBefore(/[\p{L}\p{N}'-]+/u);
+      if (!word || (word.from === word.to && !context.explicit)) {
+        return null;
+      }
+      const query = word.text.toLowerCase();
+      if (query.length < 2 && !context.explicit) {
+        return null;
+      }
+
+      const matches = glossaryTerms.filter(item =>
+        item.normalized.startsWith(query) ||
+        item.normalized.includes(query) ||
+        item.term.toLowerCase().startsWith(query)
+      ).slice(0, 25);
+
+      if (matches.length === 0) return null;
+
+      return {
+        from: word.from,
+        options: matches.map(item => ({
+          label: item.term,
+          type: 'keyword',
+          detail: item.definition ? (item.definition.length > 50 ? item.definition.slice(0, 47) + '...' : item.definition) : undefined,
+          info: item.definition ? `${item.term}\n\n${item.definition}\n\n[Source: ${item.file}]` : `Source: ${item.file}`,
+          boost: item.term.toLowerCase().startsWith(query) ? 2 : 1
+        }))
+      };
+    };
+
+    return autocompletion({
+      override: [glossarySource],
+      defaultKeymap: true,
+      activateOnTyping: true
+    });
+  }, [glossaryTerms, enableGlossaryAutocomplete]);
+
   const grammarLinter = useMemo(() => {
     return linter(async (view) => {
       onCheckStatusChange?.(true);
@@ -588,6 +637,7 @@ export const Editor: React.FC<EditorProps> = ({
             }),
             grammarLinter,
             markdownStyleLinter,
+            ...(Array.isArray(glossaryCompletionExtension) ? glossaryCompletionExtension : [glossaryCompletionExtension]),
             writeWithMeExtension,
             EditorView.updateListener.of((update) => {
               if (update.selectionSet || update.docChanged) {

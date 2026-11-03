@@ -703,6 +703,40 @@ test('Backend APIs', async (t) => {
     const scanBody = await scanRes.json() as { words: string[], count: number, addedCount: number };
     assert.ok(scanBody.words.includes('piotr') || scanBody.words.includes('beseliac') || scanBody.words.includes('damir'));
 
+    // Test GET /api/glossary returns extracted terms and resolved files
+    const glossaryRes = await fetch(`http://localhost:${port}/api/glossary`);
+    assert.strictEqual(glossaryRes.status, 200);
+    const glossaryBody = await glossaryRes.json() as {
+      config: any;
+      resolvedFiles: string[];
+      terms: { term: string, definition?: string }[];
+      count: number;
+    };
+    assert.ok(glossaryBody.resolvedFiles.includes('dramatis_personae.md'));
+    assert.ok(glossaryBody.terms.some(t => t.term === 'Piotr' || t.term === 'Piotr Euria'));
+    assert.ok(glossaryBody.terms.some(t => t.term === 'Beseliac'));
+
+    // Test POST /api/glossary/config to configure custom paths
+    const configPostRes = await fetch(`http://localhost:${port}/api/glossary/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paths: ['dramatis_personae.md'],
+        autoDetect: false,
+        enableAutocomplete: true,
+        enableSpellcheck: true
+      })
+    });
+    assert.strictEqual(configPostRes.status, 200);
+    const configPostBody = await configPostRes.json() as { config: any, terms: any[] };
+    assert.strictEqual(configPostBody.config.autoDetect, false);
+
+    // Test GET /api/glossary/terms for editor autocomplete
+    const termsRes = await fetch(`http://localhost:${port}/api/glossary/terms`);
+    assert.strictEqual(termsRes.status, 200);
+    const termsBody = await termsRes.json() as { terms: any[] };
+    assert.ok(termsBody.terms.length > 0);
+
     // Test HTML comments ignoring
     const commentText = "This has <!-- a misspelledwordok comment --> normal text.";
     const checkCommentRes = await fetch(`http://localhost:${port}/api/languagetool/check`, {

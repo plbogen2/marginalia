@@ -14,6 +14,7 @@ import { useEditorSession } from './hooks/useEditorSession';
 import { useAiCoWriter } from './hooks/useAiCoWriter';
 import { useAudio } from './hooks/useAudio';
 import { useScrollSync } from './hooks/useScrollSync';
+import { useGlossary } from './hooks/useGlossary';
 
 import { ChevronRight, Eye, EyeOff, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX, Pen, PenOff, Layers } from 'lucide-react';
 
@@ -174,6 +175,9 @@ function App() {
     selectedText,
     activeFile
   });
+
+  // Glossary & In-World Vocabulary
+  const glossary = useGlossary(workspace.activeWorkspaceName || undefined);
 
   // Bidirectional scroll sync
   useScrollSync(activeFile, previewOpen);
@@ -369,6 +373,8 @@ function App() {
               writeWithMeLoading={writeWithMeLoading}
               onTriggerSuggestion={triggerInlineSuggestion}
               onDismissSuggestion={deactivateWriteWithMe}
+              glossaryTerms={glossary.terms}
+              enableGlossaryAutocomplete={glossary.config.enableAutocomplete}
             />
             {previewOpen && activeFile && (
               <Preview markdown={editorValue} onNavigateLink={handleNavigateLink} />
@@ -446,6 +452,7 @@ function App() {
             onClose={() => setSettingsOpen(false)}
             onSave={() => {
               fetchGitStatus();
+              glossary.refresh();
             }}
             onOpenAbout={() => setAboutOpen(true)}
             onOpenAdmin={() => setAdminOpen(true)}

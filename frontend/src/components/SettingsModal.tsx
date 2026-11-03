@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Check, AlertCircle, Volume2, Activity, BookA, Plus, Sparkles, Search, RefreshCw, Loader2 } from 'lucide-react';
+import { X, Eye, EyeOff, Check, AlertCircle, Volume2, Activity, BookA, BookOpen, Plus, Sparkles, Search, RefreshCw, Loader2, FileText } from 'lucide-react';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -126,9 +126,99 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
     }
   };
 
+  // Glossary Management State
+  const [glossaryConfig, setGlossaryConfig] = useState<{
+    paths: string[];
+    autoDetect: boolean;
+    enableSpellcheck: boolean;
+    enableAutocomplete: boolean;
+  }>({
+    paths: [],
+    autoDetect: true,
+    enableSpellcheck: true,
+    enableAutocomplete: true
+  });
+  const [glossaryTerms, setGlossaryTerms] = useState<{
+    term: string;
+    definition?: string;
+    category?: string;
+    file: string;
+  }[]>([]);
+  const [glossaryResolvedFiles, setGlossaryResolvedFiles] = useState<string[]>([]);
+  const [glossaryAvailableFiles, setGlossaryAvailableFiles] = useState<string[]>([]);
+  const [loadingGlossary, setLoadingGlossary] = useState(false);
+  const [glossaryFilter, setGlossaryFilter] = useState('');
+  const [newGlossaryPath, setNewGlossaryPath] = useState('');
+  const [glossaryMsg, setGlossaryMsg] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
+  const fetchGlossary = async () => {
+    setLoadingGlossary(true);
+    try {
+      const res = await fetch('/api/glossary');
+      if (res.ok) {
+        const data = await res.json();
+        setGlossaryConfig(data.config || {
+          paths: [],
+          autoDetect: true,
+          enableSpellcheck: true,
+          enableAutocomplete: true
+        });
+        setGlossaryTerms(data.terms || []);
+        setGlossaryResolvedFiles(data.resolvedFiles || []);
+        setGlossaryAvailableFiles(data.availableFiles || []);
+      }
+    } catch (err) {
+      console.error('Failed to load glossary:', err);
+    } finally {
+      setLoadingGlossary(false);
+    }
+  };
+
+  const handleSaveGlossaryConfig = async (updated: Partial<typeof glossaryConfig>) => {
+    setLoadingGlossary(true);
+    setGlossaryMsg(null);
+    try {
+      const res = await fetch('/api/glossary/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGlossaryConfig(data.config);
+        setGlossaryTerms(data.terms || []);
+        setGlossaryResolvedFiles(data.resolvedFiles || []);
+        setGlossaryAvailableFiles(data.availableFiles || []);
+        setGlossaryMsg({ text: `Glossary updated: ${data.terms?.length || 0} terms loaded`, type: 'success' });
+      } else {
+        const errData = await res.json();
+        setGlossaryMsg({ text: errData.error || 'Failed to update glossary', type: 'error' });
+      }
+    } catch (err) {
+      setGlossaryMsg({ text: (err as Error).message, type: 'error' });
+    } finally {
+      setLoadingGlossary(false);
+    }
+  };
+
+  const handleAddGlossaryPath = async (pathToAdd: string) => {
+    const trimmed = pathToAdd.trim();
+    if (!trimmed) return;
+    if (glossaryConfig.paths.includes(trimmed)) return;
+    const updatedPaths = [...glossaryConfig.paths, trimmed];
+    await handleSaveGlossaryConfig({ paths: updatedPaths });
+    setNewGlossaryPath('');
+  };
+
+  const handleRemoveGlossaryPath = async (pathToRemove: string) => {
+    const updatedPaths = glossaryConfig.paths.filter(p => p !== pathToRemove);
+    await handleSaveGlossaryConfig({ paths: updatedPaths });
+  };
+
   useEffect(() => {
     fetchConfigStatus();
     fetchDictionary();
+    fetchGlossary();
   }, []);
 
   const handleAddWords = async () => {
@@ -555,6 +645,232 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
                       </option>
                     ))}
                   </select>
+                </div>
+              )}
+            </div>
+
+            {/* Glossary & Lore Integration Section */}
+            <div className="form-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, margin: 0 }}>
+                  <BookOpen size={16} /> Glossary & Lore Sources
+                </label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={fetchGlossary}
+                    disabled={loadingGlossary}
+                    style={{ fontSize: '0.8rem', padding: '4px 8px' }}
+                    title="Refresh glossary terms"
+                  >
+                    <RefreshCw size={12} className={loadingGlossary ? 'spinner' : ''} />
+                  </button>
+                </div>
+              </div>
+
+              <p className="help-text" style={{ marginTop: 0, marginBottom: '12px' }}>
+                Configure the editor to automatically pull in-world vocabulary, character names, and lore definitions directly from your glossary or lore files into spell check and editor autocomplete.
+              </p>
+
+              {glossaryMsg && (
+                <div className={`status-badge ${glossaryMsg.type === 'success' ? 'success' : 'warning'}`} style={{ marginBottom: '12px' }}>
+                  <span>{glossaryMsg.text}</span>
+                </div>
+              )}
+
+              {/* Glossary Options Toggles */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={glossaryConfig.autoDetect}
+                    onChange={(e) => handleSaveGlossaryConfig({ autoDetect: e.target.checked })}
+                  />
+                  <span>Auto-detect lore and glossary files (<code>glossary.md</code>, <code>dramatis_personae.md</code>, <code>lore/*.md</code>)</span>
+                </label>
+
+                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={glossaryConfig.enableSpellcheck}
+                    onChange={(e) => handleSaveGlossaryConfig({ enableSpellcheck: e.target.checked })}
+                  />
+                  <span>Whitelist glossary terms in Spell Check (automatically recognizes proper nouns, possessives, and plurals)</span>
+                </label>
+
+                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={glossaryConfig.enableAutocomplete}
+                    onChange={(e) => handleSaveGlossaryConfig({ enableAutocomplete: e.target.checked })}
+                  />
+                  <span>Enable Glossary Autocomplete in Editor (suggests character names and lore terms as you type)</span>
+                </label>
+              </div>
+
+              {/* Resolved / Active Glossary Files */}
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                  Active Glossary Sources ({glossaryResolvedFiles.length}):
+                </div>
+                {glossaryResolvedFiles.length === 0 ? (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                    No glossary files found or configured. Add one below or create <code>glossary.md</code> / <code>lore/dramatis_personae.md</code>.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {glossaryResolvedFiles.map((file) => (
+                      <span
+                        key={file}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '4px',
+                          padding: '2px 8px',
+                          fontSize: '0.8rem'
+                        }}
+                      >
+                        <FileText size={12} />
+                        <span>{file}</span>
+                        {glossaryConfig.paths.includes(file) && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGlossaryPath(file)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-secondary)' }}
+                            title="Remove from custom paths"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Add Custom Glossary Path or Quick Add from Candidates */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="Specify glossary path (e.g. lore/dramatis_personae.md)..."
+                  value={newGlossaryPath}
+                  onChange={(e) => setNewGlossaryPath(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddGlossaryPath(newGlossaryPath);
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => handleAddGlossaryPath(newGlossaryPath)}
+                  disabled={!newGlossaryPath.trim()}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <Plus size={14} /> Add Path
+                </button>
+
+                {glossaryAvailableFiles.some(f => !glossaryConfig.paths.includes(f)) && (
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleAddGlossaryPath(e.target.value);
+                        e.target.value = '';
+                      }
+                    }}
+                    defaultValue=""
+                    style={{ maxWidth: '180px', fontSize: '0.8rem' }}
+                    title="Quickly add an available workspace lore file"
+                  >
+                    <option value="" disabled>+ Add Discovered File...</option>
+                    {glossaryAvailableFiles.filter(f => !glossaryConfig.paths.includes(f)).map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Glossary Terms Preview */}
+              {glossaryTerms.length > 0 && (
+                <div style={{ background: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border-color)', padding: '10px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
+                      <Search size={14} style={{ color: 'var(--text-secondary)' }} />
+                      <input
+                        type="text"
+                        placeholder={`Search ${glossaryTerms.length} loaded glossary terms...`}
+                        value={glossaryFilter}
+                        onChange={(e) => setGlossaryFilter(e.target.value)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          outline: 'none',
+                          fontSize: '0.8rem',
+                          width: '100%',
+                          color: 'var(--text-primary)'
+                        }}
+                      />
+                      {glossaryFilter && (
+                        <button
+                          type="button"
+                          onClick={() => setGlossaryFilter('')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 0 }}
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', marginLeft: '8px' }}>
+                      {glossaryTerms.length} terms active
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '140px', overflowY: 'auto' }}>
+                    {(() => {
+                      const filtered = glossaryTerms.filter(t =>
+                        !glossaryFilter.trim() ||
+                        t.term.toLowerCase().includes(glossaryFilter.trim().toLowerCase()) ||
+                        (t.definition && t.definition.toLowerCase().includes(glossaryFilter.trim().toLowerCase()))
+                      );
+                      if (filtered.length === 0) {
+                        return (
+                          <div style={{ padding: '8px', color: 'var(--text-secondary)', fontSize: '0.8rem', fontStyle: 'italic', width: '100%', textAlign: 'center' }}>
+                            No matching glossary terms found.
+                          </div>
+                        );
+                      }
+                      return filtered.map((item) => (
+                        <span
+                          key={`${item.file}:${item.term}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: 'var(--bg-primary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '4px',
+                            padding: '2px 6px',
+                            fontSize: '0.8rem'
+                          }}
+                          title={item.definition ? `${item.term}: ${item.definition} [${item.file}]` : `Source: ${item.file}`}
+                        >
+                          <strong style={{ color: 'var(--text-primary)' }}>{item.term}</strong>
+                          {item.definition && (
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              — {item.definition}
+                            </span>
+                          )}
+                        </span>
+                      ));
+                    })()}
+                  </div>
                 </div>
               )}
             </div>

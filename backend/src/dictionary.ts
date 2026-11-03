@@ -2,6 +2,8 @@ import { db } from './db.js';
 import fs from 'fs/promises';
 import path from 'path';
 
+import { getGlossaryWordsForSpellcheck } from './glossary.js';
+
 export async function addIgnoredWord(word: string, workspacePath: string | null, user: string | null = null): Promise<void> {
   const normalized = word.trim().toLowerCase();
   if (!normalized) return;
@@ -155,7 +157,8 @@ export async function getIgnoredWords(workspacePath: string | null, user: string
 
 export async function getAllApplicableIgnoredWords(workspacePath: string | null, user: string | null = null): Promise<Set<string>> {
   const dict = await getIgnoredWords(workspacePath, user);
-  return new Set([...dict.global, ...dict.workspace]);
+  const glossaryWords = await getGlossaryWordsForSpellcheck(workspacePath);
+  return new Set([...dict.global, ...dict.workspace, ...glossaryWords]);
 }
 
 const COMMON_STOP_WORDS = new Set([

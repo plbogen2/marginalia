@@ -17,6 +17,7 @@ import { gitRouter } from './routes/git.js';
 import { workspacesRouter } from './routes/workspaces.js';
 import { aiRouter } from './routes/ai.js';
 import { grammarRouter } from './routes/grammar.js';
+import { glossaryRouter } from './routes/glossary.js';
 import { ttsRouter } from './routes/tts.js';
 import { adminRouter } from './routes/admin.js';
 
@@ -72,6 +73,7 @@ app.use(gitRouter);
 app.use(workspacesRouter);
 app.use(aiRouter);
 app.use(grammarRouter);
+app.use(glossaryRouter);
 app.use(ttsRouter);
 app.use(adminRouter);
 
