@@ -42,7 +42,6 @@ hot_swap_backend() {
     active_slot="blue"
     candidate_slot="green"
   else
-    # Migrating from legacy un-slotted marginalia_backend
     if sudo docker ps --format '{{.Names}}' | grep -q "marginalia_backend_green"; then
       active_slot="green"
       candidate_slot="blue"
@@ -57,6 +56,9 @@ hot_swap_backend() {
 
   echo "--> Building candidate image for backend_$candidate_slot..."
   sudo docker-compose build "backend_$candidate_slot"
+
+  echo "--> Cleaning up any stale candidate container..."
+  sudo docker rm -f "marginalia_backend_$candidate_slot" 2>/dev/null || true
 
   echo "--> Launching candidate container marginalia_backend_$candidate_slot..."
   sudo docker-compose up -d --no-deps "backend_$candidate_slot"
@@ -83,12 +85,17 @@ hot_swap_backend() {
   sed "s/marginalia_backend\(_blue\|_green\)\?:3000/marginalia_backend_${candidate_slot}:3000/g" "$CADDYFILE" > "$CADDYFILE.tmp"
   cat "$CADDYFILE.tmp" > "$CADDYFILE"
   rm -f "$CADDYFILE.tmp"
+
+  # Sync into running Caddy container and perform atomic reload
+  cat "$CADDYFILE" | sudo docker exec -i marginalia_caddy sh -c 'cat > /etc/caddy/Caddyfile'
   sudo docker exec marginalia_caddy caddy reload --config /etc/caddy/Caddyfile
 
   echo "--> Draining in-flight requests on old container..."
   sleep 2
   sudo docker stop -t 15 "marginalia_backend_$active_slot" 2>/dev/null || true
+  sudo docker rm -f "marginalia_backend_$active_slot" 2>/dev/null || true
   sudo docker stop -t 15 "marginalia_backend" 2>/dev/null || true
+  sudo docker rm -f "marginalia_backend" 2>/dev/null || true
   echo "--> Backend hot swap complete! Active slot is now [$candidate_slot]."
 }
 
@@ -106,7 +113,6 @@ hot_swap_frontend() {
     active_slot="blue"
     candidate_slot="green"
   else
-    # Migrating from legacy un-slotted marginalia_frontend
     if sudo docker ps --format '{{.Names}}' | grep -q "marginalia_frontend_green"; then
       active_slot="green"
       candidate_slot="blue"
@@ -121,6 +127,9 @@ hot_swap_frontend() {
 
   echo "--> Building candidate image for frontend_$candidate_slot..."
   sudo docker-compose build "frontend_$candidate_slot"
+
+  echo "--> Cleaning up any stale candidate container..."
+  sudo docker rm -f "marginalia_frontend_$candidate_slot" 2>/dev/null || true
 
   echo "--> Launching candidate container marginalia_frontend_$candidate_slot..."
   sudo docker-compose up -d --no-deps "frontend_$candidate_slot"
@@ -147,12 +156,17 @@ hot_swap_frontend() {
   sed "s/marginalia_frontend\(_blue\|_green\)\?:80/marginalia_frontend_${candidate_slot}:80/g" "$CADDYFILE" > "$CADDYFILE.tmp"
   cat "$CADDYFILE.tmp" > "$CADDYFILE"
   rm -f "$CADDYFILE.tmp"
+
+  # Sync into running Caddy container and perform atomic reload
+  cat "$CADDYFILE" | sudo docker exec -i marginalia_caddy sh -c 'cat > /etc/caddy/Caddyfile'
   sudo docker exec marginalia_caddy caddy reload --config /etc/caddy/Caddyfile
 
   echo "--> Draining in-flight connections on old container..."
   sleep 1
   sudo docker stop -t 10 "marginalia_frontend_$active_slot" 2>/dev/null || true
+  sudo docker rm -f "marginalia_frontend_$active_slot" 2>/dev/null || true
   sudo docker stop -t 10 "marginalia_frontend" 2>/dev/null || true
+  sudo docker rm -f "marginalia_frontend" 2>/dev/null || true
   echo "--> Frontend hot swap complete! Active slot is now [$candidate_slot]."
 }
 
