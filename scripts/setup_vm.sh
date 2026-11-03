@@ -25,9 +25,9 @@ if [ "$TOTAL_MEM_KB" -lt 1500000 ]; then
 fi
 
 # 1. Check and install core dependencies and security packages
-echo "--> Installing core packages (git, curl, sqlite3, fail2ban)..."
+echo "--> Installing core packages (git, curl, sqlite3, fail2ban, cron)..."
 sudo apt-get update -y
-sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release git sqlite3 fail2ban
+sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release git sqlite3 fail2ban cron
 
 if ! command -v docker &> /dev/null; then
   curl -fsSL https://get.docker.com -o get-docker.sh
@@ -42,9 +42,9 @@ if ! command -v docker-compose &> /dev/null; then
   sudo chmod +x /usr/local/bin/docker-compose
 fi
 
-# 1.5. Configure Docker Daemon Log Rotation to prevent disk full exhaustion
-if [ ! -f "/etc/docker/daemon.json" ]; then
-  echo "--> Configuring Docker container log rotation (/etc/docker/daemon.json)..."
+# 1.5. Configure Docker Daemon Log Rotation & BuildKit GC (Caps build cache at 2GB)
+if [ ! -f "/etc/docker/daemon.json" ] || ! grep -q 'builder' /etc/docker/daemon.json; then
+  echo "--> Configuring Docker container log rotation and BuildKit garbage collection (/etc/docker/daemon.json)..."
   sudo mkdir -p /etc/docker
   cat <<'EOF' | sudo tee /etc/docker/daemon.json
 {
@@ -52,10 +52,30 @@ if [ ! -f "/etc/docker/daemon.json" ]; then
   "log-opts": {
     "max-size": "10m",
     "max-file": "3"
+  },
+  "builder": {
+    "gc": {
+      "enabled": true,
+      "defaultKeepStorage": "2GB"
+    }
   }
 }
 EOF
   sudo systemctl restart docker || true
+fi
+
+# 1.6. Systemd Journald & Snap disk caps
+if [ -f "/etc/systemd/journald.conf" ]; then
+  echo "--> Capping systemd-journald logs to 100MB..."
+  sudo sed -i 's/^#\?SystemMaxUse=.*/SystemMaxUse=100M/' /etc/systemd/journald.conf
+  sudo sed -i 's/^#\?SystemMaxFileSize=.*/SystemMaxFileSize=25M/' /etc/systemd/journald.conf
+  sudo systemctl restart systemd-journald || true
+  sudo journalctl --vacuum-size=100M || true
+fi
+
+if command -v snap &> /dev/null; then
+  echo "--> Capping snap package revision retention to 2..."
+  sudo snap set system refresh.retain=2 || true
 fi
 
 # 2. Configure local iptables firewall (Only ports 22, 80, and 443 are accepted externally)
@@ -76,9 +96,9 @@ if command -v netfilter-persistent &> /dev/null; then
   sudo netfilter-persistent save
 fi
 
-# Ensure fail2ban is enabled and active
-sudo systemctl enable fail2ban || true
-sudo systemctl restart fail2ban || true
+# Ensure fail2ban and cron are enabled and active
+sudo systemctl enable --now fail2ban || true
+sudo systemctl enable --now cron || true
 
 # 4. Clone or update the repository
 if [ ! -d "marginalia" ]; then
@@ -88,6 +108,7 @@ if [ ! -d "marginalia" ]; then
 else
   echo "--> Updating Marginalia repository..."
   cd marginalia
+  git checkout -- Caddyfile 2>/dev/null || true
   git pull origin main
   git submodule sync
   git submodule update --init --recursive
@@ -111,12 +132,13 @@ EOT
 fi
 
 # 5.5. Configure automated maintenance cron jobs
-echo "--> Configuring automated backup and disk maintenance cron jobs..."
-chmod +x scripts/backup_db.sh scripts/hot_swap.sh
+echo "--> Configuring automated backup, disk watchdog, and maintenance cron jobs..."
+chmod +x scripts/backup_db.sh scripts/disk_watchdog.sh scripts/hot_swap.sh
 CRON_CMD_BACKUP="0 3 * * * /home/ubuntu/marginalia/scripts/backup_db.sh >> /var/log/marginalia_backup.log 2>&1"
+CRON_CMD_WATCHDOG="*/30 * * * * /home/ubuntu/marginalia/scripts/disk_watchdog.sh >> /var/log/marginalia_disk_watchdog.log 2>&1"
 CRON_CMD_PRUNE="0 4 * * 0 docker image prune -af --filter 'until=168h' >/dev/null 2>&1 && docker builder prune -f --keep-storage 2GB >/dev/null 2>&1"
 
-( crontab -l 2>/dev/null | grep -v 'backup_db.sh' | grep -v 'docker image prune' ; echo "$CRON_CMD_BACKUP" ; echo "$CRON_CMD_PRUNE" ) | crontab -
+( crontab -l 2>/dev/null | grep -v 'backup_db.sh' | grep -v 'disk_watchdog.sh' | grep -v 'docker image prune' ; echo "$CRON_CMD_BACKUP" ; echo "$CRON_CMD_WATCHDOG" ; echo "$CRON_CMD_PRUNE" ) | crontab -
 
 # 6. Build and Start the application on ports 80 and 443 via zero-downtime hot swap
 echo "--> Launching Marginalia containers on ports 80 and 443 via zero-downtime hot swap..."

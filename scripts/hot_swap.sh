@@ -188,5 +188,10 @@ case "$TARGET" in
 esac
 
 echo ""
+echo "--> Performing post-deployment disk cleanup..."
+sudo docker builder prune -f --keep-storage 1GB >/dev/null 2>&1 || true
+sudo docker image prune -f >/dev/null 2>&1 || true
+
+echo ""
 echo "=== Marginalia Hot Swap Successful! Container Status: ==="
 sudo docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
