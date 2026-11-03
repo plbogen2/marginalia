@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   backend_blue: &backend
     build:
@@ -7,6 +13,8 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+    mem_limit: 384m
+    logging: *default-logging
     devices:
       - "/dev/fuse:/dev/fuse"
     cap_add:
@@ -41,6 +49,8 @@ services:
     restart: unless-stopped
     expose:
       - "80"
+    mem_limit: 64m
+    logging: *default-logging
 
   frontend_green:
     <<: *frontend
@@ -54,8 +64,8 @@ services:
     restart: unless-stopped
     expose:
       - "8765"
-    ports:
-      - "8765:8765"
+    mem_limit: 256m
+    logging: *default-logging
     environment:
       - PORT=8765
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -67,6 +77,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    mem_limit: 96m
+    logging: *default-logging
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data

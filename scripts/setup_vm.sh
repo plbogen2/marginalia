@@ -24,42 +24,61 @@ if [ "$TOTAL_MEM_KB" -lt 1500000 ]; then
   fi
 fi
 
-# 1. Check and install core dependencies if missing
-if command -v git &> /dev/null && command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
-  echo "--> Core dependencies (git, docker, docker-compose) are already installed. Skipping package setup..."
-else
-  echo "--> Dependencies missing. Installing packages..."
-  echo "--> Updating system packages..."
-  sudo apt-get update -y
-  sudo apt-get upgrade -y
+# 1. Check and install core dependencies and security packages
+echo "--> Installing core packages (git, curl, sqlite3, fail2ban)..."
+sudo apt-get update -y
+sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release git sqlite3 fail2ban
 
-  echo "--> Installing packages..."
-  sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release git
-
-  if ! command -v docker &> /dev/null; then
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sudo sh get-docker.sh
-    rm get-docker.sh
-  fi
-
-  sudo usermod -aG docker $USER
-
-  if ! command -v docker-compose &> /dev/null; then
-    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
-  fi
+if ! command -v docker &> /dev/null; then
+  curl -fsSL https://get.docker.com -o get-docker.sh
+  sudo sh get-docker.sh
+  rm get-docker.sh
 fi
 
-# 2. Configure local iptables firewall
-echo "--> Configuring iptables firewall to open ports 80 and 443..."
-while sudo iptables -D INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null; do :; done
-sudo iptables -I INPUT 1 -p tcp --dport 80 -j ACCEPT
-while sudo iptables -D INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null; do :; done
-sudo iptables -I INPUT 1 -p tcp --dport 443 -j ACCEPT
+sudo usermod -aG docker $USER
+
+if ! command -v docker-compose &> /dev/null; then
+  sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  sudo chmod +x /usr/local/bin/docker-compose
+fi
+
+# 1.5. Configure Docker Daemon Log Rotation to prevent disk full exhaustion
+if [ ! -f "/etc/docker/daemon.json" ]; then
+  echo "--> Configuring Docker container log rotation (/etc/docker/daemon.json)..."
+  sudo mkdir -p /etc/docker
+  cat <<'EOF' | sudo tee /etc/docker/daemon.json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+  sudo systemctl restart docker || true
+fi
+
+# 2. Configure local iptables firewall (Only ports 22, 80, and 443 are accepted externally)
+echo "--> Hardening iptables firewall: closing internal ports (3000, 8765) and allowing 80/443..."
+for port in 3000 8765; do
+  while sudo iptables -D INPUT -p tcp --dport $port -j ACCEPT 2>/dev/null; do :; done
+  while sudo iptables -D FORWARD -p tcp --dport $port -j ACCEPT 2>/dev/null; do :; done
+done
+for port in 80 443; do
+  while sudo iptables -D INPUT -p tcp --dport $port -j ACCEPT 2>/dev/null; do :; done
+  sudo iptables -I INPUT 1 -p tcp --dport $port -j ACCEPT
+done
+sudo iptables -I FORWARD 1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
+sudo iptables -N DOCKER-USER 2>/dev/null || true
+sudo iptables -I DOCKER-USER 1 -j ACCEPT 2>/dev/null || true
 
 if command -v netfilter-persistent &> /dev/null; then
   sudo netfilter-persistent save
 fi
+
+# Ensure fail2ban is enabled and active
+sudo systemctl enable fail2ban || true
+sudo systemctl restart fail2ban || true
 
 # 4. Clone or update the repository
 if [ ! -d "marginalia" ]; then
@@ -91,9 +110,16 @@ EOT
   echo ".env file created with secure session secrets."
 fi
 
-# 6. Build and Start the application on ports 80 and 443
+# 5.5. Configure automated maintenance cron jobs
+echo "--> Configuring automated backup and disk maintenance cron jobs..."
+chmod +x scripts/backup_db.sh scripts/hot_swap.sh
+CRON_CMD_BACKUP="0 3 * * * /home/ubuntu/marginalia/scripts/backup_db.sh >> /var/log/marginalia_backup.log 2>&1"
+CRON_CMD_PRUNE="0 4 * * 0 docker image prune -af --filter 'until=168h' >/dev/null 2>&1 && docker builder prune -f --keep-storage 2GB >/dev/null 2>&1"
+
+( crontab -l 2>/dev/null | grep -v 'backup_db.sh' | grep -v 'docker image prune' ; echo "$CRON_CMD_BACKUP" ; echo "$CRON_CMD_PRUNE" ) | crontab -
+
+# 6. Build and Start the application on ports 80 and 443 via zero-downtime hot swap
 echo "--> Launching Marginalia containers on ports 80 and 443 via zero-downtime hot swap..."
-chmod +x scripts/hot_swap.sh
 ./scripts/hot_swap.sh all
 
 echo "=== Marginalia OCI VM Setup Complete! ==="

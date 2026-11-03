@@ -69,10 +69,14 @@ jobs:
               echo "Cloudtop SSH public key added to authorized_keys."
             fi
 
-            echo "--> Configuring firewall for Docker and Host ports..."
-            for port in 80 443 3000 8765; do
+            echo "--> Hardening iptables firewall: closing internal ports (3000, 8765) and allowing 80/443..."
+            for port in 3000 8765; do
+              while sudo iptables -D INPUT -p tcp --dport $port -j ACCEPT 2>/dev/null; do :; done
+              while sudo iptables -D FORWARD -p tcp --dport $port -j ACCEPT 2>/dev/null; do :; done
+            done
+            for port in 80 443; do
+              while sudo iptables -D INPUT -p tcp --dport $port -j ACCEPT 2>/dev/null; do :; done
               sudo iptables -I INPUT 1 -p tcp --dport $port -j ACCEPT 2>/dev/null || true
-              sudo iptables -I FORWARD 1 -p tcp --dport $port -j ACCEPT 2>/dev/null || true
             done
             sudo iptables -I FORWARD 1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
             sudo iptables -N DOCKER-USER 2>/dev/null || true

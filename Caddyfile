@@ -6,6 +6,23 @@
         }
     }
 
+    # Compression for static bundles, text, and JSON API responses
+    encode zstd gzip
+
+    # Production HTTP Security Headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    # Restrict max request body size to 25MB to prevent memory exhaustion attacks
+    request_body {
+        max_size 25MB
+    }
+
     # Route API and Server-Sent Events / WebSockets to the Express backend container
     handle /api/* {
         reverse_proxy marginalia_backend_blue:3000 {
