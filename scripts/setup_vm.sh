@@ -92,9 +92,8 @@ EOT
 fi
 
 # 6. Build and Start the application on ports 80 and 443
-echo "--> Launching Marginalia containers on ports 80 and 443..."
-sudo docker-compose build backend
-sudo docker-compose build frontend
-sudo docker-compose up -d --remove-orphans
+echo "--> Launching Marginalia containers on ports 80 and 443 via zero-downtime hot swap..."
+chmod +x scripts/hot_swap.sh
+./scripts/hot_swap.sh all
 
 echo "=== Marginalia OCI VM Setup Complete! ==="

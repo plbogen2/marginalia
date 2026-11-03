@@ -8,7 +8,7 @@
 
     # Route API and Server-Sent Events / WebSockets to the Express backend container
     handle /api/* {
-        reverse_proxy marginalia_backend:3000 {
+        reverse_proxy marginalia_backend_blue:3000 {
             lb_try_duration 10s
             lb_try_interval 250ms
         }
@@ -16,7 +16,7 @@
 
     # All other requests (HTML, JS, CSS, static assets) route to the Frontend container
     handle {
-        reverse_proxy marginalia_frontend:80 {
+        reverse_proxy marginalia_frontend_blue:80 {
             lb_try_duration 10s
             lb_try_interval 250ms
         }

@@ -15,6 +15,8 @@ let db: DatabaseSync;
 
 try {
   db = new DatabaseSync(DB_PATH);
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('PRAGMA busy_timeout = 5000;');
   initTables();
 } catch (err) {
   console.error('Failed to initialize SQLite database:', err);

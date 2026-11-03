@@ -135,24 +135,19 @@ jobs:
               sudo docker-compose up -d --no-deps parlando
             fi
 
-            if [ "$BUILD_BACKEND" = true ]; then
-              echo "--> Building Backend container..."
-              sudo docker-compose build backend
-              sudo docker-compose up -d --no-deps backend
-            fi
-
-            if [ "$BUILD_FRONTEND" = true ]; then
-              echo "--> Building Frontend container..."
-              sudo docker-compose build frontend
-              sudo docker-compose up -d --no-deps frontend
-            fi
-
-            echo "--> Ensuring all services and reverse proxy are active..."
-            sudo docker-compose up -d --remove-orphans
-
-            if [ "$RELOAD_CADDY" = true ]; then
+            chmod +x scripts/hot_swap.sh
+            if [ "$BUILD_BACKEND" = true ] && [ "$BUILD_FRONTEND" = true ]; then
+              echo "--> Executing full hot swap for Backend and Frontend..."
+              ./scripts/hot_swap.sh all
+            elif [ "$BUILD_BACKEND" = true ]; then
+              echo "--> Executing hot swap for Backend API..."
+              ./scripts/hot_swap.sh backend
+            elif [ "$BUILD_FRONTEND" = true ]; then
+              echo "--> Executing hot swap for Frontend Web App..."
+              ./scripts/hot_swap.sh frontend
+            elif [ "$RELOAD_CADDY" = true ]; then
               echo "--> Reloading Caddy reverse proxy..."
-              sudo docker-compose restart caddy || true
+              sudo docker exec marginalia_caddy caddy reload --config /etc/caddy/Caddyfile || sudo docker-compose restart caddy
             fi
             
             echo "--> Container status:"
@@ -161,8 +156,8 @@ jobs:
             echo "--> Checking Caddy logs:"
             sudo docker logs --tail 30 marginalia_caddy || true
 
-            echo "--> Testing localhost connection:"
-            curl -k -I https://64-181-248-211.nip.io || curl -I http://127.0.0.1:80 || true
+            echo "--> Testing connection:"
+            curl -I https://64-181-248-211.nip.io || curl -I http://127.0.0.1:80 || true
           else
             echo "--> Repository folder 'marginalia' not found. Please run scripts/setup_vm.sh on the host first!"
             exit 1
