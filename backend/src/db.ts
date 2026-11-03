@@ -62,7 +62,7 @@ function initTables() {
   }
 
   db.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_words_global ON ignored_words(word, user) WHERE workspace_id IS NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_words_global ON ignored_words(word, IFNULL(user, '')) WHERE workspace_id IS NULL;
   `);
 
   db.exec(`
@@ -117,7 +117,7 @@ function initTables() {
   }
 
   db.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_rules_global ON ignored_rules(rule_id, user) WHERE workspace_id IS NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_rules_global ON ignored_rules(rule_id, IFNULL(user, '')) WHERE workspace_id IS NULL;
     CREATE UNIQUE INDEX IF NOT EXISTS idx_ignored_rules_local ON ignored_rules(rule_id, workspace_id) WHERE workspace_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_ignored_rules_user ON ignored_rules(user);
   `);

@@ -168,19 +168,28 @@ export const Editor: React.FC<EditorProps> = ({
           });
 
           if (isSpelling) {
-            const misspelledWord = text.slice(match.offset, match.offset + match.length);
+            const rawWord = text.slice(match.offset, match.offset + match.length);
+            const cleanToken = rawWord.trim().replace(/^['"“‘—\-]+|['"”’—\-]+$/g, '');
+            const targetWord = cleanToken || rawWord.trim();
+
             actions.push({
-              name: `Ignore globally`,
-              apply: (view: any) => {
-                fetch('/api/dictionary/add', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ word: misspelledWord, scope: 'global' })
-                });
+              name: `Ignore in workspace ("${targetWord}")`,
+              apply: async (view: any) => {
+                try {
+                  await fetch('/api/dictionary/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ word: targetWord, scope: 'workspace' })
+                  });
+                } catch (e) {
+                  console.error('Failed to ignore in workspace:', e);
+                }
+                const norm = targetWord.toLowerCase();
                 const remaining: any[] = [];
                 forEachDiagnostic(view.state, (d: any) => {
-                  const word = view.state.doc.sliceString(d.from, d.to);
-                  if (word.toLowerCase() !== misspelledWord.toLowerCase()) {
+                  const w = view.state.doc.sliceString(d.from, d.to).trim().toLowerCase();
+                  const clean = w.replace(/^['"“‘—\-]+|['"”’—\-]+$/g, '');
+                  if (clean !== norm && !clean.startsWith(norm + "'") && !clean.startsWith(norm + "’")) {
                     remaining.push(d);
                   }
                 });
@@ -189,17 +198,23 @@ export const Editor: React.FC<EditorProps> = ({
               }
             } as any);
             actions.push({
-              name: `Ignore in workspace`,
-              apply: (view: any) => {
-                fetch('/api/dictionary/add', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ word: misspelledWord, scope: 'workspace' })
-                });
+              name: `Ignore globally ("${targetWord}")`,
+              apply: async (view: any) => {
+                try {
+                  await fetch('/api/dictionary/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ word: targetWord, scope: 'global' })
+                  });
+                } catch (e) {
+                  console.error('Failed to ignore globally:', e);
+                }
+                const norm = targetWord.toLowerCase();
                 const remaining: any[] = [];
                 forEachDiagnostic(view.state, (d: any) => {
-                  const word = view.state.doc.sliceString(d.from, d.to);
-                  if (word.toLowerCase() !== misspelledWord.toLowerCase()) {
+                  const w = view.state.doc.sliceString(d.from, d.to).trim().toLowerCase();
+                  const clean = w.replace(/^['"“‘—\-]+|['"”’—\-]+$/g, '');
+                  if (clean !== norm && !clean.startsWith(norm + "'") && !clean.startsWith(norm + "’")) {
                     remaining.push(d);
                   }
                 });
@@ -407,12 +422,30 @@ export const Editor: React.FC<EditorProps> = ({
     if (pos !== null) {
       forEachDiagnostic(view.state, (d: any) => {
         if (pos >= d.from && pos <= d.to) {
-          const word = view.state.doc.sliceString(d.from, d.to);
-          spellingErrorWord = word;
           suggestions = d.actions;
           range = { from: d.from, to: d.to };
+
+          const docSlice = view.state.doc.sliceString(d.from, d.to).trim();
+          const cleanToken = docSlice.replace(/^['"“‘—\-]+|['"”’—\-]+$/g, '');
+          if (!/\s/.test(cleanToken) && cleanToken.length > 0) {
+            spellingErrorWord = cleanToken;
+          }
         }
       });
+
+      // If no diagnostic gave a clean single word, extract the hovered word token at pos
+      if (!spellingErrorWord) {
+        const line = view.state.doc.lineAt(pos);
+        const lineText = line.text;
+        const col = pos - line.from;
+        const beforeMatch = lineText.slice(0, col).match(/[a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF'-]+$/);
+        const afterMatch = lineText.slice(col).match(/^[a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF'-]+/);
+        const wordAtPos = (beforeMatch ? beforeMatch[0] : '') + (afterMatch ? afterMatch[0] : '');
+        const cleanWord = wordAtPos.replace(/^['"“‘—\-]+|['"”’—\-]+$/g, '');
+        if (cleanWord.length > 0 && !/\s/.test(cleanWord)) {
+          spellingErrorWord = cleanWord;
+        }
+      }
     }
 
     setContextMenu({
@@ -462,28 +495,35 @@ export const Editor: React.FC<EditorProps> = ({
     setContextMenu(null);
   };
 
-  const handleIgnoreWord = (scope: 'global' | 'workspace') => {
+  const handleIgnoreWord = async (scope: 'global' | 'workspace') => {
     if (!contextMenu?.word) return;
-    const wordToIgnore = contextMenu.word;
+    const wordToIgnore = contextMenu.word.trim();
     const view = editorRef.current;
     if (!view) return;
 
-    fetch('/api/dictionary/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ word: wordToIgnore, scope })
-    });
+    setContextMenu(null);
 
+    try {
+      await fetch('/api/dictionary/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word: wordToIgnore, scope })
+      });
+    } catch (err) {
+      console.error('Failed to add ignored word:', err);
+    }
+
+    const norm = wordToIgnore.toLowerCase();
     const remaining: any[] = [];
     forEachDiagnostic(view.state, (d: any) => {
-      const word = view.state.doc.sliceString(d.from, d.to);
-      if (word.toLowerCase() !== wordToIgnore.toLowerCase()) {
+      const word = view.state.doc.sliceString(d.from, d.to).trim().toLowerCase();
+      const clean = word.replace(/^['"“‘—\-]+|['"”’—\-]+$/g, '');
+      if (clean !== norm && !clean.startsWith(norm + "'") && !clean.startsWith(norm + "’")) {
         remaining.push(d);
       }
     });
     view.dispatch(setDiagnostics(view.state, remaining));
     view.focus();
-    setContextMenu(null);
   };
 
   const dedupedDiagnostics = React.useMemo(() => {
@@ -541,6 +581,11 @@ export const Editor: React.FC<EditorProps> = ({
           extensions={[
             markdown({ base: markdownLanguage }),
             EditorView.lineWrapping,
+            EditorView.contentAttributes.of({
+              spellcheck: 'false',
+              autocorrect: 'off',
+              autocapitalize: 'off'
+            }),
             grammarLinter,
             markdownStyleLinter,
             writeWithMeExtension,

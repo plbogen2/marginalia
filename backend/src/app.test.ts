@@ -191,6 +191,7 @@ test('Backend APIs', async (t) => {
     delete process.env.TARGET_DIR;
 
     try {
+      await fs.mkdir('/tmp/some_db_workspace', { recursive: true });
       const { setTargetDir } = await import('./config.js');
       setTargetDir('/tmp/some_db_workspace');
 
@@ -202,6 +203,9 @@ test('Backend APIs', async (t) => {
       assert.ok(body.recents.some(w => w.path === '/tmp/some_db_workspace'));
     } finally {
       process.env.TARGET_DIR = oldEnv;
+      const { setTargetDir } = await import('./config.js');
+      setTargetDir(TEST_TARGET_DIR);
+      await fs.rm('/tmp/some_db_workspace', { recursive: true, force: true });
     }
   });
 
@@ -645,6 +649,59 @@ test('Backend APIs', async (t) => {
     const checkWSBody2 = await checkWS2.json() as { matches: any[] };
     const spellingMistakesWS2 = checkWSBody2.matches.filter(m => m.rule?.issueType === 'misspelling');
     assert.strictEqual(spellingMistakesWS2.length, 0);
+
+    // Test possessive and plural variants of ignored words are not flagged
+    const possessiveText = `This is ${workspaceWord}'s item and ${workspaceWord}’s thing.`;
+    const checkPossessiveRes = await fetch(`http://localhost:${port}/api/languagetool/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: possessiveText })
+    });
+    assert.strictEqual(checkPossessiveRes.status, 200);
+    const checkPossessiveBody = await checkPossessiveRes.json() as { matches: any[] };
+    const possMistakes = checkPossessiveBody.matches.filter(m => m.rule?.issueType === 'misspelling');
+    assert.strictEqual(possMistakes.length, 0);
+
+    // Test bulk adding words
+    const bulkAddRes = await fetch(`http://localhost:${port}/api/dictionary/bulk-add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ words: ['kallath', 'goideltaren', 'seuragois'], scope: 'workspace' })
+    });
+    assert.strictEqual(bulkAddRes.status, 200);
+    const bulkAddBody = await bulkAddRes.json() as { status: string, addedCount: number };
+    assert.strictEqual(bulkAddBody.status, 'ok');
+    assert.ok(bulkAddBody.addedCount >= 3);
+
+    // Test removing a word
+    const removeRes = await fetch(`http://localhost:${port}/api/dictionary/remove`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: 'kallath', scope: 'workspace' })
+    });
+    assert.strictEqual(removeRes.status, 200);
+
+    const dictAfterRemove = await fetch(`http://localhost:${port}/api/dictionary`);
+    const dictAfterRemoveBody = await dictAfterRemove.json() as { workspace: string[] };
+    assert.strictEqual(dictAfterRemoveBody.workspace.includes('kallath'), false);
+    assert.ok(dictAfterRemoveBody.workspace.includes('goideltaren'));
+
+    // Test scan-lore endpoint
+    await fs.writeFile(path.join(TEST_TARGET_DIR, 'dramatis_personae.md'), `
+# Dramatis Personae
+### Piotr / Piotr Euria
+* **Beseliac** Empire protagonist.
+* Accompanied by **Damir** and **Xalla**.
+    `);
+
+    const scanRes = await fetch(`http://localhost:${port}/api/dictionary/scan-lore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ autoAdd: true, scope: 'workspace' })
+    });
+    assert.strictEqual(scanRes.status, 200);
+    const scanBody = await scanRes.json() as { words: string[], count: number, addedCount: number };
+    assert.ok(scanBody.words.includes('piotr') || scanBody.words.includes('beseliac') || scanBody.words.includes('damir'));
 
     // Test HTML comments ignoring
     const commentText = "This has <!-- a misspelledwordok comment --> normal text.";

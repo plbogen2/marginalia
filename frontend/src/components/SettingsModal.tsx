@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Check, AlertCircle, Volume2, Activity } from 'lucide-react';
+import { X, Eye, EyeOff, Check, AlertCircle, Volume2, Activity, BookA, Plus, Sparkles, Search, RefreshCw, Loader2 } from 'lucide-react';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -98,9 +98,126 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
     }
   };
 
+  // Dictionary Management State
+  const [dictScope, setDictScope] = useState<'workspace' | 'global'>('workspace');
+  const [workspaceWords, setWorkspaceWords] = useState<string[]>([]);
+  const [globalWords, setGlobalWords] = useState<string[]>([]);
+  const [newWordsInput, setNewWordsInput] = useState('');
+  const [dictFilter, setDictFilter] = useState('');
+  const [loadingDict, setLoadingDict] = useState(false);
+  const [scanningLore, setScanningLore] = useState(false);
+  const [scannedCandidates, setScannedCandidates] = useState<string[]>([]);
+  const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
+  const [dictMsg, setDictMsg] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
+  const fetchDictionary = async () => {
+    setLoadingDict(true);
+    try {
+      const res = await fetch('/api/dictionary');
+      if (res.ok) {
+        const data = await res.json();
+        setWorkspaceWords(data.workspace || []);
+        setGlobalWords(data.global || []);
+      }
+    } catch (err) {
+      console.error('Failed to load dictionary:', err);
+    } finally {
+      setLoadingDict(false);
+    }
+  };
+
   useEffect(() => {
     fetchConfigStatus();
+    fetchDictionary();
   }, []);
+
+  const handleAddWords = async () => {
+    if (!newWordsInput.trim()) return;
+    const rawList = newWordsInput.split(/[\n,;]+/).map(w => w.trim()).filter(Boolean);
+    if (rawList.length === 0) return;
+
+    try {
+      const res = await fetch('/api/dictionary/bulk-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words: rawList, scope: dictScope })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNewWordsInput('');
+        setDictMsg({ text: `Added ${data.addedCount} word(s) to ${dictScope} dictionary.`, type: 'success' });
+        setTimeout(() => setDictMsg(null), 4000);
+        await fetchDictionary();
+      }
+    } catch (e: any) {
+      setDictMsg({ text: e.message || 'Failed to add words.', type: 'error' });
+    }
+  };
+
+  const handleRemoveWord = async (word: string) => {
+    try {
+      const res = await fetch('/api/dictionary/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word, scope: dictScope })
+      });
+      if (res.ok) {
+        await fetchDictionary();
+      }
+    } catch (e) {
+      console.error('Failed to remove word:', e);
+    }
+  };
+
+  const handleScanLore = async () => {
+    setScanningLore(true);
+    setDictMsg(null);
+    try {
+      const res = await fetch('/api/dictionary/scan-lore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoAdd: false })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const existing = new Set([...workspaceWords, ...globalWords].map(w => w.toLowerCase()));
+        const unadded = (data.words || []).filter((w: string) => !existing.has(w.toLowerCase()));
+        setScannedCandidates(unadded);
+        setSelectedCandidates(new Set(unadded));
+        if (unadded.length === 0) {
+          setDictMsg({ text: 'All discovered in-world terms are already in your dictionary!', type: 'success' });
+          setTimeout(() => setDictMsg(null), 4000);
+        }
+      }
+    } catch (e: any) {
+      setDictMsg({ text: e.message || 'Failed to scan workspace.', type: 'error' });
+    } finally {
+      setScanningLore(false);
+    }
+  };
+
+  const handleImportCandidates = async () => {
+    const list = Array.from(selectedCandidates);
+    if (list.length === 0) return;
+
+    try {
+      const res = await fetch('/api/dictionary/bulk-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words: list, scope: dictScope })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDictMsg({ text: `Imported ${data.addedCount} in-world terms to ${dictScope} dictionary!`, type: 'success' });
+        setTimeout(() => setDictMsg(null), 4000);
+        setScannedCandidates([]);
+        setSelectedCandidates(new Set());
+        await fetchDictionary();
+      }
+    } catch (e: any) {
+      setDictMsg({ text: e.message || 'Failed to import words.', type: 'error' });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -440,6 +557,239 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, o
                   </select>
                 </div>
               )}
+            </div>
+
+            {/* Spelling & In-World Dictionary Section */}
+            <div className="form-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, margin: 0 }}>
+                  <BookA size={16} /> In-World Vocabulary & Spell Check Dictionary
+                </label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleScanLore}
+                    disabled={scanningLore}
+                    style={{ fontSize: '0.8rem', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    title="Scan character sheets (dramatis_personae), lore files, and outlines for in-world proper nouns"
+                  >
+                    {scanningLore ? <Loader2 size={12} className="spinner" /> : <Sparkles size={12} />}
+                    {scanningLore ? 'Scanning...' : 'Scan Workspace Lore'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={fetchDictionary}
+                    disabled={loadingDict}
+                    style={{ fontSize: '0.8rem', padding: '4px 8px' }}
+                    title="Refresh dictionary list"
+                  >
+                    <RefreshCw size={12} className={loadingDict ? 'spinner' : ''} />
+                  </button>
+                </div>
+              </div>
+
+              <p className="help-text" style={{ marginTop: 0, marginBottom: '12px' }}>
+                Words listed here are whitelisted and never flagged as spelling mistakes, including possessive variants (e.g. <em>Damir’s</em>) and compounds (e.g. <em>Lur-Sigor</em>).
+              </p>
+
+              {dictMsg && (
+                <div className={`status-badge ${dictMsg.type === 'success' ? 'success' : 'warning'}`} style={{ marginBottom: '12px' }}>
+                  <span>{dictMsg.text}</span>
+                </div>
+              )}
+
+              {/* Scanned Candidates Review Banner */}
+              {scannedCandidates.length > 0 && (
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--primary-color, #3b82f6)', borderRadius: '6px', padding: '12px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                      Discovered {scannedCandidates.length} In-World Term{scannedCandidates.length > 1 ? 's' : ''} from Lore:
+                    </span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '2px 6px' }}
+                        onClick={() => setSelectedCandidates(new Set(scannedCandidates))}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '2px 6px' }}
+                        onClick={() => setSelectedCandidates(new Set())}
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                        onClick={handleImportCandidates}
+                        disabled={selectedCandidates.size === 0}
+                      >
+                        Import Selected ({selectedCandidates.size})
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '120px', overflowY: 'auto', padding: '4px' }}>
+                    {scannedCandidates.map(word => (
+                      <label
+                        key={word}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: selectedCandidates.has(word) ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-primary)',
+                          border: `1px solid ${selectedCandidates.has(word) ? 'var(--primary-color, #3b82f6)' : 'var(--border-color)'}`,
+                          borderRadius: '4px',
+                          padding: '2px 6px',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCandidates.has(word)}
+                          onChange={(e) => {
+                            const next = new Set(selectedCandidates);
+                            if (e.target.checked) next.add(word);
+                            else next.delete(word);
+                            setSelectedCandidates(next);
+                          }}
+                        />
+                        <span>{word}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Scope Selector Tabs */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                <button
+                  type="button"
+                  className={dictScope === 'workspace' ? 'btn-primary' : 'btn-secondary'}
+                  style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                  onClick={() => setDictScope('workspace')}
+                >
+                  Workspace Dictionary ({workspaceWords.length})
+                </button>
+                <button
+                  type="button"
+                  className={dictScope === 'global' ? 'btn-primary' : 'btn-secondary'}
+                  style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                  onClick={() => setDictScope('global')}
+                >
+                  Global Account Dictionary ({globalWords.length})
+                </button>
+              </div>
+
+              {/* Add New Word Input */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                <input
+                  type="text"
+                  placeholder="Add word(s) (separate with commas or spaces)..."
+                  value={newWordsInput}
+                  onChange={(e) => setNewWordsInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddWords();
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleAddWords}
+                  disabled={!newWordsInput.trim()}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                >
+                  <Plus size={14} /> Add to {dictScope === 'workspace' ? 'Workspace' : 'Global'}
+                </button>
+              </div>
+
+              {/* Word List Search & Pills */}
+              <div style={{ background: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border-color)', padding: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                  <Search size={14} style={{ color: 'var(--text-secondary)' }} />
+                  <input
+                    type="text"
+                    placeholder={`Filter ${(dictScope === 'workspace' ? workspaceWords : globalWords).length} words...`}
+                    value={dictFilter}
+                    onChange={(e) => setDictFilter(e.target.value)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      fontSize: '0.8rem',
+                      width: '100%',
+                      color: 'var(--text-primary)'
+                    }}
+                  />
+                  {dictFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setDictFilter('')}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 0 }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
+                  {(() => {
+                    const activeWords = dictScope === 'workspace' ? workspaceWords : globalWords;
+                    const filteredWords = activeWords.filter(w => !dictFilter.trim() || w.toLowerCase().includes(dictFilter.trim().toLowerCase()));
+                    if (filteredWords.length === 0) {
+                      return (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '4px' }}>
+                          {activeWords.length === 0 ? `No words in ${dictScope} dictionary yet.` : 'No matching words found.'}
+                        </span>
+                      );
+                    }
+                    return filteredWords.map((word) => (
+                      <span
+                        key={word}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '4px',
+                          padding: '2px 8px',
+                          fontSize: '0.8rem'
+                        }}
+                      >
+                        {word}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveWord(word)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            color: 'var(--text-secondary)'
+                          }}
+                          title={`Remove "${word}"`}
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ));
+                  })()}
+                </div>
+              </div>
             </div>
 
             {/* Hosted & Auth Settings */}
