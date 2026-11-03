@@ -43,6 +43,7 @@ jobs:
             cd marginalia
             echo "--> Pulling latest changes and inspecting delta..."
             PREV_REV=$(git rev-parse HEAD 2>/dev/null || echo "")
+            git checkout -- Caddyfile 2>/dev/null || true
             git pull origin main
             git submodule sync
             git submodule update --init --recursive
