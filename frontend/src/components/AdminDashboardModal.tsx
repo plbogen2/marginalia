@@ -110,6 +110,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ onClos
             <div style={{ padding: '24px', textAlign: 'center', color: '#f85149' }}>
               <ShieldAlert size={40} style={{ margin: '0 auto 12px' }} />
               <p style={{ fontWeight: 600 }}>{error}</p>
+              <button 
+                className="btn btn-secondary" 
+                onClick={fetchMetrics} 
+                style={{ marginTop: '14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                disabled={loading}
+              >
+                <RefreshCw size={14} className={loading ? 'spinning' : ''} />
+                <span>Retry</span>
+              </button>
             </div>
           </div>
         ) : loading && !metrics ? (
