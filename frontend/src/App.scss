@@ -2039,32 +2039,46 @@ kbd {
 
 /* CodeMirror Autocomplete / Glossary Suggestions */
 .cm-tooltip-autocomplete {
-  background-color: var(--bg-secondary) !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
-  font-family: inherit !important;
+  background-color: $bg-panel !important;
+  border: 1px solid $border-color !important;
+  border-radius: $radius-lg !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55) !important;
+  color: $text-color !important;
+  font-family: $font-sans !important;
   font-size: 13px !important;
-  max-width: 450px !important;
-  overflow: hidden !important;
+  max-width: 520px !important;
+  overflow: visible !important;
+  z-index: 1000 !important;
 
-  ul {
+  & > ul {
+    background-color: $bg-panel !important;
+    border-radius: $radius-lg !important;
     max-height: 220px !important;
     padding: 4px 0 !important;
     margin: 0 !important;
+    list-style: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
 
-    li {
-      padding: 4px 10px !important;
+    & > li {
+      padding: 5px 10px !important;
       display: flex !important;
       align-items: center !important;
       gap: 8px !important;
       cursor: pointer !important;
-      color: var(--text-primary) !important;
+      color: $text-color !important;
       line-height: 1.4 !important;
+      white-space: nowrap !important;
 
       &[aria-selected="true"] {
-        background-color: var(--primary-color, #3b82f6) !important;
-        color: #ffffff !important;
+        background-color: $accent-color !important;
+        color: $text-light !important;
+
+        .cm-completionMatchedText {
+          color: $text-light !important;
+          text-decoration: underline !important;
+          font-weight: 700 !important;
+        }
 
         .cm-completionDetail {
           color: rgba(255, 255, 255, 0.85) !important;
@@ -2073,21 +2087,32 @@ kbd {
     }
   }
 
+  .cm-completionIcon {
+    flex-shrink: 0 !important;
+  }
+
   .cm-completionLabel {
     font-weight: 600 !important;
+    color: inherit !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    min-width: 0 !important;
   }
 
   .cm-completionMatchedText {
     text-decoration: underline !important;
-    color: var(--primary-color, #3b82f6) !important;
+    color: $branch-blue !important;
+    font-weight: 700 !important;
   }
 
   .cm-completionDetail {
     font-style: normal !important;
     font-size: 11px !important;
-    color: var(--text-secondary) !important;
+    color: $text-muted !important;
     margin-left: auto !important;
-    max-width: 220px !important;
+    flex-shrink: 0 !important;
+    max-width: 190px !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
@@ -2095,16 +2120,19 @@ kbd {
 }
 
 .cm-tooltip.cm-completionInfo {
-  background-color: var(--bg-secondary) !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
-  color: var(--text-primary) !important;
+  background-color: $bg-panel !important;
+  border: 1px solid $border-color !important;
+  border-radius: $radius-lg !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55) !important;
+  color: $text-color !important;
   padding: 8px 12px !important;
+  font-family: $font-sans !important;
   font-size: 12px !important;
-  max-width: 300px !important;
+  max-width: 320px !important;
   white-space: pre-wrap !important;
-  line-height: 1.4 !important;
+  word-break: break-word !important;
+  line-height: 1.45 !important;
+  z-index: 1001 !important;
 }
 
 /* AI Editor Panel Styles */
