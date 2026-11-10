@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.13.1 (November 2026)
+- fix: decouple VFS_SECRET from SESSION_SECRET and harden secret persistence
+
 ## v1.13.0 (November 2026)
 - feat: decouple frontend and backend containers for zero-downtime deploy and tie glossary to gh repo
 
