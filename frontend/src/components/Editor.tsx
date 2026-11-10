@@ -133,16 +133,27 @@ export const Editor: React.FC<EditorProps> = ({
       if (!word || (word.from === word.to && !context.explicit)) {
         return null;
       }
-      const query = word.text.toLowerCase();
-      if (query.length < 2 && !context.explicit) {
+      const rawQuery = word.text;
+      const query = rawQuery.toLowerCase();
+
+      // Only trigger autocomplete automatically if:
+      // 1. Explicitly triggered (e.g. Ctrl+Space)
+      // 2. Or the typed word starts with an uppercase letter and has at least 2 chars (e.g. "Ti", "Bes")
+      // 3. Or the typed lowercase word has at least 3 chars (prevents triggering on "th", "in", "an", "on", "to", "he")
+      const isCapitalized = /^\p{Lu}/u.test(rawQuery);
+      const minLength = isCapitalized ? 2 : 3;
+      if (!context.explicit && query.length < minLength) {
         return null;
       }
 
-      const matches = glossaryTerms.filter(item =>
-        item.normalized.startsWith(query) ||
-        item.normalized.includes(query) ||
-        item.term.toLowerCase().startsWith(query)
-      ).slice(0, 25);
+      // Match terms where either the term starts with query or an individual word in the term starts with query.
+      // Avoid arbitrary substring matching (which matches "th" in "Foothill" or "Southern").
+      const matches = glossaryTerms.filter(item => {
+        const norm = item.normalized;
+        if (norm.startsWith(query)) return true;
+        const tokens = norm.split(/[\s'-]+/);
+        return tokens.some(t => t.startsWith(query));
+      }).slice(0, 20);
 
       if (matches.length === 0) return null;
 

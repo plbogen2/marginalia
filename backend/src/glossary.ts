@@ -184,12 +184,30 @@ export function extractGlossaryTerms(content: string, relativePath: string): { t
   const seenTerms = new Set<string>();
 
   const addTerm = (rawTerm: string, rawDef?: string, category = 'Term') => {
-    const cleanTerm = rawTerm
+    let cleanTerm = rawTerm
       .replace(/^[`*_'"]+|[`*_'"]+$/g, '')
       .replace(/:\s*$/, '')
       .trim();
 
+    // 1. Strip leading list / outline numbering (e.g. "1. ", "10. ", "13) ")
+    cleanTerm = cleanTerm.replace(/^\d+[\.)]\s+/, '').trim();
+    // 2. Strip surrounding quotes / backticks / asterisks / underscores
+    cleanTerm = cleanTerm.replace(/^[`*_'"]+|[`*_'"]+$/g, '').trim();
+
     if (!cleanTerm || cleanTerm.length < 2) return;
+
+    // 3. Length & word count caps: in-world vocabulary/names are concise terms,
+    // not entire paragraphs, complex headings, or sentences.
+    if (cleanTerm.length > 40) return;
+    const wordsInTerm = cleanTerm.split(/\s+/);
+    if (wordsInTerm.length > 5) return;
+
+    // 4. Reject terms with markdown formatting, LaTeX formulas, or code syntax
+    if (/[\*`\$_{}\\]/.test(cleanTerm)) return;
+
+    // 5. Reject sentences or clauses with punctuation
+    if (/[\.\?!;]/.test(cleanTerm)) return;
+
     const normalized = cleanTerm.toLowerCase();
     if (seenTerms.has(normalized)) return;
     seenTerms.add(normalized);
@@ -243,23 +261,68 @@ export function extractGlossaryTerms(content: string, relativePath: string): { t
     // 2. Markdown Headings (e.g. "### Piotr / Piotr Euria" or "### Tibon Sen-Koldo")
     const headingMatch = line.match(/^#{1,6}\s+(.+)$/);
     if (headingMatch) {
-      const headingText = headingMatch[1].trim();
+      let headingText = headingMatch[1].trim();
+
+      // Strip leading outline numbering e.g. "1. ", "10. "
+      headingText = headingText.replace(/^\d+[\.)]\s+/, '').trim();
+
+      // If heading contains markdown bold annotations like "**Subtitle**", extract as definition hint
+      let headingDef: string | undefined;
+      const boldAnnotationMatch = headingText.match(/^(.*?)\s+(\*\*.*?\*\*)$/);
+      if (boldAnnotationMatch) {
+        headingText = boldAnnotationMatch[1].trim();
+        headingDef = boldAnnotationMatch[2].replace(/\*\*/g, '').trim();
+      }
+
+      // If heading has parenthetical info: "Term (Details or Alias)"
+      const parenMatch = headingText.match(/^(.*?)\s*\(([^)]+)\)(.*)$/);
+      if (parenMatch) {
+        const primary = parenMatch[1].trim();
+        const parenContent = parenMatch[2].trim();
+        const remainder = (parenMatch[3] || '').trim();
+        const cleanAlias = parenContent.replace(/^[*_']+|[*_']+$/g, '').trim();
+
+        if (primary && primary.split(/\s+/).length <= 5) {
+          addTerm(primary, headingDef || (remainder ? `${parenContent} ${remainder}` : parenContent), 'Heading');
+        }
+        if (
+          cleanAlias &&
+          cleanAlias.length <= 30 &&
+          cleanAlias.split(/\s+/).length <= 4 &&
+          !/[\$*`_{}\\]/.test(cleanAlias) &&
+          !/^\d+/.test(cleanAlias)
+        ) {
+          addTerm(cleanAlias, primary, 'Alias');
+        }
+        continue;
+      }
+
+      // If heading has colon or em-dash separating title from subtitle: "Term: Subtitle"
+      const colonMatch = headingText.match(/^(.*?)\s*[:—\-]\s+(.+)$/);
+      if (colonMatch) {
+        const potentialTerm = colonMatch[1].trim();
+        const potentialDef = colonMatch[2].trim();
+        if (potentialTerm.split(/\s+/).length <= 4) {
+          headingText = potentialTerm;
+          headingDef = headingDef ? `${potentialDef} (${headingDef})` : potentialDef;
+        }
+      }
+
       // If heading has slash, e.g. "Piotr / Piotr Euria"
       if (headingText.includes('/')) {
         const parts = headingText.split('/').map(p => p.trim());
         for (const p of parts) {
-          addTerm(p, undefined, 'Heading');
+          addTerm(p, headingDef, 'Heading');
         }
       } else {
-        // Look ahead for next non-empty line as definition
-        let nextDef: string | undefined;
-        if (i + 1 < lines.length) {
+        // Look ahead for next non-empty line as definition if none found in heading
+        if (!headingDef && i + 1 < lines.length) {
           const nextLine = lines[i + 1].trim();
-          if (nextLine && !nextLine.startsWith('#')) {
-            nextDef = nextLine.replace(/^[-*+]\s+/, '');
+          if (nextLine && !nextLine.startsWith('#') && !nextLine.startsWith('|')) {
+            headingDef = nextLine.replace(/^[-*+]\s+/, '');
           }
         }
-        addTerm(headingText, nextDef, 'Heading');
+        addTerm(headingText, headingDef, 'Heading');
       }
       continue;
     }
@@ -274,8 +337,8 @@ export function extractGlossaryTerms(content: string, relativePath: string): { t
     }
 
     // 4. Key-Value definition: "Term: Definition"
-    const kvMatch = line.match(/^([A-Z\u00C0-\u024F][a-zA-Z\u00C0-\u024F\s'-]{1,50}?)\s*:\s+(.+)$/);
-    if (kvMatch && !kvMatch[1].toLowerCase().startsWith('http')) {
+    const kvMatch = line.match(/^([A-Z\u00C0-\u024F][a-zA-Z\u00C0-\u024F\s'-]{1,35}?)\s*:\s+(.+)$/);
+    if (kvMatch && !kvMatch[1].toLowerCase().startsWith('http') && kvMatch[1].split(/\s+/).length <= 4) {
       addTerm(kvMatch[1], kvMatch[2], 'Definition');
       continue;
     }

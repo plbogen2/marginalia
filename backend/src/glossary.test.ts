@@ -72,6 +72,38 @@ Rule of the Counter-Roll: Hydraulic proof governing municipal pressure.
     assert.ok(words.has('beseliac'));
     assert.ok(words.has('cauldrons'));
   });
+
+  await t.test('extractGlossaryTerms strips numbering, bold annotations, and filters out sentence headings', () => {
+    const markdown = `
+# Timeline & Lore
+
+### 1. Mythic Era: The Cult of Lur & Mari **Cosmogenesis and the Primeval Pantheon**
+Ancient primordial era.
+
+### 10. The Second Great Rite & The Founding of the Magisterium
+A very long heading that describes the entire historical event across ten sentences.
+
+### 1. The Sun (*Eguski*) The great diurnal sphere of the world.
+
+### The Great Valley of Jendefar ($150\\text{ Million tons}$)
+The fertile basin.
+    `;
+
+    const { terms } = extractGlossaryTerms(markdown, 'lore/timeline.md');
+
+    // Should extract clean terms
+    assert.ok(terms.some(t => t.term === 'Mythic Era'));
+    assert.ok(terms.some(t => t.term === 'The Sun'));
+    assert.ok(terms.some(t => t.term === 'Eguski'));
+    assert.ok(terms.some(t => t.term === 'The Great Valley of Jendefar'));
+
+    // Should NOT extract whole sentences, numbered lines, bold asterisks, or LaTeX formulas as terms
+    assert.ok(!terms.some(t => t.term.includes('**')));
+    assert.ok(!terms.some(t => t.term.includes('\\text')));
+    assert.ok(!terms.some(t => t.term.startsWith('1. ')));
+    assert.ok(!terms.some(t => t.term.startsWith('10. ')));
+    assert.ok(!terms.some(t => t.term === '10. The Second Great Rite & The Founding of the Magisterium'));
+  });
 });
 
 test('Glossary Configuration and Workspace Resolution', async (t) => {
