@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import crypto from 'crypto';
 import { db } from '../db.js';
-import { verifySessionToken } from '../utils/auth.js';
+import { verifySessionToken, getSessionSecret, deriveVfsSecret } from '../utils/auth.js';
 import { mountUserVfs } from '../utils/vfs.js';
 
 export interface AuthenticatedRequest extends Request {
@@ -84,7 +83,7 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
     return res.status(401).json({ error: 'Unauthorized: Session missing' });
   }
 
-  const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
+  const secret = getSessionSecret();
   const sessionData = verifySessionToken(sessionToken, secret);
   if (!sessionData) {
     if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
@@ -95,11 +94,15 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
 
   req.user = sessionData.username;
   if (req.user) {
-    const vfsSecret = crypto.createHash('sha256').update(`${req.user}:${secret}`).digest('hex');
+    const vfsSecret = deriveVfsSecret(req.user);
     try {
       await mountUserVfs(req.user, vfsSecret);
     } catch (err) {
-      console.warn(`Failed to auto-mount VFS for ${req.user}:`, err);
+      console.error(`Failed to auto-mount VFS for ${req.user}:`, err);
+      if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
+        return next();
+      }
+      return res.status(503).json({ error: 'Workspace storage unavailable: failed to mount encrypted VFS' });
     }
   }
 

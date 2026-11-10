@@ -12,7 +12,7 @@ on:
 
 concurrency:
   group: deploy-to-oracle-vm
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -51,15 +51,56 @@ jobs:
             cp scripts/setup_vm.sh $HOME/setup_vm.sh 2>/dev/null && chmod +x $HOME/setup_vm.sh || true
             
             echo "--> Updating environment configuration..."
+            SECRETS_FILE="/etc/marginalia/secrets.env"
+            ENC_DIR="/var/lib/docker/volumes/marginalia_marginalia_data/_data/encrypted_storage"
             SESSION_SECRET=""
-            if [ -f ".env" ]; then
-              SESSION_SECRET=$(grep '^SESSION_SECRET=' .env | cut -d '=' -f2-)
+            VFS_SECRET=""
+
+            if sudo test -f "$SECRETS_FILE"; then
+              SESSION_SECRET=$(sudo grep '^SESSION_SECRET=' "$SECRETS_FILE" | tail -n 1 | cut -d '=' -f2- || true)
+              VFS_SECRET=$(sudo grep '^VFS_SECRET=' "$SECRETS_FILE" | tail -n 1 | cut -d '=' -f2- || true)
             fi
-            if [ -z "$SESSION_SECRET" ]; then
-              SESSION_SECRET=$(openssl rand -hex 24)
+            if [ -z "$SESSION_SECRET" ] && [ -f ".env" ]; then
+              SESSION_SECRET=$(grep '^SESSION_SECRET=' .env | tail -n 1 | cut -d '=' -f2- || true)
+            fi
+            if [ -z "$VFS_SECRET" ] && [ -f ".env" ]; then
+              VFS_SECRET=$(grep '^VFS_SECRET=' .env | tail -n 1 | cut -d '=' -f2- || true)
             fi
 
-            printf "PORT=3000\nSESSION_SECRET=%s\nGEMINI_API_KEY=%s\nGITHUB_CLIENT_ID=%s\nGITHUB_CLIENT_SECRET=%s\nALLOWED_USER=%s\nPARLANDO_URL=http://parlando:8765\n" "$SESSION_SECRET" "$GEMINI_API_KEY" "$GH_CLIENT_ID" "$GH_CLIENT_SECRET" "$ALLOWED_USER" > .env
+            HAS_ENC_STORAGE=false
+            if sudo test -d "$ENC_DIR" && [ -n "$(sudo ls -A "$ENC_DIR" 2>/dev/null || true)" ]; then
+              HAS_ENC_STORAGE=true
+            fi
+
+            if [ "$HAS_ENC_STORAGE" = true ]; then
+              if [ -z "$VFS_SECRET" ] && [ -n "$SESSION_SECRET" ]; then
+                VFS_SECRET="$SESSION_SECRET"
+              fi
+              if [ -z "$SESSION_SECRET" ] || [ -z "$VFS_SECRET" ]; then
+                echo "FATAL: Encrypted VFS storage exists in $ENC_DIR but SESSION_SECRET or VFS_SECRET is missing from $SECRETS_FILE and .env. Refusing to generate mismatched random secrets."
+                exit 1
+              fi
+            else
+              if [ -z "$SESSION_SECRET" ]; then
+                SESSION_SECRET=$(openssl rand -hex 24)
+              fi
+              if [ -z "$VFS_SECRET" ]; then
+                VFS_SECRET=$(openssl rand -hex 24)
+              fi
+            fi
+
+            sudo mkdir -p /etc/marginalia
+            sudo chown "$(id -u):$(id -g)" /etc/marginalia
+            chmod 700 /etc/marginalia
+            TMP_SECRETS=$(mktemp /etc/marginalia/secrets.env.tmp.XXXXXX)
+            printf "SESSION_SECRET=%s\nVFS_SECRET=%s\n" "$SESSION_SECRET" "$VFS_SECRET" > "$TMP_SECRETS"
+            chmod 600 "$TMP_SECRETS"
+            mv "$TMP_SECRETS" "$SECRETS_FILE"
+
+            TMP_ENV=$(mktemp .env.tmp.XXXXXX)
+            printf "PORT=3000\nSESSION_SECRET=%s\nVFS_SECRET=%s\nGEMINI_API_KEY=%s\nGITHUB_CLIENT_ID=%s\nGITHUB_CLIENT_SECRET=%s\nALLOWED_USER=%s\nPARLANDO_URL=http://parlando:8765\n" "$SESSION_SECRET" "$VFS_SECRET" "$GEMINI_API_KEY" "$GH_CLIENT_ID" "$GH_CLIENT_SECRET" "$ALLOWED_USER" > "$TMP_ENV"
+            chmod 600 "$TMP_ENV"
+            mv "$TMP_ENV" .env
 
             echo "--> Ensuring cloudtop SSH public key is authorized..."
             PUB_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFOHI2B0C27WzCvcJyWRfERauJNAAUr15rE1E7jAqBzb plbogen-jetski"

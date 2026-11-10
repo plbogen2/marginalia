@@ -1,7 +1,6 @@
 import { Router, Response } from 'express';
-import crypto from 'crypto';
 import { db } from '../db.js';
-import { verifySessionToken, createSessionToken } from '../utils/auth.js';
+import { verifySessionToken, createSessionToken, getSessionSecret, deriveVfsSecret } from '../utils/auth.js';
 import { mountUserVfs, unmountUserVfs } from '../utils/vfs.js';
 import {
   AuthenticatedRequest,
@@ -42,7 +41,7 @@ authRouter.get('/api/auth/github/callback', async (req: AuthenticatedRequest, re
   const clientId = getGitHubClientId();
   const clientSecret = getGitHubClientSecret();
   const allowed = getAllowedUser();
-  const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
+  const secret = getSessionSecret();
 
   try {
     let githubUser = '';
@@ -109,7 +108,7 @@ authRouter.get('/api/auth/github/callback', async (req: AuthenticatedRequest, re
       }
     }
 
-    const vfsSecret = crypto.createHash('sha256').update(`${githubUser}:${secret}`).digest('hex');
+    const vfsSecret = deriveVfsSecret(githubUser);
     await mountUserVfs(githubUser, vfsSecret);
 
     const sessionToken = createSessionToken(githubUser, secret, accessToken);
@@ -141,7 +140,7 @@ authRouter.get('/api/auth/status', (req: AuthenticatedRequest, res: Response) =>
     return res.json({ loggedIn: false, user: null, isOAuthMode: true, isAdmin: false });
   }
 
-  const secret = process.env.SESSION_SECRET || 'marginalia_default_cookie_session_secret_xyz_123';
+  const secret = getSessionSecret();
   const sessionData = verifySessionToken(sessionToken, secret);
   if (!sessionData) {
     return res.json({ loggedIn: false, user: null, isOAuthMode: true, isAdmin: false });

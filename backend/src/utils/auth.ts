@@ -1,8 +1,22 @@
 import crypto from 'crypto';
 
+export const DEFAULT_AUTH_SECRET = 'marginalia_default_cookie_session_secret_xyz_123';
+
 export interface SessionData {
   username: string;
   accessToken?: string;
+}
+
+export function getSessionSecret(): string {
+  return process.env.SESSION_SECRET || DEFAULT_AUTH_SECRET;
+}
+
+export function getVfsMasterSecret(): string {
+  return process.env.VFS_SECRET || process.env.SESSION_SECRET || DEFAULT_AUTH_SECRET;
+}
+
+export function deriveVfsSecret(username: string): string {
+  return crypto.createHash('sha256').update(`${username}:${getVfsMasterSecret()}`).digest('hex');
 }
 
 export function createSessionToken(username: string, secret: string, accessToken?: string): string {

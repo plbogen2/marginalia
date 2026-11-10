@@ -33,3 +33,28 @@ if [ -f "$DB_FILE" ]; then
 else
   echo "--> Database $DB_FILE not found, skipping."
 fi
+
+# Snapshot gocryptfs.conf headers and persisted secrets
+ENC_BASE="/var/lib/docker/volumes/marginalia_marginalia_data/_data/encrypted_storage"
+if [ ! -d "$ENC_BASE" ]; then
+  ENC_BASE="/root/.marginalia/encrypted_storage"
+fi
+if [ -d "$ENC_BASE" ]; then
+  for conf in "$ENC_BASE"/*/gocryptfs.conf; do
+    if [ -f "$conf" ]; then
+      USER_DIR=$(basename "$(dirname "$conf")")
+      CONF_BACKUP="$BACKUP_DIR/gocryptfs_${TIMESTAMP}_${USER_DIR}.conf"
+      cp -p "$conf" "$CONF_BACKUP"
+      chmod 600 "$CONF_BACKUP"
+    fi
+  done
+  find "$BACKUP_DIR" -name "gocryptfs_*.conf" -type f -mtime +7 -delete 2>/dev/null || true
+fi
+
+SECRETS_FILE="/etc/marginalia/secrets.env"
+if [ -f "$SECRETS_FILE" ]; then
+  SECRETS_BACKUP="$BACKUP_DIR/secrets_${TIMESTAMP}.env"
+  cp -p "$SECRETS_FILE" "$SECRETS_BACKUP"
+  chmod 600 "$SECRETS_BACKUP"
+  find "$BACKUP_DIR" -name "secrets_*.env" -type f -mtime +7 -delete 2>/dev/null || true
+fi

@@ -116,19 +116,41 @@ else
 fi
 
 # 5. Setup environment configurations
+SECRETS_FILE="/etc/marginalia/secrets.env"
+SECRETS_OWNER="${SUDO_USER:-$(id -un)}"
+sudo mkdir -p /etc/marginalia
+sudo chown "$SECRETS_OWNER:$SECRETS_OWNER" /etc/marginalia
+sudo chmod 700 /etc/marginalia
+
+if sudo test -f "$SECRETS_FILE"; then
+  SESSION_SECRET=$(sudo grep '^SESSION_SECRET=' "$SECRETS_FILE" | tail -n 1 | cut -d '=' -f2- || true)
+  VFS_SECRET=$(sudo grep '^VFS_SECRET=' "$SECRETS_FILE" | tail -n 1 | cut -d '=' -f2- || true)
+fi
+
 if [ ! -f ".env" ]; then
   echo "--> Creating .env file..."
-  SECRET=$(openssl rand -hex 24)
-  cat <<EOT > .env
+  SESSION_SECRET=${SESSION_SECRET:-$(openssl rand -hex 24)}
+  VFS_SECRET=${VFS_SECRET:-$(openssl rand -hex 24)}
+
+  TMP_SECRETS=$(mktemp /etc/marginalia/secrets.env.tmp.XXXXXX)
+  printf "SESSION_SECRET=%s\nVFS_SECRET=%s\n" "$SESSION_SECRET" "$VFS_SECRET" > "$TMP_SECRETS"
+  chmod 600 "$TMP_SECRETS"
+  mv "$TMP_SECRETS" "$SECRETS_FILE"
+
+  TMP_ENV=$(mktemp .env.tmp.XXXXXX)
+  cat <<EOT > "$TMP_ENV"
 PORT=3000
-SESSION_SECRET=$SECRET
+SESSION_SECRET=$SESSION_SECRET
+VFS_SECRET=$VFS_SECRET
 GEMINI_API_KEY=
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 ALLOWED_USER=
 PARLANDO_URL=http://parlando:8765
 EOT
-  echo ".env file created with secure session secrets."
+  chmod 600 "$TMP_ENV"
+  mv "$TMP_ENV" .env
+  echo ".env file created with secure session and VFS secrets."
 fi
 
 # 5.5. Configure automated maintenance cron jobs
