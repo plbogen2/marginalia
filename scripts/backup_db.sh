@@ -44,8 +44,7 @@ if [ -d "$ENC_BASE" ]; then
     if [ -f "$conf" ]; then
       USER_DIR=$(basename "$(dirname "$conf")")
       CONF_BACKUP="$BACKUP_DIR/gocryptfs_${TIMESTAMP}_${USER_DIR}.conf"
-      cp -p "$conf" "$CONF_BACKUP"
-      chmod 600 "$CONF_BACKUP"
+      install -m 600 "$conf" "$CONF_BACKUP"
     fi
   done
   find "$BACKUP_DIR" -name "gocryptfs_*.conf" -type f -mtime +7 -delete 2>/dev/null || true
@@ -54,7 +53,6 @@ fi
 SECRETS_FILE="/etc/marginalia/secrets.env"
 if [ -f "$SECRETS_FILE" ]; then
   SECRETS_BACKUP="$BACKUP_DIR/secrets_${TIMESTAMP}.env"
-  cp -p "$SECRETS_FILE" "$SECRETS_BACKUP"
-  chmod 600 "$SECRETS_BACKUP"
+  install -m 600 "$SECRETS_FILE" "$SECRETS_BACKUP"
   find "$BACKUP_DIR" -name "secrets_*.env" -type f -mtime +7 -delete 2>/dev/null || true
 fi
